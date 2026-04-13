@@ -29,6 +29,7 @@ class QuizSubmission(BaseModel):
     topic: str
     student_answers: list
     correct_answers: list
+    # score: float
 
 # -------- Routes --------
 
@@ -39,33 +40,70 @@ def home():
 
 @app.get("/start-learning/")
 def start_learning(topic: str):
-    level = "beginner"
 
-    content = generate_content(topic, level)
-    quiz = generate_quiz(topic, level)
+    print("\n🚀 [DEBUG] start_learning() CALLED")
+    print(f"📌 Topic received: {topic}")
 
-    return {
+    level = "Beginner"
+    print(f"🎯 Level set to: {level}")
+
+    # STEP 1: CONTENT GENERATION
+    print("\n📖 [DEBUG] Generating content...")
+    try:
+        content = generate_content(topic, level)
+        print("\n✅ [DEBUG] Content generated successfully")
+        print("🧾 Content preview:\n", str(content)[:500])
+    except Exception as e:
+        print("\n❌ [DEBUG] Content generation FAILED:", str(e))
+        content = None
+
+    # STEP 2: QUIZ GENERATION
+    print("\n🧠 [DEBUG] Generating quiz...")
+    try:
+        quiz = generate_quiz(topic, level)
+        print("\n✅ [DEBUG] Quiz generated successfully")
+        print("🧾 Quiz output:\n", quiz)
+    except Exception as e:
+        print("\n❌ [DEBUG] Quiz generation FAILED:", str(e))
+        quiz = None
+
+    # FINAL OUTPUT
+    result = {
+        "topic": topic,
         "level": level,
         "content": content,
         "quiz": quiz
     }
 
+    print("\n🎉 [DEBUG] FINAL OUTPUT READY")
+    print(result)
+
+    return result
 
 @app.post("/submit-quiz/")
 def submit_quiz(data: QuizSubmission):
-    score = evaluate_answers(
+
+    result = evaluate_answers(
         data.student_answers,
         data.correct_answers
     )
 
-    decision = decide_next_step(score)
-    level = get_level(score)
+    score = result["score"]
+    level = result["level"]
+
+    # ADAPTIVE DECISION
+    if score >= 8:
+        decision = "UNLOCK_NEXT_TOPIC"
+    elif score >= 5:
+        decision = "CONTINUE"
+    else:
+        decision = "REPEAT"
 
     next_content = generate_content(data.topic, level)
 
     return {
         "score": score,
+        "level": level,
         "decision": decision,
-        "next_level": level,
         "next_content": next_content
     }
