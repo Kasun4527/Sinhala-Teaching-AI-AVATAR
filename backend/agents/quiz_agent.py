@@ -5,15 +5,16 @@ from services.llm import get_llm
 from knowledge_base.retriever import get_retriever
 
 
+# =========================
+# JSON SAFE PARSER
+# =========================
 def extract_json(text):
     """
     Safely extract JSON even if LLM adds extra text
     """
     try:
-        # remove markdown code blocks if exist
         text = text.replace("```json", "").replace("```", "").strip()
 
-        # extract first JSON block
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
             return json.loads(match.group())
@@ -21,42 +22,65 @@ def extract_json(text):
         return json.loads(text)
 
     except Exception as e:
-        print("JSON parsing failed:", e)
-        return {
-            "questions": []
-        }
+        print("❌ JSON parsing failed:", e)
+        return {"questions": []}
 
 
-def generate_quiz(topic, level):
+# =========================
+# QUIZ GENERATOR (PRE / POST)
+# =========================
+def generate_quiz(subject, lesson, topic, level, quiz_type):
 
-    print("\n🚀 [DEBUG] generate_quiz STARTED")
+    print("\n🚀 [DEBUG] Quiz Generation Started")
     print(f"📌 Topic: {topic}")
     print(f"📊 Level: {level}")
+    print(f"🧠 Type: {quiz_type}")
 
     llm = get_llm()
     retriever = get_retriever()
 
-    # STEP 1: TEST RETRIEVER
+    # STEP 1: Retrieve context
     docs = retriever.invoke(topic)
-
-    print("\n📚 [DEBUG] Retrieved Docs Count:", len(docs))
-
     context = "\n".join([doc.page_content for doc in docs])
 
-    print("\n🧾 [DEBUG] Context Preview:\n", context[:1000])  # first 1000 chars only
+    print("\n📚 Retrieved Docs:", len(docs))
 
-    # STEP 2: PROMPT
+    # STEP 2: Define difficulty instruction
+    if quiz_type == "pre":
+        instruction = """
+You are creating a PRE-LEARNING diagnostic quiz.
+Focus on basic understanding and conceptual awareness.
+"""
+    else:
+        instruction = """
+You are creating a POST-LEARNING evaluation quiz.
+Focus on application-based and slightly harder conceptual questions.
+"""
+
+    # STEP 3: Prompt
     prompt = PromptTemplate(
-        input_variables=["topic", "level", "context"],
-        template="""
-You are an expert teacher AI.
+    input_variables=["subject", "lesson", "topic", "level", "quiz_type", "context"],
+    template="""
+You are an expert {subject} teacher.
+
+Lesson: {lesson}
+Topic: {topic}
+Student Level: {level}
+Quiz Type: {quiz_type}
 
 Context:
 {context}
 
-Create 3 MCQs for "{topic}" (Level: {level})
+INSTRUCTIONS:
 
-STRICT OUTPUT RULE:
+If quiz_type = "pre":
+- Generate basic questions to assess prior knowledge
+- Keep difficulty EASY
+
+If quiz_type = "post":
+- Generate conceptual and application-based questions
+- Match difficulty with {level}
+
 Return ONLY valid JSON:
 
 {{
@@ -70,38 +94,41 @@ Return ONLY valid JSON:
 }}
 
 Rules:
-- exactly 3 questions
+- Exactly 3 questions
 - 4 options each
-- answer must be A/B/C/D
-- NO explanations
-- NO extra text
+- No explanations
 """
-    )
+)
 
     chain = prompt | llm
 
-    print("\n🤖 [DEBUG] Calling LLM...")
-
+    # STEP 4: LLM Call
     response = chain.invoke({
-        "topic": topic,
-        "level": level,
-        "context": context
-    })
+    "subject": subject,
+    "lesson": lesson,
+    "topic": topic,
+    "level": level,
+    "quiz_type": quiz_type,   # ✅ ADD THIS
+    "context": context,
+    "instruction": instruction
+})
 
-    # STEP 3: RAW OUTPUT
-    print("\n📩 [DEBUG] RAW LLM RESPONSE:\n")
-    print(response.content)
+    print("\n🤖 RAW RESPONSE:\n", response.content)
 
-    # STEP 4: PARSED OUTPUT
-    try:
-        result = extract_json(response.content)
-        print("\n✅ [DEBUG] Parsed JSON SUCCESS")
-        return result
+    # STEP 5: Parse JSON
+    result = extract_json(response.content)
 
-    except Exception as e:
-        print("\n❌ [DEBUG] JSON PARSING FAILED:", str(e))
-        return response.content
+    if "questions" not in result:
+        print("⚠️ Invalid quiz format, returning empty quiz")
+        return {"questions": []}
 
+    print("✅ Quiz generated successfully")
+    return result
+
+
+# =========================
+# EVALUATION LOGIC
+# =========================
 def evaluate_answers(student_answers, correct_answers):
 
     score = 0
@@ -111,8 +138,9 @@ def evaluate_answers(student_answers, correct_answers):
         if s == c:
             score += 1
 
-    percentage = (score / total) * 10
+    percentage = (score / total) * 10  # scale 10
 
+    # LEVEL DECISION
     if percentage >= 8:
         level = "Advanced"
     elif percentage >= 5:

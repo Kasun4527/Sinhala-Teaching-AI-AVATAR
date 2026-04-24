@@ -2,7 +2,7 @@ from langchain_core.prompts import PromptTemplate
 from services.llm import get_llm
 from knowledge_base.retriever import get_retriever
 
-def generate_content(topic, level):
+def generate_content(subject, lesson, topic, level):
 
     llm = get_llm()
     retriever = get_retriever()
@@ -36,25 +36,44 @@ def generate_content(topic, level):
         """
 
     prompt = PromptTemplate(
-        input_variables=["topic", "level", "context", "instruction"],
-        template="""
-        You are an expert adaptive teacher AI.
+    input_variables=["subject", "lesson", "topic", "level", "context"],
+    template="""
+You are an expert {subject} teacher.
 
-        Student Level: {level}
+Lesson: {lesson}
+Topic: {topic}
+Student Level: {level}
 
-        Instruction:
-        {instruction}
+Context:
+{context}
 
-        Use ONLY this knowledge:
-        {context}
+INSTRUCTIONS:
 
-        Teach the topic: {topic}
-        """
-    )
+If level = Beginner:
+- Explain step by step
+- Use simple language
+- Add examples
+
+If level = Intermediate:
+- Give structured explanation
+- Include some theory + examples
+
+If level = Advanced:
+- Focus on concepts, formulas, and deeper understanding
+
+Make the lesson clear and engaging.
+
+DO NOT generate quiz.
+
+Return only lesson content.
+"""
+)
 
     chain = prompt | llm
 
     response = chain.invoke({
+        "subject": subject,
+        "lesson": lesson,
         "topic": topic,
         "level": level,
         "context": context,
