@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { curriculum } from "@/data/curriculum";
+import { useEffect } from "react";
 
 export default function TopicsPage() {
   const params = useSearchParams();
@@ -12,6 +13,14 @@ export default function TopicsPage() {
 
   const subjectData = curriculum.find((s) => s.subject === subject);
   const lessonData = subjectData?.lessons.find((l) => l.name === lesson);
+
+  useEffect(()=> {
+    const token=localStorage.getItem("token");
+    if(!token){
+      router.push("/login");
+      return;
+    }
+  },[]);
 
   if (!lessonData || lessonData.topics.length === 0) {
     return <div className="p-10">No topics available</div>;

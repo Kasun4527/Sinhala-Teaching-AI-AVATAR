@@ -28,6 +28,13 @@ export default function QuizPage() {
   // LOAD QUIZ
   // =========================
   useEffect(() => {
+    
+    const token = localStorage.getItem("token");
+    if(!token){
+      router.push("/login");
+      return;
+    }
+
     if (!subject || !lesson || !topic) {
       // console.log("❌ Missing params:", { subject, lesson, topic });
       setLoading(false);
@@ -71,6 +78,7 @@ export default function QuizPage() {
   const handleSubmit = async () => {
     try {
       const correctAnswers = quiz.questions.map((q) => q.answer);
+      const studentId = localStorage.getItem("student_id");
 
       const payload = {
         subject,
@@ -78,6 +86,7 @@ export default function QuizPage() {
         topic,
         student_answers: answers,
         correct_answers: correctAnswers,
+        student_id: studentId,
       };
 
       let res;

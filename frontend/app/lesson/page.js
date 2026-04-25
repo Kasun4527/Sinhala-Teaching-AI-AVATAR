@@ -16,6 +16,11 @@ export default function LessonPage() {
   const [content, setContent] = useState("");
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    if(!token){
+      router.push("/login");
+      return;
+    }
     if (!topic) return;
 
     getLesson(subject, lesson, topic, level).then((res) => {

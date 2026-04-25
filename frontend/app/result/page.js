@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function ResultPage() {
   const searchParams = useSearchParams();
@@ -19,6 +20,14 @@ export default function ResultPage() {
   const nextTopic = () => {
     router.push(`/topics?subject=${subject}&lesson=${lesson}`);
   };
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if(!token){
+      router.push("/login");
+      return;
+    }
+  },[]);
 
   return (
     <div className="p-10">
