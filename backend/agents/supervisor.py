@@ -24,14 +24,14 @@ class LearningState(TypedDict):
     level: Optional[str]
     content: Optional[str]
     decision: Optional[str]
-    next_agent: Optional[str]   # ✅ orchestrator uses this to route
+    next_agent: Optional[str]  #### orchestrator uses this to route
 
 
 # =========================
 # ORCHESTRATOR NODE
 # =========================
 def orchestrator_node(state: LearningState) -> LearningState:
-    print("\n🎯 [Orchestrator] Analyzing state and deciding next agent...")
+    print("\n🎯 [Orchestrator] Analyzing state and deciding next agent")
 
     quiz_type = state.get("quiz_type")
     score = state.get("score")
