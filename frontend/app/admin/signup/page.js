@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signupUser } from "@/services/api";
 
-export default function SignupPage() {
+export default function AdminSignupPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
@@ -16,8 +16,8 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
     try {
-      await signupUser({ ...form, role: "student" });
-      router.push("/login");
+      await signupUser({ ...form, role: "admin" });
+      router.push("/admin/login");
     } catch (err) {
       setError(err?.response?.data?.detail || "Signup failed");
     } finally {
@@ -45,17 +45,17 @@ export default function SignupPage() {
         </div>
 
         <p style={{ color: "#3b82f6", fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>
-          Join Today
+          Admin Registration
         </p>
         <h1 style={{
           fontFamily: "'Playfair Display', serif",
           fontSize: 38, fontWeight: 700, color: "white",
           lineHeight: 1.2, marginBottom: 16
         }}>
-          Start Learning at Your Own Pace
+          Create Your Admin Account
         </h1>
         <p style={{ color: "#64748b", fontSize: 15, lineHeight: 1.6 }}>
-          Create your account and get access to AI-powered personalized lessons tailored to your level.
+          Register as an administrator to manage students and monitor their learning progress.
         </p>
       </div>
 
@@ -67,14 +67,23 @@ export default function SignupPage() {
       }}>
         <div style={{ width: "100%", maxWidth: 400 }}>
 
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            backgroundColor: "#fef3c7", color: "#92400e",
+            padding: "6px 12px", borderRadius: 20,
+            fontSize: 12, fontWeight: 600, marginBottom: 24
+          }}>
+            👨‍💼 Administrator Registration
+          </div>
+
           <h2 style={{
             fontFamily: "'Playfair Display', serif",
             fontSize: 28, fontWeight: 700, color: "#0f172a", marginBottom: 6
           }}>
-            Create account
+            Create Admin Account
           </h2>
           <p style={{ color: "#94a3b8", fontSize: 14, marginBottom: 32 }}>
-            Register as a student to get started
+            Fill in your details to register
           </p>
 
           {error && (
@@ -89,7 +98,7 @@ export default function SignupPage() {
 
           {[
             { label: "Full Name", name: "name", type: "text", placeholder: "Your full name" },
-            { label: "Email Address", name: "email", type: "email", placeholder: "you@example.com" },
+            { label: "Email Address", name: "email", type: "email", placeholder: "admin@example.com" },
             { label: "Password", name: "password", type: "password", placeholder: "Create a password" },
           ].map((field) => (
             <div key={field.name} style={{ marginBottom: 20 }}>
@@ -117,20 +126,20 @@ export default function SignupPage() {
             disabled={loading}
             style={{
               width: "100%", padding: "13px",
-              backgroundColor: loading ? "#93c5fd" : "#2563eb",
+              backgroundColor: loading ? "#94a3b8" : "#0f172a",
               color: "white", border: "none", borderRadius: 10,
               fontSize: 14, fontWeight: 600,
               cursor: loading ? "not-allowed" : "pointer",
               marginTop: 8
             }}
           >
-            {loading ? "Creating account..." : "Create Account →"}
+            {loading ? "Creating account..." : "Create Admin Account →"}
           </button>
 
           <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, marginTop: 24 }}>
             Already have an account?{" "}
             <span
-              onClick={() => router.push("/login")}
+              onClick={() => router.push("/admin/login")}
               style={{ color: "#2563eb", cursor: "pointer", fontWeight: 500 }}
             >
               Sign in

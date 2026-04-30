@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import Optional
 from agents.content_agent import generate_content
 from agents.quiz_agent import generate_quiz, evaluate_answers
 from agents.adaptation_agent import decide_next_step
@@ -13,6 +14,7 @@ from models.User import User
 from auth.security import hash_password
 from jose import jwt
 from auth.security import verify_password
+from agents.supervisor import learning_graph
 
 from agents.progress_agent import (
     save_pre_quiz_result,
@@ -49,7 +51,8 @@ class QuizSubmission(BaseModel):
     topic: str
     student_answers: list
     correct_answers: list
-    student_id: str        # ✅ add this
+    student_id: str
+    level: Optional[str] = None        
 
 # -------- Routes --------
 
@@ -67,40 +70,25 @@ def pre_quiz(subject: str, lesson: str, topic: str):
 @app.post("/submit-pre-quiz/")
 def submit_pre_quiz(data: QuizSubmission):
 
-    result = evaluate_answers(
-        data.student_answers,
-        data.correct_answers
-    )
-
-    level = result["level"]
-    score = result["score"]
-
-    content = generate_content(data.topic, level, data.subject, data.lesson)
-
-    # ✅ Save pre quiz result
-    save_pre_quiz_result(
-        student_id=data.student_id,
-        subject=data.subject,
-        lesson=data.lesson,
-        topic=data.topic,
-        level=level,
-        score=score
-    )
-
-    # ✅ Save delivered content
-    save_delivered_content(
-        student_id=data.student_id,
-        subject=data.subject,
-        lesson=data.lesson,
-        topic=data.topic,
-        level=level,
-        content=content
-    )
+    final_state = learning_graph.invoke({
+        "student_id": data.student_id,
+        "subject": data.subject,
+        "lesson": data.lesson,
+        "topic": data.topic,
+        "student_answers": data.student_answers,
+        "correct_answers": data.correct_answers,
+        "quiz_type": "pre",
+        "quiz": None,
+        "score": None,
+        "level": None,
+        "content": None,
+        "decision": None
+    })
 
     return {
-        "score": score,
-        "level": level,
-        "content": content
+        "score": final_state["score"],
+        "level": final_state["level"],
+        "content": final_state["content"]
     }
 
 
@@ -115,31 +103,26 @@ def post_quiz(subject: str, lesson: str, topic: str, level: str):
 @app.post("/submit-post-quiz/")
 def submit_post_quiz(data: QuizSubmission):
 
-    result = evaluate_answers(
-        data.student_answers,
-        data.correct_answers
-    )
-
-    score = result["score"]
-
-    # ✅ Save post quiz result
-    save_post_quiz_result(
-        student_id=data.student_id,
-        subject=data.subject,
-        lesson=data.lesson,
-        topic=data.topic,
-        score=score
-    )
-
-    if score >= 6:
-        decision = "NEXT_TOPIC"
-    else:
-        decision = "REPEAT_LESSON"
+    final_state = learning_graph.invoke({
+        "student_id": data.student_id,
+        "subject": data.subject,
+        "lesson": data.lesson,
+        "topic": data.topic,
+        "student_answers": data.student_answers,
+        "correct_answers": data.correct_answers,
+        "quiz_type": "post",
+        "quiz": None,
+        "score": None,
+        "level": data.level,
+        "content": None,
+        "decision": None
+    })
 
     return {
-        "score": score,
-        "level": result["level"],
-        "decision": decision
+        "score": final_state["score"],
+        "level": final_state["level"],
+        "decision": final_state["decision"],
+        "content": final_state.get("content")  # ✅ return content if generated
     }
 
 @app.get("/get-lesson/")
