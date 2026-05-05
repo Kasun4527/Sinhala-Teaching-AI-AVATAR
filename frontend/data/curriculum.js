@@ -37,5 +37,16 @@ export const curriculum = [
   {
     subject: "Biology",
     lessons: []
+  },
+  {
+    subject: "Buddhism Grade 10 Sinhala Medium",
+    lessons: [
+    { name: "Lesson 1", topics: ["අභියෝග ජය ගත් සිදුහත් බෝසතාණෝ"] },
+    { name: "Lesson 2", topics: ["නමදිමු අගයමු මහ සඟරුවන"] },
+    { name: "Lesson 3", topics: ["තෙරුවන ගුණ හඳුනා ගනිමු"] },
+    { name: "Lesson 4", topics: ["කුසල් සිත් වැඩි දියුණු කරමු"] },
+    { name: "Lesson 5", topics: ["විදසුන් වඩන්නෝ ඇති තතු දකින්නෝ"] },
+    { name: "Lesson 6", topics: ["සසුන් කෙත සරු කළ, උතුමෝ ගුණැති පෙර කල"] }
+  ]
   }
 ];
