@@ -32,9 +32,11 @@ def extract_json(text):
 def generate_quiz(subject, lesson, topic, level, quiz_type):
 
     print("\n🚀 [DEBUG] Quiz Generation Started")
-    print(f"📌 Topic: {topic}")
-    print(f"📊 Level: {level}")
-    print(f"🧠 Type: {quiz_type}")
+    print(f"📘 Subject: {subject}")
+    print(f"📗 Lesson: {lesson}")
+    print(f"📌 Topic: {topic}") #Name of the lesson
+    print(f"📊 Level: {level}") #Beginner, Intermediate, Advanced
+    print(f"🧠 Type: {quiz_type}") #Pre
 
     llm = get_llm()
     retriever = get_retriever()
