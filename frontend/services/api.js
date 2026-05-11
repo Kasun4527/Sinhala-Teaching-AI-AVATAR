@@ -4,7 +4,7 @@ const API = "http://127.0.0.1:8000";
 
 export const getPreQuiz = (subject, lesson, topic) =>
   axios.get(`${API}/pre-quiz/`, {
-    params: { subject, lesson, topic },
+    params: { subject, lesson, topic } ,
   });
 
 export const submitPreQuiz = (data) =>
