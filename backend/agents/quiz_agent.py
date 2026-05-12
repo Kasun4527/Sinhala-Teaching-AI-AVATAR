@@ -1,5 +1,30 @@
 import json
 import re
+import random
+
+
+def normalize_quiz_questions(result):
+    questions = result.get("questions")
+    if not isinstance(questions, list):
+        return result
+
+    for question in questions:
+        if not isinstance(question, dict):
+            continue
+
+        options = question.get("options")
+        answer = question.get("answer")
+        if not isinstance(options, list) or not answer:
+            continue
+
+        shuffled_options = [option for option in options if option]
+        if answer not in shuffled_options:
+            shuffled_options.insert(0, answer)
+
+        random.shuffle(shuffled_options)
+        question["options"] = shuffled_options
+
+    return result
 
 
 # =========================
@@ -22,7 +47,7 @@ def extract_json(text):
         try:
             parsed = json.loads(candidate)
             if isinstance(parsed, dict) and isinstance(parsed.get("questions"), list):
-                return parsed
+                return normalize_quiz_questions(parsed)
         except Exception:
             continue
 
@@ -75,7 +100,7 @@ def extract_json(text):
             continue
 
     if questions:
-        return {"questions": questions}
+        return normalize_quiz_questions({"questions": questions})
 
     return {
         "questions": [],
@@ -129,7 +154,7 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
 මාතෘකාව: {topic}
 සන්දර්භය: {context}
 
-පහත දැක්වෙන JSON ආකෘතියට අනුව ප්‍රශ්න 5ක් සකසන්න.
+පහත දැක්වෙන JSON ආකෘතියට අනුව ප්‍රශ්න පහක් සකසන්න.
 සෑම ප්‍රශ්නයකටම පිළිතුරු 4ක් සහ එක් නිවැරදි පිළිතුරක් තිබිය යුතුය.
 
 Format:

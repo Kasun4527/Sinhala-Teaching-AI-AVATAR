@@ -238,13 +238,13 @@ export default function QuizPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {q.options.map((opt, idx) => {
                   const label = String.fromCharCode(65 + idx);
-                  const isSelected = answers[i] === label;
+                  const isSelected = answers[i] === opt;
                   return (
                     <div
                       key={idx}
                       onClick={() => {
                         const newAns = [...answers];
-                        newAns[i] = label;
+                        newAns[i] = opt;
                         setAnswers(newAns);
                       }}
                       style={{
