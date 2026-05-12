@@ -22,6 +22,7 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const subjectColors = {
     Physics:   "#2563eb",
@@ -38,15 +39,24 @@ export default function QuizPage() {
 
     const fetchQuiz = async () => {
       try {
+        setError("");
         setLoading(true);
         const res = type === "post"
           ? await getPostQuiz(subject, lesson, topic, level)
           : await getPreQuiz(subject, lesson, topic);
         const data = res?.data || {};
-        setQuiz(data.quiz || data || { questions: [] });
+        const generatedQuiz = data.quiz || data || { questions: [] };
+        if (data?.quiz?.error) {
+          setError(data.quiz.error);
+        }
+        if (!generatedQuiz?.questions?.length && !generatedQuiz?.error) {
+          setError("Quiz generator returned no questions.");
+        }
+        setQuiz(generatedQuiz);
         setAnswers([]);
       } catch (err) {
         console.error("❌ Quiz load error:", err);
+        setError(err?.response?.data?.detail || err?.message || "Quiz generation failed.");
         setQuiz({ questions: [] });
       } finally {
         setLoading(false);
@@ -156,7 +166,14 @@ export default function QuizPage() {
       <div style={{ display: "flex", minHeight: "100vh" }}>
         <Sidebar />
         <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
-          <p style={{ color: "#94a3b8" }}>No quiz available.</p>
+          <div style={{ maxWidth: 720, backgroundColor: "white", borderRadius: 16, padding: 24, border: "1px solid #fee2e2" }}>
+            <p style={{ color: "#b91c1c", fontWeight: 700, marginBottom: 8 }}>
+              {error || "No quiz available."}
+            </p>
+            <p style={{ color: "#64748b", fontSize: 14 }}>
+              Check the backend console for the full generation trace, or verify the /ask endpoint response format.
+            </p>
+          </div>
         </main>
       </div>
     );
