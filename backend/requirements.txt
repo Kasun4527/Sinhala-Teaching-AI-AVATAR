@@ -4,3 +4,15 @@ langchain
 langchain-community
 sentence-transformers
 pypdf
+langchain-groq
+langgraph
+python-dotenv
+pymongo
+python-jose[cryptography]
+passlib
+bcrypt==4.0.1
+pandas
+torch
+scikit-learn
+faiss-cpu
+email-validator

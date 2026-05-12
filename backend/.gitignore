@@ -1,1 +1,44 @@
 .env
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+coverage/
+
+# Editor directories
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local DBs and data
+*.sqlite3
+
+# Knowledge base vector store (large binary files)
+knowledge_base/data/vector_store/
+knowledge_base/data/*.faiss
+knowledge_base/data/vector_store/index.faiss
