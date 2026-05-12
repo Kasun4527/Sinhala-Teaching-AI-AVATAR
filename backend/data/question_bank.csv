@@ -1,0 +1,25 @@
+question_id,kc_id,question_text,option_a,option_b,option_c,option_d,correct_answer,difficulty
+1ac0e543-60bf-4976-80b1-b98508711253,BUD10_01_01,fndai;a Wm;g fmr fndai;ajrfhla isÿ lrk mQ¾j wOHhkh l=ula o?,"m[ap iS,h","m[ap uyd úf,dalkh",i;r idlaIs,miajggqj,B,easy
+a9562131-a12c-47f6-a5b4-f9cb63056859,BUD10_01_01,"isÿy;a l=urhd Ys,am yeoEÍu isÿ lf<a lõrekaf.ka o?",msh rc;=udf.ka,i¾j ñ;% nuqKq m`äjrhdf.ka,wdkkaofhka,"rdyq,f.ka",B,easy
+7bf1fda7-ee92-4001-9d8a-8311cc4afa59,BUD10_01_01,isÿy;a fndai;=ka újdy jQfha lõ iu.ñ o?,lsiduf.da;ñhf.a,udydudhd foaúhf.a,nøl‍PdkdjQ hfidaordjf.a,m%cdm;sf.a,C,easy
+2f1891f0-dbca-43e3-a535-1e32675194f4,BUD10_01_01,fndai;a Wm;ska i;a Èklska isÿ jQfha l=ulao?,"rcqg orejl= Wm; ,eîu",uj uydudhd foaúh ñh hdu,foúhka meñKSu,meúÈ Ôú;h .; lsÍu,B,easy
+4c5c14d0-90d6-4a43-9f24-94614bcf5708,BUD10_01_01,"msh rc;=ud isÿy;a l=urhd fjkqfjka R;= ;=kg wkqrEm iqfLdamfNda.S ud,s.d ;=k bÈ lf<a flfia o?","ruH iqruH"" iqN kñka""","k[ao iku"" fY%dK kñka""","rdyq, kñka","rdc iqrdc"" wrdch kñka""",A,easy
+012c63bc-b0b9-4076-8fa1-9e86fcea1595,"ysre i÷"" ;rej"" wyia""","isÿy;a l=urd olsk ,o i;r fmrksñ;s fudkjdo?","fojshka n%yïfhda"" i;a;ajfhda"" u","a""",uy¨jl= f,"vl="" u< | la"" WmYdka; meúÈhl=""",r;ak r;=u,easy
+c4506390-8e89-4619-bd26-1d7c0341a427,BUD10_01_01,isÿy;a l=urhdf.a mq;=f.a ku l=ula o?,wdkkao,foajd;;,"rdyq,",iqo;a;,C,easy
+68f3b9b6-6fdc-43fb-ad3c-da382e51fc9c,BUD10_01_02,lsidf.da;ñh l=urfKda weiqßka m%ldY l< ksínq; mo fmkajkafka l=ulao?,Yla;su;a ùu,iekiSu yd ixhsu;a ùu,ch.%yKh,W.;alu,medium
+dc42a722-6c60-491f-a2c1-ba0fa655e71a,BUD10_01_02,fndai;a l=urd i;Hh fidhd uyd wNsksIal%uKh lsÍug fmr fndfyda iem iïm;a w;a yeÍug Tyqg yels jQfha l=ulaêka o?,"rc n,h ksid","bjiSu lemùu yd wêIaGdkh ksid""",Okh ksid,{d;Ska fya;=fjka,B,medium
+f62425bf-78fa-4f38-9d66-539ea157b3bb,BUD10_01_02,fndai;a Wm; iqúfYaI jkafka wehs?,"rc mjq,l Wm; ,enQ ksid",mxp uyd úf,dalkh yryd isÿ jQ wisßu;a isÿùï ksid,fndfyda {dkhla ;snQ ksid,"Ys,am ola‍Is; ksid",B,medium
+561238fa-5571-4519-ac73-17cede3a0549,BUD10_01_03,"fndai;a isß; wOHhkh lsÍfuka YsIHhkag ,efnk m%Odk ,dNh l=ulao?",mdvï lsÍug Wmldr ùu,"Ôú; wNsfhda.j,g id¾:lj uqyqK §fï wdo¾Yh ,eîu",rcl= ùfï wdidjla we;sùu,iemj;a Ôú;hla .; lsÍu,B,hard
+6667d41f-82c4-4b30-863d-46c410e8cb57,BUD10_01_03,fndai;a isß; weiqßka isiqkag .; yels m%Odk mdGhla fudllao?,"ysÕlïj, fkdie,lSu",".eg¨j,g uqyqK foñka bjiSfuka lghq;= lsÍu",wka wh f.a oE .ekSu,"W.;a wh kqiqÿiq f,i ie,lSu",B,hard
+5fd53e73-3e25-4ea3-9227-c4d69783b6eb,BUD10_02_01,"wr,sh;ekak .ïudkfha kdhl udysñhka úydrdêm;s f,i fiajh l< jir .Kk l=ula o?","50 jirlg jeä ld,hla","ishla jirlg wdikak ld,hla",jir 30 la,jir 75 la,B,easy
+29d5a9bc-0627-4f1c-b927-dc88fef0c947,BUD10_02_01,nqÿrcdKka jykafia ix>r;akh y÷kajd ÿkafka flkl= flfia o?,"WmfoaYljrfhla f,i",NslaIq kdufhks,"O¾u foaYlfhla f,i","wdpd¾hjrfhla f,i",B,easy
+17fc1032-43ae-413d-9d70-d597b4fe48ea,BUD10_02_01,ix> r;akh wdrïN jQfha fldfyduo?,"uq,a fn!oaO iduK¾hfhla meúÈ ùfuka",miaj. ;jqika uyK ùfuka,m<uq ix>dhkdfjka,nqÿrcdKkaf.a mßksnUkfhka,B,easy
+0f9bbc15-0a35-451f-8abf-729f2463292e,BUD10_02_01,"f,dj mj;sk merKs u meúÈ ixúOdkh f,i y÷kajkafka l=ulao?","lf;da,sl wd.u",nqoaO ixo¾Yh,ix> r;akh fyj;a NslaIq ixúOdkh,"bia,dï wd.u",C,easy
+764e80e1-a4e0-4771-a463-87af433ff66c,BUD10_02_01,fn!oaOfhda ix> r;akfha wdYS¾jdoh m%d¾:kd lrkafka Ôú;fha fldfyd±hs isgu o?,"mdi,a hk jhi isg",Wmf;a isg urKh olajd,"YsIHhd f,i muKla","msxlïj,§ muKla",B,easy
+ab80ab5f-e1a4-4c2c-a27a-a03b9938ec42,Lesson_02,"msxlï u.ska fn!oaOhd ;=kS lr.; hq;= wl=i,a uq,a ;=k l=ula o?","rdxpq fuay"" f","daN""","f,daN oafõY"" fuday""","crd jHdê"" urKh""","fl%daO B¾IHd"" fidaru""",medium
+b62aac5b-7b50-440e-94a9-3ef77aa5a39c,BUD10_02_02,".eìks ud;djkag ix>r;akh úiska mj;ajk ,o msß; l=ula o?",r;ak iQ;%h,"wx.=,sud, msß;",lrKSh fu;a;d iQ;%h,pdK mß;a,medium
+91695772-c510-4318-a880-0ec3dc84b370,BUD10_02_02,"wdjdy újdy ux.f,da;aij Èkg fmr Èk fn!oaO pdß;%h f,i isÿ lrkafka l=ulao?",fn!oaO O¾u foaYkdjla,nqoaO mQcd mj;ajd uy iÕrejk fj; odkh mQcd lsÍu,nqÿ ms<su je£u,msß;a msxlula meje;aùu,medium
+f6095b0c-b6fd-4bc9-a2e2-38e15dbe52a0,BUD10_02_02,"wjux., wjia:djkays § ix>r;akh úiska {d;Skag meyeÈ,s lrk O¾u iajNdjhka fudkjd o?","nqÿ.=K oyï .=K"" iÕ.=K""","wks;H ÿlaL"" wkd;au""","meyeÈ,s nj ks¾NS;nj"" ffO¾hh""","ffu;%sh lreKd"" uqÈ;d""",B,medium
+60375ebc-94f3-4427-92d7-69b7fba48c81,BUD10_02_02,"nqÿrcdKka jykafia NslaIQka jykafia,d .ek mjid we;af;a l=ulao?",Tjqka iudchg nrla úh hq;= nj,"bUrd u, fkd;,d frdka .kakd fia nrla fkdù m%;H ,nd.; hq;= nj",iudcfhka fjkaj Ôj;a úh hq;= nj,"rcjreka yd tl iudkj ie,l.; hq;= nj",B,medium
+bd67cb66-73d1-4528-a28a-3bc9cd0a7509,"mkai, yd .u w;r ne£u ms<sn| kdhl udysñhkaf.a woyi l=ulao?","mkai, yd .u fjkaj mej;sh hq;= nj","wfkHdakH jYfhka ne£u fomlaIhgu M,odhS nj","mkai, .ug Wmfoia ÿh hq;= nj muKla",".u mkai,g uq,a,a § .; hq;= nj",B,medium
+39a8dc53-8817-497d-adec-494c2ad66d05,BUD10_02_02,iqkdñh ksid wirK jQ ck;djg kdhl udysñhka msysg lf<a flfia o?,"cd;s wd.ï fNaohla fkdie<l+ fmruqKlfmd,fka",rcqf.a wjYr;dj miq fmk,Ñ;a; Yla;sh m%fhdackh fldg,nqÿ.=K weiSfuka,A,medium

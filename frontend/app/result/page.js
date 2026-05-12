@@ -14,6 +14,7 @@ export default function ResultPage() {
   const level = searchParams.get("level");
   const topic = searchParams.get("topic");
   const type = searchParams.get("type");
+  const bktFeedback = searchParams.get("bkt_feedback");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -112,7 +113,7 @@ export default function ResultPage() {
             border: `1px solid ${score >= 6 ? "#bbf7d0" : "#fde68a"}`,
             borderRadius: 10, padding: "14px 16px",
             fontSize: 13, color: score >= 6 ? "#166534" : "#92400e",
-            marginBottom: 28, textAlign: "center"
+            marginBottom: bktFeedback ? 16 : 28, textAlign: "center"
           }}>
             {type === "post"
               ? score >= 6
@@ -121,6 +122,18 @@ export default function ResultPage() {
               : "📖 Your personalized lesson has been prepared!"
             }
           </div>
+
+          {bktFeedback && (
+            <div style={{
+              backgroundColor: "#f8fafc",
+              border: `1px solid #e2e8f0`,
+              borderRadius: 10, padding: "14px 16px",
+              fontSize: 13, color: "#334155",
+              marginBottom: 28, textAlign: "center"
+            }}>
+              💡 {decodeURIComponent(bktFeedback)}
+            </div>
+          )}
 
           {/* Buttons */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

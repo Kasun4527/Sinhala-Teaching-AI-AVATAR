@@ -2,5 +2,17 @@ fastapi
 uvicorn
 langchain
 langchain-community
+langchain-groq
+langgraph
+python-dotenv
+pymongo
+python-jose[cryptography]
+passlib
+bcrypt==4.0.1
 sentence-transformers
 pypdf
+pandas
+torch
+scikit-learn
+faiss-cpu
+email-validator

@@ -104,15 +104,22 @@ def evaluator_node(state: LearningState) -> LearningState:
 
 def content_generator_node(state: LearningState) -> LearningState:
     print("📚 [ContentGeneratorAgent] Generating lesson content...")
-
-    content = generate_content(
+    result = generate_content(
         subject=state["subject"],
         lesson=state["lesson"],
         topic=state["topic"],
         level=state["level"]
     )
 
-    return {**state, "content": content}
+    # generate_content may return a dict with content and rag_prompt
+    if isinstance(result, dict):
+        content = result.get("content")
+        rag_prompt = result.get("rag_prompt")
+    else:
+        content = result
+        rag_prompt = None
+
+    return {**state, "content": content, "rag_prompt": rag_prompt}
 
 
 def progress_tracker_node(state: LearningState) -> LearningState:

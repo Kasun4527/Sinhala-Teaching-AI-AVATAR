@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { curriculum } from "@/data/curriculum";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import { bktService } from "@/services/bktService";
 
 const subjectConfig = {
   Physics:   { icon: "⚛️", bg: "#eff6ff", border: "#bfdbfe", hover: "#2563eb", accent: "#1d4ed8" },
@@ -16,11 +17,33 @@ export default function StudentDashboard() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [hoveredCard, setHoveredCard] = useState(null);
+  const [masteryLevel, setMasteryLevel] = useState("Assessing...");
+  const [pKnowAvg, setPKnowAvg] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
+    const studentId = localStorage.getItem("student_id");
     setName(localStorage.getItem("name") || "Student");
+
+    if (studentId) {
+      bktService.fetchMastery(studentId)
+        .then(data => {
+          if (data && data.kc_states) {
+            const kcs = Object.values(data.kc_states);
+            if (kcs.length > 0) {
+              const avg = kcs.reduce((acc, curr) => acc + curr.p_know, 0) / kcs.length;
+              setPKnowAvg(avg);
+              if (avg > 0.85) setMasteryLevel("Advanced");
+              else if (avg >= 0.6) setMasteryLevel("Standard");
+              else setMasteryLevel("Remedial");
+            } else {
+              setMasteryLevel("Not Started");
+            }
+          }
+        })
+        .catch(err => console.error("Failed to fetch mastery:", err));
+    }
   }, []);
 
  return (
@@ -110,10 +133,27 @@ export default function StudentDashboard() {
                   {item.subject}
                 </h3>
 
-                {/* Lessons count */}
-                <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 20 }}>
-                  {item.lessons?.length || 0} lessons available
-                </p>
+                {/* Lessons count / Mastery Level */}
+                {item.subject.toLowerCase() === "buddhism" ? (
+                  <div style={{ marginBottom: 20 }}>
+                    <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 4 }}>
+                      Mastery Level: <strong style={{ color: config.accent }}>{masteryLevel}</strong>
+                    </p>
+                    <div style={{ width: '100%', backgroundColor: '#e2e8f0', borderRadius: 99, height: 6 }}>
+                      <div style={{
+                        width: `${Math.max(5, pKnowAvg * 100)}%`,
+                        backgroundColor: config.accent,
+                        height: 6,
+                        borderRadius: 99,
+                        transition: 'width 0.5s ease-in-out'
+                      }} />
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 20 }}>
+                    {item.lessons?.length || 0} lessons available
+                  </p>
+                )}
 
                 {/* CTA */}
                 <div style={{

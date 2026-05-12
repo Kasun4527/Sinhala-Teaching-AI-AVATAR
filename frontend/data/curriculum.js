@@ -37,5 +37,25 @@ export const curriculum = [
   {
     subject: "Biology",
     lessons: []
+  },
+  {
+    subject: "Buddhism",
+    lessons: [
+      {
+        name: "Lesson 1",
+        topics: [
+          "BUD10_01_01",
+          "BUD10_01_02",
+          "BUD10_01_03"
+        ]
+      },
+      {
+        name: "Lesson 2",
+        topics: [
+          "BUD10_02_01",
+          "BUD10_02_02"
+        ]
+      }
+    ]
   }
 ];

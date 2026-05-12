@@ -138,7 +138,7 @@ def evaluate_answers(student_answers, correct_answers):
         if s == c:
             score += 1
 
-    percentage = (score / total) * 10  # scale 10
+    percentage = (score / total) * 10 if total > 0 else 0  # scale 10
 
     # LEVEL DECISION
     if percentage >= 8:
