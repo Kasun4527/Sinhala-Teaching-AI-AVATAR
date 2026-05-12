@@ -4,12 +4,37 @@ import { useRouter } from "next/navigation";
 import { curriculum } from "@/data/curriculum";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import { enrollSubject } from "@/services/api";
 
 const subjectConfig = {
-  Physics:   { icon: "⚛️", bg: "#eff6ff", border: "#bfdbfe", hover: "#2563eb", accent: "#1d4ed8" },
-  Chemistry: { icon: "🧪", bg: "#f0fdf4", border: "#bbf7d0", hover: "#16a34a", accent: "#15803d" },
-  Biology:   { icon: "🧬", bg: "#ecfdf5", border: "#a7f3d0", hover: "#059669", accent: "#047857" },
-  Maths:     { icon: "📐", bg: "#faf5ff", border: "#e9d5ff", hover: "#9333ea", accent: "#7e22ce" },
+  Physics: {
+    icon: "⚛️",
+    bg: "#eff6ff",
+    border: "#bfdbfe",
+    hover: "#2563eb",
+    accent: "#1d4ed8",
+  },
+  Chemistry: {
+    icon: "🧪",
+    bg: "#f0fdf4",
+    border: "#bbf7d0",
+    hover: "#16a34a",
+    accent: "#15803d",
+  },
+  Biology: {
+    icon: "🧬",
+    bg: "#ecfdf5",
+    border: "#a7f3d0",
+    hover: "#059669",
+    accent: "#047857",
+  },
+  Maths: {
+    icon: "📐",
+    bg: "#faf5ff",
+    border: "#e9d5ff",
+    hover: "#9333ea",
+    accent: "#7e22ce",
+  },
 };
 
 export default function StudentDashboard() {
@@ -22,33 +47,48 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
+    if (!token) {
+      router.push("/login");
+      return;
+    }
     setName(localStorage.getItem("name") || "Student");
   }, []);
 
- return (
-  <div style={{ display: "flex", minHeight: "100vh" }}>
-    <Sidebar />
-    <main style={{
-      flex: 1,
-      padding: "48px",
-      backgroundColor: "#f8fafc",
-      overflowY: "auto",
-      minWidth: 0   
-    }}>
-
+  return (
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      <Sidebar />
+      <main
+        style={{
+          flex: 1,
+          padding: "48px",
+          backgroundColor: "#f8fafc",
+          overflowY: "auto",
+          minWidth: 0,
+        }}
+      >
         {/* Header */}
         <div style={{ marginBottom: 40 }}>
-          <p style={{
-            color: "#94a3b8", fontSize: 11, fontWeight: 600,
-            letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 8
-          }}>
+          <p
+            style={{
+              color: "#94a3b8",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              marginBottom: 8,
+            }}
+          >
             Welcome back
           </p>
-          <h1 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 40, fontWeight: 700, color: "#0f172a", marginBottom: 8
-          }}>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', serif",
+              fontSize: 40,
+              fontWeight: 700,
+              color: "#0f172a",
+              marginBottom: 8,
+            }}
+          >
             {name} 👋
           </h1>
           <p style={{ color: "#64748b", fontSize: 15 }}>
@@ -62,32 +102,53 @@ export default function StudentDashboard() {
             { label: "Subjects", value: curriculum.length, color: "#2563eb" },
             { label: "Available", value: "Physics", color: "#059669" },
           ].map((stat, i) => (
-            <div key={i} style={{
-              backgroundColor: "white", borderRadius: 12, padding: "16px 24px",
-              border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 12
-            }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: "50%",
-                backgroundColor: stat.color
-              }} />
-              <span style={{ color: "#64748b", fontSize: 13 }}>{stat.label}:</span>
-              <span style={{ color: "#0f172a", fontWeight: 600, fontSize: 13 }}>{stat.value}</span>
+            <div
+              key={i}
+              style={{
+                backgroundColor: "white",
+                borderRadius: 12,
+                padding: "16px 24px",
+                border: "1px solid #e2e8f0",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  backgroundColor: stat.color,
+                }}
+              />
+              <span style={{ color: "#64748b", fontSize: 13 }}>
+                {stat.label}:
+              </span>
+              <span style={{ color: "#0f172a", fontWeight: 600, fontSize: 13 }}>
+                {stat.value}
+              </span>
             </div>
           ))}
         </div>
 
         {/* Subject Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}
+        >
           {curriculum.map((item, i) => {
             const config = subjectConfig[item.subject] || {
-              icon: "📚", bg: "#f8fafc", border: "#e2e8f0", hover: "#2563eb"
+              icon: "📚",
+              bg: "#f8fafc",
+              border: "#e2e8f0",
+              hover: "#2563eb",
             };
             const isHovered = hoveredCard === i;
 
             return (
               <div
                 key={i}
-                onClick={() => setPendingEnroll(item.subject)}
+                onClick={() => setPendingEnroll(item)}
                 onMouseEnter={() => setHoveredCard(i)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{
@@ -97,19 +158,27 @@ export default function StudentDashboard() {
                   padding: 28,
                   cursor: "pointer",
                   transition: "all 0.2s ease",
-                  boxShadow: isHovered ? "0 8px 24px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+                  boxShadow: isHovered
+                    ? "0 8px 24px rgba(0,0,0,0.08)"
+                    : "0 1px 3px rgba(0,0,0,0.04)",
                   transform: isHovered ? "translateY(-2px)" : "translateY(0)",
                 }}
               >
                 {/* Icon */}
-                <div style={{ fontSize: 36, marginBottom: 16 }}>{config.icon}</div>
+                <div style={{ fontSize: 36, marginBottom: 16 }}>
+                  {config.icon}
+                </div>
 
                 {/* Title */}
-                <h3 style={{
-                  fontFamily: "'Playfair Display', serif",
-                  fontSize: 22, fontWeight: 700,
-                  color: "#0f172a", marginBottom: 6
-                }}>
+                <h3
+                  style={{
+                    fontFamily: "'Playfair Display', serif",
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    marginBottom: 6,
+                  }}
+                >
                   {item.subject}
                 </h3>
 
@@ -119,14 +188,20 @@ export default function StudentDashboard() {
                 </p>
 
                 {/* CTA */}
-                <div style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  backgroundColor: isHovered ? config.hover : "#f1f5f9",
-                  color: isHovered ? "white" : "#64748b",
-                  padding: "6px 14px", borderRadius: 20,
-                  fontSize: 12, fontWeight: 600,
-                  transition: "all 0.2s ease"
-                }}>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    backgroundColor: isHovered ? config.hover : "#f1f5f9",
+                    color: isHovered ? "white" : "#64748b",
+                    padding: "6px 14px",
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    transition: "all 0.2s ease",
+                  }}
+                >
                   Start Learning →
                 </div>
               </div>
@@ -136,13 +211,54 @@ export default function StudentDashboard() {
 
         {/* Enroll Confirmation Modal */}
         {pendingEnroll && (
-          <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(2,6,23,0.6)" }}>
-            <div style={{ width: 420, background: "white", borderRadius: 12, padding: 24 }}>
-              <h3 style={{ marginTop: 0 }}>Enroll in {pendingEnroll}?</h3>
-              <p style={{ color: "#64748b" }}>Do you want to enroll in this subject so it appears in your enrolled subjects?</p>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(2,6,23,0.6)",
+            }}
+          >
+            <div
+              style={{
+                width: 420,
+                background: "white",
+                borderRadius: 12,
+                padding: 24,
+              }}
+            >
+              <h3 style={{ marginTop: 0 }}>
+                Enroll in {pendingEnroll.subject}?
+              </h3>
+              <p style={{ color: "#64748b" }}>
+                Do you want to enroll in this subject so it appears in your
+                enrolled subjects?
+              </p>
               {enrollError && <p style={{ color: "#b91c1c" }}>{enrollError}</p>}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
-                <button onClick={() => { setPendingEnroll(null); setEnrollError(""); }} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white" }}>Cancel</button>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                  marginTop: 18,
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setPendingEnroll(null);
+                    setEnrollError("");
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                    background: "white",
+                  }}
+                >
+                  Cancel
+                </button>
                 <button
                   onClick={async () => {
                     try {
@@ -151,33 +267,39 @@ export default function StudentDashboard() {
                       const studentId = localStorage.getItem("student_id");
                       if (!studentId) throw new Error("Not logged in");
 
-                      const res = await fetch("http://localhost:8000/enroll/", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ student_id: studentId, subject: pendingEnroll })
-                      });
-
-                      if (!res.ok) {
-                        const err = await res.json().catch(() => ({}));
-                        throw new Error(err.detail || "Failed to enroll");
-                      }
+                      await enrollSubject({
+                          student_id: studentId,
+                          subject: pendingEnroll.subject,
+                          lessons: pendingEnroll.lessons || [],
+                        });
 
                       setPendingEnroll(null);
-                      router.push(`/sub-lesson?subject=${pendingEnroll}`);
+                      router.push(
+                        `/sub-lesson?subject=${encodeURIComponent(
+                          pendingEnroll.subject
+                        )}`
+                      );
                     } catch (err) {
-                      setEnrollError(err.message || "Enroll failed");
+                      setEnrollError(err?.message || "Enroll failed");
                     } finally {
                       setEnrollLoading(false);
                     }
                   }}
                   disabled={enrollLoading}
-                  style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#2563eb", color: "white" }}
-                >{enrollLoading ? "Enrolling..." : "Enroll & Continue"}</button>
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#2563eb",
+                    color: "white",
+                  }}
+                >
+                  {enrollLoading ? "Enrolling..." : "Enroll & Continue"}
+                </button>
               </div>
             </div>
           </div>
         )}
-
       </main>
     </div>
   );
