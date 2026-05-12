@@ -62,9 +62,11 @@ def home():
 
 @app.get("/pre-quiz/")
 def pre_quiz(subject: str, lesson: str, topic: str):
-    quiz = generate_quiz(subject, lesson, topic, "Beginner", "pre")
-    
-    return {"quiz": quiz}
+    try:
+        quiz = generate_quiz(subject, lesson, topic, "Beginner", "pre")
+        return {"quiz": quiz}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/submit-pre-quiz/")
@@ -94,9 +96,11 @@ def submit_pre_quiz(data: QuizSubmission):
 
 @app.get("/post-quiz/")
 def post_quiz(subject: str, lesson: str, topic: str, level: str):
-    quiz = generate_quiz(subject, lesson, topic, level, "post")
-
-    return {"quiz": quiz}
+    try:
+        quiz = generate_quiz(subject, lesson, topic, level, "post")
+        return {"quiz": quiz}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 
