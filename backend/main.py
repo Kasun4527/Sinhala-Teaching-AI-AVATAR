@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection
+from db import users_collection, enrollments_collection
 from models.User import User
 from auth.security import hash_password
 from jose import jwt
@@ -209,3 +209,29 @@ def admin_get_lesson_progress(student_id: str, subject: str):
 def admin_get_topic_details(student_id: str, subject: str):
     details = get_topic_details(student_id, subject)
     return {"topics": details}
+
+
+@app.post("/enroll/")
+def enroll(data: dict):
+
+    student_id = data.get("student_id")
+    subject = data.get("subject")
+
+    if not student_id or not subject:
+        raise HTTPException(status_code=400, detail="student_id and subject required")
+
+    enrollments_collection.update_one(
+        {"student_id": student_id},
+        {"$addToSet": {"subjects": subject}},
+        upsert=True
+    )
+
+    return {"message": "enrolled", "student_id": student_id, "subject": subject}
+
+
+@app.get("/enrollments")
+def get_enrollments(student_id: str):
+    doc = enrollments_collection.find_one({"student_id": student_id})
+    if not doc:
+        return {"student_id": student_id, "subjects": []}
+    return {"student_id": student_id, "subjects": doc.get("subjects", [])}

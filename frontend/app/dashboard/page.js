@@ -16,6 +16,9 @@ export default function StudentDashboard() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [hoveredCard, setHoveredCard] = useState(null);
+  const [pendingEnroll, setPendingEnroll] = useState(null);
+  const [enrollLoading, setEnrollLoading] = useState(false);
+  const [enrollError, setEnrollError] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -84,7 +87,7 @@ export default function StudentDashboard() {
             return (
               <div
                 key={i}
-                onClick={() => router.push(`/sub-lesson?subject=${item.subject}`)}
+                onClick={() => setPendingEnroll(item.subject)}
                 onMouseEnter={() => setHoveredCard(i)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{
@@ -130,6 +133,50 @@ export default function StudentDashboard() {
             );
           })}
         </div>
+
+        {/* Enroll Confirmation Modal */}
+        {pendingEnroll && (
+          <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(2,6,23,0.6)" }}>
+            <div style={{ width: 420, background: "white", borderRadius: 12, padding: 24 }}>
+              <h3 style={{ marginTop: 0 }}>Enroll in {pendingEnroll}?</h3>
+              <p style={{ color: "#64748b" }}>Do you want to enroll in this subject so it appears in your enrolled subjects?</p>
+              {enrollError && <p style={{ color: "#b91c1c" }}>{enrollError}</p>}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+                <button onClick={() => { setPendingEnroll(null); setEnrollError(""); }} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white" }}>Cancel</button>
+                <button
+                  onClick={async () => {
+                    try {
+                      setEnrollLoading(true);
+                      setEnrollError("");
+                      const studentId = localStorage.getItem("student_id");
+                      if (!studentId) throw new Error("Not logged in");
+
+                      const res = await fetch("http://localhost:8000/enroll/", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ student_id: studentId, subject: pendingEnroll })
+                      });
+
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err.detail || "Failed to enroll");
+                      }
+
+                      setPendingEnroll(null);
+                      router.push(`/sub-lesson?subject=${pendingEnroll}`);
+                    } catch (err) {
+                      setEnrollError(err.message || "Enroll failed");
+                    } finally {
+                      setEnrollLoading(false);
+                    }
+                  }}
+                  disabled={enrollLoading}
+                  style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: "#2563eb", color: "white" }}
+                >{enrollLoading ? "Enrolling..." : "Enroll & Continue"}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
