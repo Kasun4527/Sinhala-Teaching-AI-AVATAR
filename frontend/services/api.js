@@ -31,3 +31,11 @@ export const signupUser = (data) =>
 
 export const loginUser = (data) =>
   axios.post(`${API}/auth/login`, data);
+
+export const enrollSubject = (data) =>
+  axios.post(`${API}/enroll/`, data);
+
+export const getEnrollments = (studentId) =>
+  axios.get(`${API}/enrollments`, {
+    params: { student_id: studentId },
+  });

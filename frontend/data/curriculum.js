@@ -1,52 +1,47 @@
 export const curriculum = [
   {
-    subject: "Physics",
+    subject: "බුද්ධ ධර්මය 10 ශ්‍රේණිය",
     lessons: [
       {
-        name: "Lesson 1",
+        name: "අභියෝග ජය ගත් සිදුහත් බෝසතාණෝ",
         topics: [
-          "The atomic theory of matter",
-          "Properties of cathode rays",
-          "The nucleus of the atom",
-          "Properties of positive rays",
-          "Rutherford’s gold foil experiment",
-          "Atomic number, isotopes and mass number",
-          "The atomic mass scale",
-          "Average atomic mass and relative atomic mass of an element",
-          "Electromagnetic radiation and wave-like properties of matter",
-          "Quantization of energy",
-          "Electronic energy levels of atoms",
-          "The hydrogen spectrum"
-        ]
+          "පංච මහා විලෝකනය",
+          "ශිෂ්‍ය ජීවිතය සහ ශිල්ප ශාස්ත්‍ර හැදෑරීම",
+          "යොවුන් වියේ අභියෝග සහ විවාහය",
+          "රාජකීය සැප සම්පත් සහ අතෘප්තිමත් බව",
+          "සතර පෙරනිමිති සහ ජීවිතයේ යථාර්ථය",
+          "රාහුල කුමරුගේ උපත සහ මහා අභිනිෂ්ක්‍රමණය",
+          "බෝසත් සිරිතෙන් ගත හැකි පොදු ආදර්ශ"
+        ],
       },
-      { name: "Lesson 2", topics: [] },
-      { name: "Lesson 3", topics: [] },
-      { name: "Lesson 4", topics: [] },
-      { name: "Lesson 5", topics: [] },
-      { name: "Lesson 6", topics: [] }
-    ]
+      { name: "නමදිමු අගයමු මහ සඟරුවන", topics: [] },
+      { name: "තෙරුවන ගුණ හඳුනා ගනිමු", topics: [] },
+      { name: "කුසල් සිත් වැඩි දියුණු කරමු", topics: [] },
+      { name: "විදසුන් වඩන්නෝ ඇති තතු දකින්නෝ", topics: [] },
+      { name: "සසුන් කෙත සරු කළ, උතුමෝ ගුණැති පෙර කල", topics: [] },
+    ],
   },
   {
-    subject: "Chemistry",
-    lessons: []
+    subject: "බුද්ධ ධර්මය 11 ශ්‍රේණිය",
+    lessons: [],
   },
   {
-    subject: "Maths",
-    lessons: []
+    subject: "විද්‍යාව 10 ශ්‍රේණිය",
+    lessons: [],
   },
   {
-    subject: "Biology",
-    lessons: []
+    subject: "විද්‍යාව 11 ශ්‍රේණිය",
+    lessons: [],
   },
   {
-    subject: "Buddhism Grade 10 Sinhala Medium",
+    subject: "බුද්ධ ධර්මය 10 ශ්‍රේණිය",
     lessons: [
-    { name: "Lesson 1", topics: ["අභියෝග ජය ගත් සිදුහත් බෝසතාණෝ"] },
-    { name: "Lesson 2", topics: ["නමදිමු අගයමු මහ සඟරුවන"] },
-    { name: "Lesson 3", topics: ["තෙරුවන ගුණ හඳුනා ගනිමු"] },
-    { name: "Lesson 4", topics: ["කුසල් සිත් වැඩි දියුණු කරමු"] },
-    { name: "Lesson 5", topics: ["විදසුන් වඩන්නෝ ඇති තතු දකින්නෝ"] },
-    { name: "Lesson 6", topics: ["සසුන් කෙත සරු කළ, උතුමෝ ගුණැති පෙර කල"] }
-  ]
-  }
+      { name: "Lesson 1", topics: ["අභියෝග ජය ගත් සිදුහත් බෝසතාණෝ"] },
+      { name: "Lesson 2", topics: ["නමදිමු අගයමු මහ සඟරුවන"] },
+      { name: "Lesson 3", topics: ["තෙරුවන ගුණ හඳුනා ගනිමු"] },
+      { name: "Lesson 4", topics: ["කුසල් සිත් වැඩි දියුණු කරමු"] },
+      { name: "Lesson 5", topics: ["විදසුන් වඩන්නෝ ඇති තතු දකින්නෝ"] },
+      { name: "Lesson 6", topics: ["සසුන් කෙත සරු කළ, උතුමෝ ගුණැති පෙර කල"] },
+    ],
+  },
 ];

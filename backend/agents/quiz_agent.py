@@ -1,5 +1,30 @@
 import json
 import re
+import random
+
+
+def normalize_quiz_questions(result):
+    questions = result.get("questions")
+    if not isinstance(questions, list):
+        return result
+
+    for question in questions:
+        if not isinstance(question, dict):
+            continue
+
+        options = question.get("options")
+        answer = question.get("answer")
+        if not isinstance(options, list) or not answer:
+            continue
+
+        shuffled_options = [option for option in options if option]
+        if answer not in shuffled_options:
+            shuffled_options.insert(0, answer)
+
+        random.shuffle(shuffled_options)
+        question["options"] = shuffled_options
+
+    return result
 
 
 # =========================
@@ -22,7 +47,7 @@ def extract_json(text):
         try:
             parsed = json.loads(candidate)
             if isinstance(parsed, dict) and isinstance(parsed.get("questions"), list):
-                return parsed
+                return normalize_quiz_questions(parsed)
         except Exception:
             continue
 
@@ -75,7 +100,7 @@ def extract_json(text):
             continue
 
     if questions:
-        return {"questions": questions}
+        return normalize_quiz_questions({"questions": questions})
 
     return {
         "questions": [],
@@ -94,28 +119,7 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
     # The URL for your pre-trained model tunnel
     URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
     
-    context = """1. බුද්ධත්වය ලැබීම සහ මාර පරාජය
-බුදුරජාණන් වහන්සේ ලැබූ විශාලතම ජයග්‍රහණය වන්නේ බුද්ධත්වය ලැබීමයි. එහිදී උන් වහන්සේ දස මාර සේනාව සහ තණ්හා, රතී, රගා යන මාර දූවරුන් පරාජය කළේ දීර්ඝ කාලයක් ප්‍රගුණ කළ ආධ්‍යාත්මික ශක්තිය, අධිෂ්ඨානය සහ ඉවසීම මගිනි.
-
-2. ශිෂ්‍ය ජීවිතයට පාඩම්
-පාසල් සිසුන් වන අපට ද කසීතකම, තරහව, ඊර්ෂ්‍යාව වැනි 'මාර බලවේග' බාධාවන් විය හැකිය. ඒවා ජය ගැනීමට:
-
-විමසුම්ශීලී බුද්ධිය
-
-නොපසුබස්නා උත්සාහය
-
-ආත්ම සංයමය (තමාව පාලනය කරගැනීම) අවශ්‍ය වේ.
-
-3. පරිසරයට සහ සමාජයට ඇති ගරුත්වය
-බුද්ධත්වයෙන් පසු බෝධීන් වහන්සේ දෙස සතියක් බලා සිටීමෙන් උන් වහන්සේ කෘතගුණ සැලකීම පිළිබඳ උතුම් ආදර්ශයක් දුන්හ. පරිසරයට ආදරය කිරීම අනාගත පාරිසරික ගැටලු විසඳීමට මහෝපකාරී වේ.
-
-4. ගැටලු හමුවේ උපේක්ෂාවෙන් සිටීම
-ධර්මය දේශනා කිරීමේදී සහ ශාසනික තනතුරු පිරිනැමීමේදී විවිධ පුද්ගලයන්ගෙන් විවේචන එල්ල වුවද, බුදුරදුන් ඒවාට මුහුණ දුන්නේ උපේක්ෂාවෙන් (සමාන සිතින්) සහ අපක්ෂපාතීව ය. චන්න හිමියන්ගේ චෝදනා සහ භික්ෂූන් අතර ඇති වූ ගැටලු මෙයට උදාහරණ වේ.
-
-5. දුෂ්කරතා දරාගැනීම
-වේරංජා පුරයේ වස් වසන කාලයේ නිසි ආහාර හෝ පහසුකම් නොලැබුණත් උන් වහන්සේ නොසැලී සිටියහ. එමෙන්ම සැප පහසු ආරාම ලැබුණු විට ද ඒවාට ඇලුම් නොකර චාම් ජීවිතයක් ගත කළහ. මෙය ඉගෙන ගන්නා දරුවන්ට තම අධ්‍යාපන කටයුතුවලදී ඇතිවන ආර්ථික හෝ භෞතික අඩුපාඩු දරාගැනීමට ලොකු අත්වැලකි."""
-    subject = "10 ශ්‍රේණිය බුද්ධාගම"
-    lesson = "සිදුහත් කුමාරයාගේ උපත"
+    context = """"""
     # STEP 1: Set the Instruction based on quiz type
     if quiz_type == "pre":
         instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. කරුණාකර පහත මාතෘකාව ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න."
@@ -127,9 +131,8 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
     input_text = f"""
 පාඩම: {lesson}
 මාතෘකාව: {topic}
-සන්දර්භය: {context}
 
-පහත දැක්වෙන JSON ආකෘතියට අනුව ප්‍රශ්න 5ක් සකසන්න.
+පහත දැක්වෙන JSON ආකෘතියට අනුව ප්‍රශ්න පහක් සකසන්න.
 සෑම ප්‍රශ්නයකටම පිළිතුරු 4ක් සහ එක් නිවැරදි පිළිතුරක් තිබිය යුතුය.
 
 Format:
