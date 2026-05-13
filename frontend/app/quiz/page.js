@@ -83,6 +83,7 @@ export default function QuizPage() {
   // ✅ Save content if score is low and content was regenerated
   if (res?.data?.content) {
     localStorage.setItem("lesson_content", res?.data?.content || "");
+    localStorage.setItem("lesson_content_topic", topic || "");
   }
 
   router.push(
@@ -91,6 +92,7 @@ export default function QuizPage() {
 } else {
         const res = await submitPreQuiz(payload);
         localStorage.setItem("lesson_content", res?.data?.content || "");
+        localStorage.setItem("lesson_content_topic", topic || "");
         router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=pre&subject=${subject}&lesson=${lesson}`);
       }
     } catch (err) {
