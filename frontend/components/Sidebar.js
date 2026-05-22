@@ -22,13 +22,6 @@ export default function Sidebar() {
     { label: "Dashboard", icon: "⊞", path: "/dashboard", desc: "Home" },
   ];
 
-  const subjects = [
-    { label: "Physics",   icon: "⚛", path: "/sub-lesson?subject=Physics",   color: "#2563eb" },
-    { label: "Chemistry", icon: "⚗", path: "/sub-lesson?subject=Chemistry", color: "#16a34a" },
-    { label: "Biology",   icon: "🧬", path: "/sub-lesson?subject=Biology",   color: "#059669" },
-    { label: "Maths",     icon: "∑", path: "/sub-lesson?subject=Maths",     color: "#9333ea" },
-  ];
-
   const isActive = (path) => pathname === path.split("?")[0];
 
   return (
@@ -129,56 +122,6 @@ export default function Sidebar() {
         {/* Divider */}
         <div style={{ margin: "8px 12px", borderTop: "1px solid #1e293b" }} />
 
-        {/* Subjects */}
-        <div style={{ padding: "8px 12px" }}>
-          <p style={{
-            color: "#334155", fontSize: 9, fontWeight: 700,
-            letterSpacing: "0.12em", textTransform: "uppercase",
-            marginBottom: 8, paddingLeft: 8
-          }}>
-            Subjects
-          </p>
-
-          {subjects.map((item) => {
-            const active = pathname.includes("sub-lesson") && 
-                          typeof window !== "undefined" && 
-                          window.location.search.includes(item.label);
-            return (
-              <div
-                key={item.label}
-                onClick={() => router.push(item.path)}
-                onMouseEnter={() => setHoveredItem(item.label)}
-                onMouseLeave={() => setHoveredItem(null)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "9px 12px", borderRadius: 10,
-                  cursor: "pointer", marginBottom: 2,
-                  backgroundColor: hoveredItem === item.label
-                    ? "rgba(255,255,255,0.04)"
-                    : "transparent",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {/* Color dot */}
-                <div style={{
-                  width: 28, height: 28, borderRadius: 8,
-                  backgroundColor: item.color + "18",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0
-                }}>
-                  <span style={{ color: item.color, fontSize: 14 }}>{item.icon}</span>
-                </div>
-                <p style={{
-                  color: "#64748b", fontSize: 12, fontWeight: 500,
-                  margin: 0, letterSpacing: 0.2
-                }}>
-                  {item.label}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-
       </div>
 
       {/* ── Bottom Section ── */}
@@ -188,13 +131,19 @@ export default function Sidebar() {
         <div style={{ margin: "0 12px 12px", borderTop: "1px solid #1e293b" }} />
 
         {/* User Card */}
-        <div style={{
-          margin: "0 12px 8px",
-          padding: "12px 14px",
-          backgroundColor: "rgba(255,255,255,0.03)",
-          borderRadius: 12,
-          border: "1px solid #1e293b",
-        }}>
+        <div
+          onClick={() => router.push("/user-details")}
+          onMouseEnter={() => setHoveredItem("usercard")}
+          onMouseLeave={() => setHoveredItem(null)}
+          style={{
+            margin: "0 12px 8px",
+            padding: "12px 14px",
+            backgroundColor: hoveredItem === "usercard" ? "rgba(37,99,235,0.15)" : "rgba(255,255,255,0.03)",
+            borderRadius: 12,
+            border: "1px solid #1e293b",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
               width: 34, height: 34, borderRadius: 10,

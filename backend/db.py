@@ -13,6 +13,7 @@ topics_collection = db["topics"]
 questions_collection = db["questions"]
 student_progress_collection = db["student_progress"]
 delivered_content_collection = db["delivered_content"]
+enrollments_collection = db["enrollments"]
 
 # Hybrid BKT collections
 capability_matrix_collection = db["capability_matrix"]

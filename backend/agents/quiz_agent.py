@@ -1,130 +1,195 @@
 import json
 import re
-from langchain_core.prompts import PromptTemplate
-from services.llm import get_llm
-from knowledge_base.retriever import get_retriever
+import random
+
+
+def normalize_quiz_questions(result):
+    questions = result.get("questions")
+    if not isinstance(questions, list):
+        return result
+
+    for question in questions:
+        if not isinstance(question, dict):
+            continue
+
+        options = question.get("options")
+        answer = question.get("answer")
+        if not isinstance(options, list) or not answer:
+            continue
+
+        shuffled_options = [option for option in options if option]
+        if answer not in shuffled_options:
+            shuffled_options.insert(0, answer)
+
+        random.shuffle(shuffled_options)
+        question["options"] = shuffled_options
+
+    return result
 
 
 # =========================
 # JSON SAFE PARSER
 # =========================
 def extract_json(text):
-    """
-    Safely extract JSON even if LLM adds extra text
-    """
-    try:
-        text = text.replace("```json", "").replace("```", "").strip()
+    """Safely extract quiz JSON even if the model adds extra text."""
+    if not text:
+        return {"questions": [], "error": "Empty quiz response from model."}
 
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            return json.loads(match.group())
+    cleaned_text = text.replace("```json", "").replace("```", "").strip()
 
-        return json.loads(text)
+    candidates = [cleaned_text]
 
-    except Exception as e:
-        print("❌ JSON parsing failed:", e)
-        return {"questions": []}
+    match = re.search(r"\{.*\}", cleaned_text, re.DOTALL)
+    if match:
+        candidates.insert(0, match.group())
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict) and isinstance(parsed.get("questions"), list):
+                return normalize_quiz_questions(parsed)
+        except Exception:
+            continue
+
+    print("Standard JSON failed. Attempting to parse text format...")
+    questions = []
+
+    blocks = re.split(r"\n\s*\n", cleaned_text)
+    for block in blocks:
+        try:
+            lines = [line.strip() for line in block.split("\n") if line.strip()]
+            if not lines:
+                continue
+
+            first_line = lines[0]
+            if not first_line.startswith(("ප්‍රශ්නය", "ප්‍රශ්න", "Question")):
+                continue
+
+            q_text = first_line.split(":", 1)[-1].strip().rstrip(".")
+            correct = ""
+            options = []
+
+            for line in lines[1:]:
+                if line.startswith(("නිවැරදි පිළිතුර", "Correct Answer")):
+                    correct = line.split(":", 1)[-1].strip().rstrip(".")
+                    if correct and correct not in options:
+                        options.insert(0, correct)
+                    continue
+
+                if line.startswith(("වැරදි පිළිතුරු", "Wrong Answers", "Incorrect Answers")):
+                    wrong_text = line.split(":", 1)[-1].strip()
+                    pieces = re.split(r"\d+\)\s*", wrong_text)
+                    for piece in pieces:
+                        candidate = piece.strip().rstrip(".")
+                        if candidate and candidate not in options:
+                            options.append(candidate)
+                    continue
+
+                if re.match(r"^\d+\)", line):
+                    candidate = re.sub(r"^\d+\)\s*", "", line).strip().rstrip(".")
+                    if candidate and candidate not in options:
+                        options.append(candidate)
+
+            if q_text and correct and len(options) >= 4:
+                questions.append({
+                    "question": q_text,
+                    "options": options[:4],
+                    "answer": correct,
+                })
+        except Exception:
+            continue
+
+    if questions:
+        return normalize_quiz_questions({"questions": questions})
+
+    return {
+        "questions": [],
+        "error": "Quiz generator returned no parseable questions."
+    }
 
 
 # =========================
 # QUIZ GENERATOR (PRE / POST)
 # =========================
+import requests
+
 def generate_quiz(subject, lesson, topic, level, quiz_type):
-
-    print("\n🚀 [DEBUG] Quiz Generation Started")
-    print(f"📌 Topic: {topic}")
-    print(f"📊 Level: {level}")
-    print(f"🧠 Type: {quiz_type}")
-
-    llm = get_llm()
-    retriever = get_retriever()
-
-    # STEP 1: Retrieve context
-    docs = retriever.invoke(topic)
-    context = "\n".join([doc.page_content for doc in docs])
-
-    print("\n📚 Retrieved Docs:", len(docs))
-
-    # STEP 2: Define difficulty instruction
+    print("\n[DEBUG] Quiz Generation Started")
+    
+    # The URL for your pre-trained model tunnel
+    URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+    
+    context = """"""
+    # STEP 1: Set the Instruction based on quiz type
     if quiz_type == "pre":
-        instruction = """
-You are creating a PRE-LEARNING diagnostic quiz.
-Focus on basic understanding and conceptual awareness.
-"""
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. කරුණාකර පහත මාතෘකාව ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න."
     else:
-        instruction = """
-You are creating a POST-LEARNING evaluation quiz.
-Focus on application-based and slightly harder conceptual questions.
-"""
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. කරුණාකර පහත මාතෘකාව ඇසුරින් පසු-අධ්‍යයන පරිගණන සඳහා ප්‍රශ්නාවලියක් සකසන්න."
 
-    # STEP 3: Prompt
-    prompt = PromptTemplate(
-    input_variables=["subject", "lesson", "topic", "level", "quiz_type", "context"],
-    template="""
-You are an expert {subject} teacher.
+    # STEP 2: Create the specific input prompt for the model
+    # We ask for JSON format specifically in the prompt
+    input_text = f"""
+පාඩම: {lesson}
+මාතෘකාව: {topic}
 
-Lesson: {lesson}
-Topic: {topic}
-Student Level: {level}
-Quiz Type: {quiz_type}
+පහත දැක්වෙන JSON ආකෘතියට අනුව ප්‍රශ්න පහක් සකසන්න.
+සෑම ප්‍රශ්නයකටම පිළිතුරු 4ක් සහ එක් නිවැරදි පිළිතුරක් තිබිය යුතුය.
 
-Context:
-{context}
-
-INSTRUCTIONS:
-
-If quiz_type = "pre":
-- Generate basic questions to assess prior knowledge
-- Keep difficulty EASY
-
-If quiz_type = "post":
-- Generate conceptual and application-based questions
-- Match difficulty with {level}
-
-Return ONLY valid JSON:
-
+Format:
 {{
   "questions": [
     {{
       "question": "...",
       "options": ["A", "B", "C", "D"],
-      "answer": "A"
+      "answer": "Option text here"
     }}
   ]
 }}
-
-Rules:
-- Exactly 3 questions
-- 4 options each
-- No explanations
 """
-)
 
-    chain = prompt | llm
+    # STEP 3: Call your pre-trained model
+    payload = {
+        "instruction": instruction,
+        "input": input_text,
+        "max_new_tokens": 1024,
+    }
 
-    # STEP 4: LLM Call
-    response = chain.invoke({
-    "subject": subject,
-    "lesson": lesson,
-    "topic": topic,
-    "level": level,
-    "quiz_type": quiz_type,   # ✅ ADD THIS
-    "context": context,
-    "instruction": instruction
-})
+    try:
+        response = requests.post(
+            URL,
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            timeout=120,
+        )
+        response.raise_for_status()
 
-    print("\n🤖 RAW RESPONSE:\n", response.content)
+        try:
+            response_json = response.json()
+        except Exception as parse_error:
+            print(f"Model response was not valid JSON: {parse_error}")
+            return {
+                "questions": [],
+                "error": "Model response was not valid JSON."
+            }
 
-    # STEP 5: Parse JSON
-    result = extract_json(response.content)
+        raw_content = response_json.get("answer", "") or response_json.get("response", "")
+        print("\nRAW RESPONSE:\n", raw_content)
 
-    if "questions" not in result:
-        print("⚠️ Invalid quiz format, returning empty quiz")
-        return {"questions": []}
+        result = extract_json(raw_content)
 
-    print("✅ Quiz generated successfully")
-    return result
+        if not result.get("questions"):
+            print("Invalid quiz format, returning empty quiz")
+            return {
+                "questions": [],
+                "error": result.get("error", "Quiz generator returned no questions.")
+            }
 
+        print("Quiz generated successfully", result)
+        return result
+
+    except Exception as e:
+        print(f"Error calling model: {e}")
+        return {"questions": [], "error": f"Error calling model: {e}"}
 
 # =========================
 # EVALUATION LOGIC

@@ -10,7 +10,7 @@ export const getPreQuiz = (subject, lesson, topic) => {
       // Improved lesson number extraction: find any digits in the lesson string
       const lessonMatch = lesson.match(/\d+/);
       const lessonNum = lessonMatch ? parseInt(lessonMatch[0]) : 1;
-      
+
       return axios.get(`${API}/grade-11/lesson/pre-quiz/`, {
         params: { lesson: lessonNum },
       });
@@ -67,3 +67,10 @@ export const submitPostQuiz = (data) => {
 export const signupUser = (data) => axios.post(`${API}/auth/signup`, data);
 
 export const loginUser = (data) => axios.post(`${API}/auth/login`, data);
+
+export const enrollSubject = (data) => axios.post(`${API}/enroll/`, data);
+
+export const getEnrollments = (studentId) =>
+  axios.get(`${API}/enrollments`, {
+    params: { student_id: studentId },
+  });

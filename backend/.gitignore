@@ -1,3 +1,7 @@
 .env
 lstmbkt_text.txt
 pcbkt_text.txt
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyc

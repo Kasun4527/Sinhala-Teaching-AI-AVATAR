@@ -19,7 +19,8 @@ def get_llm(api_key: str = None):
         raise ValueError("GROQ_API_KEY not found in environment variables or passed as an argument.")
 
     return ChatGroq(
-        groq_api_key=api_key,
-        model="llama-3.1-8b-instant",
+        groq_api_key=os.getenv("GROQ_API_KEY"),
+        model="llama-3.3-70b-versatile",
         temperature=0.3
     )
+

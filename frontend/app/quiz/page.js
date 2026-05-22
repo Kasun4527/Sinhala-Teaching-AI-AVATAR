@@ -26,6 +26,7 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const subjectColors = {
     Physics: "#2563eb",
@@ -49,6 +50,7 @@ export default function QuizPage() {
 
     const fetchQuiz = async () => {
       try {
+        setError("");
         setLoading(true);
         const res =
           type === "post"
@@ -66,10 +68,22 @@ export default function QuizPage() {
           kc_ids: data.quiz?.questions?.map((q) => q.kc_id),
         });
 
-        setQuiz(data.quiz || data || { questions: [] });
+        const generatedQuiz = data.quiz || data || { questions: [] };
+        if (data?.quiz?.error) {
+          setError(data.quiz.error);
+        }
+        if (!generatedQuiz?.questions?.length && !generatedQuiz?.error) {
+          setError("Quiz generator returned no questions.");
+        }
+        setQuiz(generatedQuiz);
         setAnswers([]);
       } catch (err) {
         console.error("❌ Quiz load error:", err);
+        setError(
+          err?.response?.data?.detail ||
+            err?.message ||
+            "Quiz generation failed.",
+        );
         setQuiz({ questions: [] });
       } finally {
         setLoading(false);
@@ -327,7 +341,23 @@ export default function QuizPage() {
       <div style={{ display: "flex", minHeight: "100vh" }}>
         <Sidebar />
         <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
-          <p style={{ color: "#94a3b8" }}>No quiz available.</p>
+          <div
+            style={{
+              maxWidth: 720,
+              backgroundColor: "white",
+              borderRadius: 16,
+              padding: 24,
+              border: "1px solid #fee2e2",
+            }}
+          >
+            <p style={{ color: "#b91c1c", fontWeight: 700, marginBottom: 8 }}>
+              {error || "No quiz available."}
+            </p>
+            <p style={{ color: "#64748b", fontSize: 14 }}>
+              Check the backend console for the full generation trace, or verify
+              the /ask endpoint response format.
+            </p>
+          </div>
         </main>
       </div>
     );
@@ -379,7 +409,8 @@ export default function QuizPage() {
               <>
                 Mode: <strong>Combined Lesson Quiz</strong>
               </>
-            )} — {quiz.questions.length} questions
+            )}{" "}
+            — {quiz.questions.length} questions
           </p>
         </div>
 
@@ -443,13 +474,13 @@ export default function QuizPage() {
               >
                 {q.options.map((opt, idx) => {
                   const label = String.fromCharCode(65 + idx);
-                  const isSelected = answers[i] === label;
+                  const isSelected = answers[i] === opt;
                   return (
                     <div
                       key={idx}
                       onClick={() => {
                         const newAns = [...answers];
-                        newAns[i] = label;
+                        newAns[i] = opt;
                         setAnswers(newAns);
 
                         // Log BKT parameters for this KC when a selection is made

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from agents.content_agent import generate_content
 from agents.quiz_agent import generate_quiz, evaluate_answers
@@ -10,7 +10,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from fastapi import APIRouter, HTTPException
-from db import users_collection, questions_collection
+from db import users_collection, questions_collection, enrollments_collection
 from models.User import User
 from auth.security import hash_password
 from jose import jwt
@@ -97,6 +97,102 @@ class QuizSubmission(BaseModel):
     level: Optional[str] = None
     kc_ids: Optional[list] = None  # Added to support combined lesson quizzes
 
+
+class EnrollmentSubmission(BaseModel):
+    student_id: str
+    subject: str
+    lessons: list = Field(default_factory=list)
+
+
+def normalize_enrolled_lessons(lessons):
+    normalized_lessons = []
+
+    for lesson in lessons or []:
+        if isinstance(lesson, dict):
+            normalized_lessons.append({
+                "name": lesson.get("name", ""),
+                "topics": lesson.get("topics", []),
+            })
+
+    return normalized_lessons
+
+
+def flatten_topics(lessons):
+    topics = []
+
+    for lesson in lessons or []:
+        for topic in lesson.get("topics", []):
+            if topic not in topics:
+                topics.append(topic)
+
+    return topics
+
+
+def normalize_enrolled_subject(subject):
+    if isinstance(subject, str):
+        return {
+            "subject": subject,
+            "lessons": [],
+            "lesson_titles": [],
+            "topics": [],
+        }
+
+    lessons = normalize_enrolled_lessons(subject.get("lessons", []))
+    return {
+        "subject": subject.get("subject") or subject.get("name") or "",
+        "lessons": lessons,
+        "lesson_titles": [lesson.get("name", "") for lesson in lessons if lesson.get("name")],
+        "topics": flatten_topics(lessons),
+    }
+
+
+class EnrollmentSubmission(BaseModel):
+    student_id: str
+    subject: str
+    lessons: list = Field(default_factory=list)
+
+
+def normalize_enrolled_lessons(lessons):
+    normalized_lessons = []
+
+    for lesson in lessons or []:
+        if isinstance(lesson, dict):
+            normalized_lessons.append({
+                "name": lesson.get("name", ""),
+                "topics": lesson.get("topics", []),
+            })
+
+    return normalized_lessons
+
+
+def flatten_topics(lessons):
+    topics = []
+
+    for lesson in lessons or []:
+        for topic in lesson.get("topics", []):
+            if topic not in topics:
+                topics.append(topic)
+
+    return topics
+
+
+def normalize_enrolled_subject(subject):
+    if isinstance(subject, str):
+        return {
+            "subject": subject,
+            "lessons": [],
+            "lesson_titles": [],
+            "topics": [],
+        }
+
+    lessons = normalize_enrolled_lessons(subject.get("lessons", []))
+    return {
+        "subject": subject.get("subject") or subject.get("name") or "",
+        "lessons": lessons,
+        "lesson_titles": [lesson.get("name", "") for lesson in lessons if lesson.get("name")],
+        "topics": flatten_topics(lessons),
+    }
+
 # -------- Routes --------
 
 @app.get("/")
@@ -125,6 +221,12 @@ def pre_quiz(subject: str, lesson: str, topic: str):
             
     quiz = generate_quiz(subject, lesson, topic, "Beginner", "pre")
     return {"quiz": quiz}
+    print(f"Received pre-quiz request for {subject} - {lesson} - {topic}")
+    try:
+        quiz = generate_quiz(subject, lesson, topic, "Beginner", "pre")
+        return {"quiz": quiz}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/submit-pre-quiz/")
@@ -252,6 +354,11 @@ def post_quiz(subject: str, lesson: str, topic: str, level: str):
 
     quiz = generate_quiz(subject, lesson, topic, level, "post")
     return {"quiz": quiz}
+    try:
+        quiz = generate_quiz(subject, lesson, topic, level, "post")
+        return {"quiz": quiz}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 
@@ -438,6 +545,52 @@ def admin_get_lesson_progress(student_id: str, subject: str):
 def admin_get_topic_details(student_id: str, subject: str):
     details = get_topic_details(student_id, subject)
     return {"topics": details}
+
+
+@app.post("/enroll/")
+def enroll(data: EnrollmentSubmission):
+
+    if not data.student_id or not data.subject:
+        raise HTTPException(status_code=400, detail="student_id and subject required")
+
+    subject_entry = {
+        "subject": data.subject,
+        "lessons": normalize_enrolled_lessons(data.lessons),
+    }
+    subject_entry["lesson_titles"] = [lesson.get("name", "") for lesson in subject_entry["lessons"] if lesson.get("name")]
+    subject_entry["topics"] = flatten_topics(subject_entry["lessons"])
+
+    existing_enrollment = enrollments_collection.find_one({"student_id": data.student_id}) or {}
+    subjects = [normalize_enrolled_subject(subject) for subject in existing_enrollment.get("subjects", [])]
+
+    replaced = False
+    for index, subject in enumerate(subjects):
+        if subject.get("subject") == data.subject:
+            subjects[index] = subject_entry
+            replaced = True
+            break
+
+    if not replaced:
+        subjects.append(subject_entry)
+
+    enrollments_collection.update_one(
+        {"student_id": data.student_id},
+        {"$set": {"student_id": data.student_id, "subjects": subjects}},
+        upsert=True
+    )
+
+    return {"message": "enrolled", "student_id": data.student_id, "subject": subject_entry}
+
+
+@app.get("/enrollments")
+def get_enrollments(student_id: str):
+    doc = enrollments_collection.find_one({"student_id": student_id})
+    if not doc:
+        return {"student_id": student_id, "subjects": []}
+
+    subjects = [normalize_enrolled_subject(subject) for subject in doc.get("subjects", [])]
+
+    return {"student_id": student_id, "subjects": subjects}
 
 # -------- Hybrid BKT Routes --------
 
