@@ -81,8 +81,12 @@ async def initialize_bkt_engine():
             pc_bkt_engine.p_slip[kc_id] = 0.1
             logger.info(f"📚 Registered KC {kc_id} in BKT engine")
     
-    # Save updated engine state
-    pc_bkt_engine.save_to_db()
+    # Save updated engine state, but do not block app startup if MongoDB is unavailable.
+    try:
+        pc_bkt_engine.save_to_db()
+    except Exception:
+        logger.exception("BKT engine initialisation completed, but persistence failed")
+
     logger.info(f"✅ BKT engine initialized with {len(pc_bkt_engine.kc_ids)} KCs")
 
 # -------- Request Models --------

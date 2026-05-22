@@ -36,6 +36,13 @@ const subjectConfig = {
     hover: "#9333ea",
     accent: "#7e22ce",
   },
+  Buddhism: {
+    icon: "🕉️",
+    bg: "#fff7ed",
+    border: "#fde68a",
+    hover: "#d97706",
+    accent: "#d97706",
+  },
 };
 
 export default function StudentDashboard() {
@@ -45,15 +52,14 @@ export default function StudentDashboard() {
   const [pendingEnroll, setPendingEnroll] = useState(null);
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [enrollError, setEnrollError] = useState("");
+  const [pKnowAvg, setPKnowAvg] = useState(0);
+  const [masteryLevel, setMasteryLevel] = useState("Not Started");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
-     
       router.push("/login");
-     
       return;
-   
     }
     const studentId = localStorage.getItem("student_id");
     setName(localStorage.getItem("name") || "Student");
@@ -62,11 +68,12 @@ export default function StudentDashboard() {
       bktService
         .fetchMastery(studentId)
         .then((data) => {
-          if (data && data.kc_states) {
+          if (data?.kc_states) {
             const kcs = Object.values(data.kc_states);
             if (kcs.length > 0) {
               const avg =
-                kcs.reduce((acc, curr) => acc + curr.p_know, 0) / kcs.length;
+                kcs.reduce((acc, curr) => acc + (curr.p_know || 0), 0) /
+                kcs.length;
               setPKnowAvg(avg);
               if (avg > 0.85) setMasteryLevel("Advanced");
               else if (avg >= 0.6) setMasteryLevel("Standard");
@@ -76,7 +83,7 @@ export default function StudentDashboard() {
             }
           }
         })
-        .catch((err) => console.error("Failed to fetch mastery:", err));
+        .catch(() => {});
     }
   }, []);
 
@@ -92,30 +99,7 @@ export default function StudentDashboard() {
           minWidth: 0,
         }}
       >
-  return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar />
-      <main
-        style={{
-          flex: 1,
-          padding: "48px",
-          backgroundColor: "#f8fafc",
-          overflowY: "auto",
-          minWidth: 0,
-        }}
-      >
-        {/* Header */}
         <div style={{ marginBottom: 40 }}>
-          <p
-            style={{
-              color: "#94a3b8",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-              marginBottom: 8,
-            }}
-          >
           <p
             style={{
               color: "#94a3b8",
@@ -137,15 +121,6 @@ export default function StudentDashboard() {
               marginBottom: 8,
             }}
           >
-          <h1
-            style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 40,
-              fontWeight: 700,
-              color: "#0f172a",
-              marginBottom: 8,
-            }}
-          >
             {name} 👋
           </h1>
           <p style={{ color: "#64748b", fontSize: 15 }}>
@@ -153,40 +128,13 @@ export default function StudentDashboard() {
           </p>
         </div>
 
-        {/* Stats Row */}
         <div style={{ display: "flex", gap: 16, marginBottom: 40 }}>
           {[
             { label: "Subjects", value: curriculum.length, color: "#2563eb" },
             { label: "Available", value: "Physics", color: "#059669" },
-          ].map((stat, i) => (
+          ].map((stat) => (
             <div
-              key={i}
-              style={{
-                backgroundColor: "white",
-                borderRadius: 12,
-                padding: "16px 24px",
-                border: "1px solid #e2e8f0",
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  backgroundColor: stat.color,
-                }}
-              />
-              <span style={{ color: "#64748b", fontSize: 13 }}>
-                {stat.label}:
-              </span>
-              <span style={{ color: "#0f172a", fontWeight: 600, fontSize: 13 }}>
-                {stat.value}
-              </span>
-            <div
-              key={i}
+              key={stat.label}
               style={{
                 backgroundColor: "white",
                 borderRadius: 12,
@@ -215,31 +163,18 @@ export default function StudentDashboard() {
           ))}
         </div>
 
-        {/* Subject Cards */}
         <div
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}
         >
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}
-        >
-          {curriculum.map((item, i) => {
-            const config = subjectConfig[item.subject] || {
-              icon: "📚",
-              bg: "#f8fafc",
-              border: "#e2e8f0",
-              hover: "#2563eb",
-              icon: "📚",
-              bg: "#f8fafc",
-              border: "#e2e8f0",
-              hover: "#2563eb",
-            };
-            const isHovered = hoveredCard === i;
-
+          {curriculum.map((item) => {
+            const config = subjectConfig[item.subject] || subjectConfig.Biology;
+            const isHovered = hoveredCard === item.subject;
             return (
-              <div
-                key={i}
+              <button
+                key={item.subject}
+                type="button"
                 onClick={() => setPendingEnroll(item)}
-                onMouseEnter={() => setHoveredCard(i)}
+                onMouseEnter={() => setHoveredCard(item.subject)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{
                   backgroundColor: isHovered ? config.bg : "white",
@@ -251,30 +186,15 @@ export default function StudentDashboard() {
                   boxShadow: isHovered
                     ? "0 8px 24px rgba(0,0,0,0.08)"
                     : "0 1px 3px rgba(0,0,0,0.04)",
-                  boxShadow: isHovered
-                    ? "0 8px 24px rgba(0,0,0,0.08)"
-                    : "0 1px 3px rgba(0,0,0,0.04)",
                   transform: isHovered ? "translateY(-2px)" : "translateY(0)",
+                  textAlign: "left",
+                  width: "100%",
+                  background: isHovered ? config.bg : "white",
                 }}
               >
-                {/* Icon */}
                 <div style={{ fontSize: 36, marginBottom: 16 }}>
                   {config.icon}
                 </div>
-                <div style={{ fontSize: 36, marginBottom: 16 }}>
-                  {config.icon}
-                </div>
-
-                {/* Title */}
-                <h3
-                  style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: "#0f172a",
-                    marginBottom: 6,
-                  }}
-                >
                 <h3
                   style={{
                     fontFamily: "'Playfair Display', serif",
@@ -287,7 +207,6 @@ export default function StudentDashboard() {
                   {item.subject}
                 </h3>
 
-                {/* Lessons count / Mastery Level */}
                 {item.subject.toLowerCase() === "buddhism" ? (
                   <div style={{ marginBottom: 20 }}>
                     <p
@@ -312,7 +231,7 @@ export default function StudentDashboard() {
                     >
                       <div
                         style={{
-                          width: `${Math.max(5, pKnowAvg * 100)}%`,
+                          width: `${Math.max(5, Math.round(pKnowAvg * 100))}%`,
                           backgroundColor: config.accent,
                           height: 6,
                           borderRadius: 99,
@@ -329,21 +248,6 @@ export default function StudentDashboard() {
                   </p>
                 )}
 
-                {/* CTA */}
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    backgroundColor: isHovered ? config.hover : "#f1f5f9",
-                    color: isHovered ? "white" : "#64748b",
-                    padding: "6px 14px",
-                    borderRadius: 20,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    transition: "all 0.2s ease",
-                  }}
-                >
                 <div
                   style={{
                     display: "inline-flex",
@@ -360,12 +264,11 @@ export default function StudentDashboard() {
                 >
                   Start Learning →
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
 
-        {/* Enroll Confirmation Modal */}
         {pendingEnroll && (
           <div
             style={{
@@ -394,49 +297,32 @@ export default function StudentDashboard() {
               </p>
               {enrollError && <p style={{ color: "#b91c1c" }}>{enrollError}</p>}
               <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 8,
-                  marginTop: 18,
-                }}
+                style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
               >
                 <button
-                  onClick={() => {
-                    setPendingEnroll(null);
-                    setEnrollError("");
-                  }}
+                  onClick={() => setPendingEnroll(null)}
                   style={{
                     padding: "8px 12px",
                     borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                    background: "white",
+                    background: "#f1f5f9",
                   }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={async () => {
+                    setEnrollLoading(true);
+                    setEnrollError("");
                     try {
-                      setEnrollLoading(true);
-                      setEnrollError("");
-                      const studentId = localStorage.getItem("student_id");
-                      if (!studentId) throw new Error("Not logged in");
-
                       await enrollSubject({
-                          student_id: studentId,
-                          subject: pendingEnroll.subject,
-                          lessons: pendingEnroll.lessons || [],
-                        });
-
+                        student_id: localStorage.getItem("student_id"),
+                        subject: pendingEnroll.subject,
+                      });
                       setPendingEnroll(null);
-                      router.push(
-                        `/sub-lesson?subject=${encodeURIComponent(
-                          pendingEnroll.subject
-                        )}`
-                      );
                     } catch (err) {
-                      setEnrollError(err?.message || "Enroll failed");
+                      setEnrollError(
+                        err?.response?.data?.detail || "Enrollment failed",
+                      );
                     } finally {
                       setEnrollLoading(false);
                     }
@@ -445,12 +331,11 @@ export default function StudentDashboard() {
                   style={{
                     padding: "8px 12px",
                     borderRadius: 8,
-                    border: "none",
                     background: "#2563eb",
                     color: "white",
                   }}
                 >
-                  {enrollLoading ? "Enrolling..." : "Enroll & Continue"}
+                  {enrollLoading ? "Enrolling..." : "Enroll"}
                 </button>
               </div>
             </div>
@@ -460,4 +345,3 @@ export default function StudentDashboard() {
     </div>
   );
 }
-

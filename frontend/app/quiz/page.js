@@ -445,7 +445,7 @@ export default function QuizPage() {
         >
           {quiz.questions.map((q, i) => (
             <div
-              key={i}
+              key={q.id || i}
               style={{
                 backgroundColor: "white",
                 borderRadius: 14,
@@ -473,11 +473,13 @@ export default function QuizPage() {
                 style={{ display: "flex", flexDirection: "column", gap: 10 }}
               >
                 {q.options.map((opt, idx) => {
-                  const label = String.fromCharCode(65 + idx);
+                  const label = String.fromCodePoint(65 + idx);
                   const isSelected = answers[i] === opt;
                   return (
-                    <div
-                      key={idx}
+                    <button
+                      key={`${q.id || i}-${idx}`}
+                      type="button"
+                      aria-pressed={isSelected}
                       onClick={() => {
                         const newAns = [...answers];
                         newAns[i] = opt;
@@ -522,6 +524,7 @@ export default function QuizPage() {
                         backgroundColor: isSelected ? accent + "10" : "#fafafa",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
+                        textAlign: "left",
                       }}
                     >
                       <div
@@ -552,7 +555,7 @@ export default function QuizPage() {
                           ? normalizeSinhalaText(opt)
                           : opt}
                       </span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>

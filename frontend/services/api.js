@@ -9,7 +9,7 @@ export const getPreQuiz = (subject, lesson, topic) => {
     if (!topic) {
       // Improved lesson number extraction: find any digits in the lesson string
       const lessonMatch = lesson.match(/\d+/);
-      const lessonNum = lessonMatch ? parseInt(lessonMatch[0]) : 1;
+      const lessonNum = lessonMatch ? Number.parseInt(lessonMatch[0]) : 1;
 
       return axios.get(`${API}/grade-11/lesson/pre-quiz/`, {
         params: { lesson: lessonNum },
@@ -44,7 +44,7 @@ export const getPostQuiz = (subject, lesson, topic, level) => {
     // If no topic (lesson-level quiz), use lesson endpoint
     if (!topic) {
       const lessonMatch = lesson.match(/\d+/);
-      const lessonNum = lessonMatch ? parseInt(lessonMatch[0]) : 1;
+      const lessonNum = lessonMatch ? Number.parseInt(lessonMatch[0]) : 1;
       return axios.get(`${API}/grade-11/lesson/post-quiz/`, {
         params: { lesson: lessonNum, student_id: studentId },
       });

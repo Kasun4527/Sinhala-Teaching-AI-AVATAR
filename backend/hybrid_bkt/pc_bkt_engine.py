@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 from typing import Dict, Tuple, Optional
 import json
 import logging
+from pymongo.errors import PyMongoError
 from db import pc_bkt_states_collection, capability_matrix_collection
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,12 @@ class PC_BKT:
         self.is_fitted = False
 
     def load_from_db(self):
-        doc = pc_bkt_states_collection.find_one({"type": "global_pc_bkt_model"})
+        try:
+            doc = pc_bkt_states_collection.find_one({"type": "global_pc_bkt_model"})
+        except PyMongoError as exc:
+            logger.warning("Could not load PC-BKT state from MongoDB: %s", exc)
+            return False
+
         if doc:
             self.n_clusters = doc.get("n_clusters", self.n_clusters)
             self.p_know_cap = doc.get("p_know_cap", self.p_know_cap)
@@ -75,19 +81,23 @@ class PC_BKT:
             "student_ids": self.student_ids,
             "is_fitted": self.is_fitted,
         }
-        pc_bkt_states_collection.update_one(
-            {"type": "global_pc_bkt_model"},
-            {"$set": doc},
-            upsert=True
-        )
 
-        # Also update capability matrix collection for individual student clusters
-        for sid, cluster_id in self.student_clusters.items():
-            capability_matrix_collection.update_one(
-                {"student_id": sid},
-                {"$set": {"cluster_id": cluster_id}},
+        try:
+            pc_bkt_states_collection.update_one(
+                {"type": "global_pc_bkt_model"},
+                {"$set": doc},
                 upsert=True
             )
+
+            # Also update capability matrix collection for individual student clusters
+            for sid, cluster_id in self.student_clusters.items():
+                capability_matrix_collection.update_one(
+                    {"student_id": sid},
+                    {"$set": {"cluster_id": cluster_id}},
+                    upsert=True
+                )
+        except PyMongoError as exc:
+            logger.warning("Could not save PC-BKT state to MongoDB: %s", exc)
 
     # ------------------------------------------------------------------
     # Step 1: Annotate Knowledge Sequences using EP
