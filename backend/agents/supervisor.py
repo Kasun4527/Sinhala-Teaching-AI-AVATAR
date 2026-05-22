@@ -108,7 +108,8 @@ def content_generator_node(state: LearningState) -> LearningState:
         subject=state["subject"],
         lesson=state["lesson"],
         topic=state["topic"],
-        level=state["level"]
+        level=state["level"],
+        student_id=state.get("student_id")
     )
 
     # generate_content may return a dict with content and rag_prompt

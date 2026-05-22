@@ -2,7 +2,7 @@ from langchain_core.prompts import PromptTemplate
 from services.llm import get_llm
 from knowledge_base.retriever import get_retriever
 
-def generate_content(subject, lesson, topic, level):
+def generate_content(subject, lesson, topic, level, student_id=None):
 
     llm = get_llm()
     retriever = get_retriever()
@@ -10,30 +10,58 @@ def generate_content(subject, lesson, topic, level):
     docs = retriever.invoke(topic)
     context = "\n".join([doc.page_content for doc in docs])
 
-    # 🎯 Adaptive instruction engine
-    adaptive_instruction = ""
+    # Special handling for Grade 11 Buddhism
+    if subject.lower() == "buddhism":
+        try:
+            from subjects.buddhism.rag_prompt_generator import Grade11BuddhistRAGPromptGenerator
+            from subjects.buddhism.adapter import get_kc_info
+            
+            generator = Grade11BuddhistRAGPromptGenerator()
+            kc_info = get_kc_info(topic, grade=11)
+            kc_name = kc_info.get("name", topic) if kc_info else topic
+            
+            # For Buddhism, we want a very rich personalized prompt
+            # We fetch mastery level to personalize
+            from hybrid_bkt.inference import get_hybrid_mastery
+            sid = student_id or "STU001" 
+            
+            mastery_state = get_hybrid_mastery(sid)
+            p_know = 0.5
+            if mastery_state and "kc_states" in mastery_state and topic in mastery_state["kc_states"]:
+                p_know = mastery_state["kc_states"][topic]["p_know"]
 
-    if level == "Beginner":
-        adaptive_instruction = """
-        Explain in VERY SIMPLE language.
-        Use real-life examples.
-        Break into small steps.
-        Assume student knows nothing.
-        """
-
-    elif level == "Intermediate":
-        adaptive_instruction = """
-        Explain clearly with moderate detail.
-        Include examples and key points.
-        Avoid too much complexity.
-        """
-
-    else:  # Advanced
-        adaptive_instruction = """
-        Give concise explanation.
-        Focus on deep understanding.
-        Include technical details and concepts.
-        """
+            rag_pkg = generator.generate_comprehensive_rag_prompt(
+                student_id=sid,
+                kc_id=topic,
+                kc_name=kc_name,
+                quiz_type="pre",
+                mastery_level=p_know
+            )
+            adaptive_instruction = rag_pkg["retrieval_prompt"]
+        except Exception as e:
+            print(f"Buddhism RAG generator error: {e}")
+            adaptive_instruction = f"Explain the topic {topic} clearly for a {level} student."
+    else:
+        # Standard adaptive instruction for other subjects
+        if level == "Beginner":
+            adaptive_instruction = """
+            Explain in VERY SIMPLE language.
+            Use real-life examples.
+            Break into small steps.
+            Assume student knows nothing.
+            """
+        elif level == "Intermediate":
+            adaptive_instruction = """
+            Explain clearly with moderate detail.
+            Include examples and key points.
+            Avoid too much complexity.
+            """
+        else:  # Advanced
+            adaptive_instruction = """
+            Give concise explanation.
+            Focus on deep understanding.
+            Include technical details and concepts.
+            """
 
     prompt = PromptTemplate(
     input_variables=["subject", "lesson", "topic", "level", "context", "instruction"],

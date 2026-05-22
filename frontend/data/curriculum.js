@@ -16,46 +16,39 @@ export const curriculum = [
           "Electromagnetic radiation and wave-like properties of matter",
           "Quantization of energy",
           "Electronic energy levels of atoms",
-          "The hydrogen spectrum"
-        ]
+          "The hydrogen spectrum",
+        ],
       },
       { name: "Lesson 2", topics: [] },
       { name: "Lesson 3", topics: [] },
       { name: "Lesson 4", topics: [] },
       { name: "Lesson 5", topics: [] },
-      { name: "Lesson 6", topics: [] }
-    ]
+      { name: "Lesson 6", topics: [] },
+    ],
   },
   {
     subject: "Chemistry",
-    lessons: []
+    lessons: [],
   },
   {
     subject: "Maths",
-    lessons: []
+    lessons: [],
   },
   {
     subject: "Biology",
-    lessons: []
+    lessons: [],
   },
   {
     subject: "Buddhism",
     lessons: [
       {
         name: "Lesson 1",
-        topics: [
-          "BUD10_01_01",
-          "BUD10_01_02",
-          "BUD10_01_03"
-        ]
+        topics: ["11.1.1", "11.1.2"],
       },
       {
         name: "Lesson 2",
-        topics: [
-          "BUD10_02_01",
-          "BUD10_02_02"
-        ]
-      }
-    ]
-  }
+        topics: ["11.2.1"],
+      },
+    ],
+  },
 ];

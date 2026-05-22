@@ -10,7 +10,15 @@ from db import pc_bkt_states_collection, capability_matrix_collection
 logger = logging.getLogger(__name__)
 
 class PC_BKT:
-    """Personalized Clustered Bayesian Knowledge Tracing model adapted for MongoDB."""
+    """
+    🎯 UNIVERSAL Personalized Clustered Bayesian Knowledge Tracing
+    
+    This model is used across ALL subjects and quizzes.
+    Subject-agnostic: works with any topic/skill identifier.
+    
+    Personalization via clustering for improved cold-start.
+    Adapted for MongoDB persistence.
+    """
 
     def __init__(self, n_clusters: int = 3, p_know_cap: float = 0.95):
         self.n_clusters = n_clusters

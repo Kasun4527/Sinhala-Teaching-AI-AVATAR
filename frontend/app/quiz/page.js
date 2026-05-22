@@ -32,6 +32,7 @@ export default function QuizPage() {
     Chemistry: "#16a34a",
     Biology: "#059669",
     Maths: "#9333ea",
+    Buddhism: "#d97706",
   };
   const accent = subjectColors[subject] || "#2563eb";
 
@@ -41,7 +42,7 @@ export default function QuizPage() {
       router.push("/login");
       return;
     }
-    if (!subject || !lesson || !topic) {
+    if (!subject || !lesson) {
       setLoading(false);
       return;
     }
@@ -54,6 +55,17 @@ export default function QuizPage() {
             ? await getPostQuiz(subject, lesson, topic, level)
             : await getPreQuiz(subject, lesson, topic);
         const data = res?.data || {};
+
+        // Log quiz data for debugging
+        console.log("📝 Quiz loaded:", {
+          subject,
+          lesson,
+          topic: topic || "(combined)",
+          questionsCount: data.quiz?.questions?.length || 0,
+          firstQuestion: data.quiz?.questions?.[0]?.question?.substring(0, 50),
+          kc_ids: data.quiz?.questions?.map((q) => q.kc_id),
+        });
+
         setQuiz(data.quiz || data || { questions: [] });
         setAnswers([]);
       } catch (err) {
@@ -69,23 +81,47 @@ export default function QuizPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const correctAnswers = quiz.questions.map((q) => q.answer);
+      const correctAnswers = quiz.questions.map(
+        (q) => q.correct_answer || q.answer,
+      );
       const studentId = localStorage.getItem("student_id");
+
+      // For lesson-level quizzes (no topic), collect all KC IDs
+      const kcIds = [
+        ...new Set(quiz.questions.map((q) => q.kc_id).filter(Boolean)),
+      ];
+      const lessonNum = lesson?.includes("2") ? 2 : 1;
+
+      console.log("🎯 Quiz Submission Details:", {
+        subject,
+        lesson,
+        topic: topic || "(combined)",
+        studentId,
+        questionCount: quiz.questions.length,
+        kcIds: kcIds.length > 0 ? kcIds : "N/A",
+        answerCount: answers.length,
+        studentAnswers: answers,
+        correctAnswers: correctAnswers,
+      });
+
       const payload = {
         subject,
         lesson,
+        lesson_num: lessonNum,
         topic,
         level,
         student_answers: answers,
         correct_answers: correctAnswers,
         student_id: studentId,
+        kc_ids: kcIds.length > 0 ? kcIds : null, // Pass KC IDs if available
       };
+
       // Log BKT masteries snapshot before submitting
       try {
         if (studentId) {
           const mastery = await bktService.fetchMastery(studentId);
           console.log(
-            "[BKT] Snapshot before submit:",
+            "[BKT] 📊 Snapshot BEFORE submission:",
             mastery?.kc_states || mastery,
           );
           // Log per-question KC params
@@ -93,7 +129,7 @@ export default function QuizPage() {
             const q = quiz.questions[i];
             const kcId = q.kc_id || topic;
             console.log(
-              `[BKT] Before submit - KC ${kcId}:`,
+              `[BKT] Q${i + 1} KC ${kcId}:`,
               mastery?.kc_states?.[kcId],
             );
           }
@@ -101,47 +137,69 @@ export default function QuizPage() {
       } catch (e) {
         console.error("[BKT] fetch before submit failed:", e);
       }
+
       if (type === "post") {
         const res = await submitPostQuiz(payload);
         console.log("📩 Post-quiz response:", res?.data);
 
-        // Update BKT state for each question
-        if (subject.toLowerCase() === "buddhism") {
-          for (let i = 0; i < quiz.questions.length; i++) {
-            const q = quiz.questions[i];
-            const kcId = q.kc_id || topic; // Use kc_id if available, fallback to topic
-            const isCorrect = answers[i] === q.answer;
-            try {
-              await bktService.submitInteraction(studentId, kcId, isCorrect);
-            } catch (err) {
-              console.error("Failed to update BKT for question", i);
-            }
-          }
-        }
-
-        // ✅ Save content if score is low and content was regenerated
-        if (res?.data?.content) {
-          localStorage.setItem("lesson_content", res?.data?.content || "");
+        // Check mastery AFTER submission
+        try {
+          const masteryAfter = await bktService.fetchMastery(studentId);
+          console.log(
+            "[BKT] 📊 Snapshot AFTER submission:",
+            masteryAfter?.kc_states || masteryAfter,
+          );
+          console.log("[BKT] 🔄 Changes detected:", {
+            before: "see above",
+            after: "see above",
+          });
+        } catch (e) {
+          console.error("[BKT] fetch after submit failed:", e);
         }
 
         router.push(
-          `/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=post&subject=${subject}&lesson=${lesson}&bkt_feedback=${encodeURIComponent(res?.data?.bkt_feedback || "")}`,
+          `/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic || lesson}&type=post&subject=${subject}&lesson=${lesson}&bkt_feedback=${encodeURIComponent(res?.data?.bkt_feedback || "")}`,
         );
       } else {
+        // Pre-quiz submission
         const res = await submitPreQuiz(payload);
         console.log("📩 Pre-quiz response:", res?.data);
-        // Log RAG prompt if backend provided it
+
+        // Log final RAG prompt with full details
+        console.log("🎓 === RAG PROMPT GENERATION SUMMARY ===");
+        console.log("Student ID:", studentId);
+        console.log("Subject:", subject);
+        console.log("Lesson:", lesson);
+        console.log(
+          "Knowledge Components:",
+          kcIds.length > 0 ? kcIds : "Single KC",
+        );
+        console.log("Quiz Performance:", {
+          questionsAttempted: quiz.questions.length,
+          studentAnswers: answers,
+          correctAnswers: correctAnswers,
+          score: `${answers.filter((a, i) => a === correctAnswers[i]).length}/${quiz.questions.length}`,
+        });
+
         if (res?.data?.rag_prompt) {
+          console.log("📝 [RAG] FINAL PROMPT FOR CONTENT GENERATION:");
+          console.log(res.data.rag_prompt);
           console.log(
-            "[RAG] Prompt used for content generation:",
-            res.data.rag_prompt,
+            "📝 [RAG] This prompt will be used to personalize lesson content based on:",
           );
+          console.log("   - Student's skill level from mastery prediction");
+          console.log("   - Specific knowledge gaps identified");
+          console.log("   - Bloom's taxonomy level recommendations");
+          console.log("   - Personalized learning pathways");
         } else {
-          console.log("[RAG] No rag_prompt returned by server.");
+          console.log(
+            "[RAG] ⚠️  No rag_prompt returned by server - using default content generation",
+          );
         }
+
         localStorage.setItem("lesson_content", res?.data?.content || "");
         router.push(
-          `/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=pre&subject=${subject}&lesson=${lesson}`,
+          `/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic || lesson}&type=pre&subject=${subject}&lesson=${lesson}`,
         );
       }
     } catch (err) {
@@ -313,7 +371,15 @@ export default function QuizPage() {
             {type === "post" ? "Post Lesson Quiz" : "Pre Lesson Quiz"}
           </h1>
           <p style={{ color: "#64748b", fontSize: 14 }}>
-            Topic: <strong>{topic}</strong> — {quiz.questions.length} questions
+            {topic ? (
+              <>
+                Topic: <strong>{topic}</strong>
+              </>
+            ) : (
+              <>
+                Mode: <strong>Combined Lesson Quiz</strong>
+              </>
+            )} — {quiz.questions.length} questions
           </p>
         </div>
 

@@ -1,3 +1,10 @@
+"""
+🧠 LSTM Component of Hybrid BKT
+================================
+LSTM network for temporal pattern recognition in student learning.
+Works with ANY subject/topic - subject-agnostic architecture.
+"""
+
 import torch
 import torch.nn as nn
 

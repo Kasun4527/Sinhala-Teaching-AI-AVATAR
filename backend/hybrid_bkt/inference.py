@@ -12,6 +12,27 @@ from .utils import serialize_tensor, deserialize_tensor
 from db import lstm_states_collection, pc_bkt_states_collection
 import os
 
+"""
+🧠 UNIVERSAL HYBRID BKT INFERENCE MODULE
+=========================================
+This module provides a single, unified interface for Hybrid BKT across ALL subjects.
+
+Functions:
+- predict_next_response(): Predict P(Know) for a skill
+- update_student_hybrid_state(): Update BKT after response
+- get_hybrid_mastery(): Get student's mastery state
+- train_hybrid_model(): Train the hybrid model
+
+These functions are subject-agnostic and work with any:
+- Subject (Buddhism, Arabic, etc.)
+- Topic (any knowledge component)
+- Quiz (pre/post or any assessment)
+
+The Hybrid model combines:
+1. PC-BKT (Personalized Clustered Bayesian Knowledge Tracing)
+2. LSTM (Long Short-Term Memory) for temporal patterns
+"""
+
 logger = logging.getLogger(__name__)
 
 # Reusing the model structure from lstm_model.py

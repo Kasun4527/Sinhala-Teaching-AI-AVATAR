@@ -14,53 +14,84 @@ export default function LessonsPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
+    if (!token) {
+      router.push("/login");
+      return;
+    }
   }, []);
 
   const subjectColors = {
-    Physics:   { accent: "#2563eb", light: "#eff6ff", border: "#bfdbfe" },
+    Physics: { accent: "#2563eb", light: "#eff6ff", border: "#bfdbfe" },
     Chemistry: { accent: "#16a34a", light: "#f0fdf4", border: "#bbf7d0" },
-    Biology:   { accent: "#059669", light: "#ecfdf5", border: "#a7f3d0" },
-    Maths:     { accent: "#9333ea", light: "#faf5ff", border: "#e9d5ff" },
+    Biology: { accent: "#059669", light: "#ecfdf5", border: "#a7f3d0" },
+    Maths: { accent: "#9333ea", light: "#faf5ff", border: "#e9d5ff" },
+    Buddhism: { accent: "#d97706", light: "#fffbeb", border: "#fef3c7" },
   };
 
-  const color = subjectColors[subject] || { accent: "#2563eb", light: "#eff6ff", border: "#bfdbfe" };
+  const color = subjectColors[subject] || {
+    accent: "#2563eb",
+    light: "#eff6ff",
+    border: "#bfdbfe",
+  };
 
-  if (!subjectData) return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar />
-      <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
-        <p style={{ color: "#94a3b8" }}>No lessons found.</p>
-      </main>
-    </div>
-  );
+  if (!subjectData)
+    return (
+      <div style={{ display: "flex", minHeight: "100vh" }}>
+        <Sidebar />
+        <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
+          <p style={{ color: "#94a3b8" }}>No lessons found.</p>
+        </main>
+      </div>
+    );
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar />
 
-      <main style={{ flex: 1, padding: "48px", backgroundColor: "#f8fafc", minWidth: 0 }}>
-
+      <main
+        style={{
+          flex: 1,
+          padding: "48px",
+          backgroundColor: "#f8fafc",
+          minWidth: 0,
+        }}
+      >
         {/* Breadcrumb */}
         <p
           onClick={() => router.push("/dashboard")}
-          style={{ color: "#94a3b8", fontSize: 13, cursor: "pointer", marginBottom: 24 }}
+          style={{
+            color: "#94a3b8",
+            fontSize: 13,
+            cursor: "pointer",
+            marginBottom: 24,
+          }}
         >
           ← Back to Dashboard
         </p>
 
         {/* Header */}
         <div style={{ marginBottom: 40 }}>
-          <p style={{
-            color: color.accent, fontSize: 11, fontWeight: 600,
-            letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 8
-          }}>
+          <p
+            style={{
+              color: color.accent,
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              marginBottom: 8,
+            }}
+          >
             {subject}
           </p>
-          <h1 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 36, fontWeight: 700, color: "#0f172a", marginBottom: 8
-          }}>
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', serif",
+              fontSize: 36,
+              fontWeight: 700,
+              color: "#0f172a",
+              marginBottom: 8,
+            }}
+          >
             Available Lessons
           </h1>
           <p style={{ color: "#64748b", fontSize: 15 }}>
@@ -69,13 +100,29 @@ export default function LessonsPage() {
         </div>
 
         {/* Lessons Grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}
+        >
           {subjectData.lessons.map((lesson, i) => {
             const isHovered = hoveredCard === i;
+
+            // For Buddhism, skip topics and go directly to quiz with all lesson KCs
+            const handleLessonClick = () => {
+              if (subject === "Buddhism") {
+                router.push(
+                  `/quiz?subject=${subject}&lesson=${encodeURIComponent(lesson.name)}&type=pre`,
+                );
+              } else {
+                router.push(
+                  `/topics?subject=${subject}&lesson=${encodeURIComponent(lesson.name)}`,
+                );
+              }
+            };
+
             return (
               <div
                 key={i}
-                onClick={() => router.push(`/topics?subject=${subject}&lesson=${lesson.name}`)}
+                onClick={handleLessonClick}
                 onMouseEnter={() => setHoveredCard(i)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{
@@ -85,7 +132,9 @@ export default function LessonsPage() {
                   padding: "24px 28px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
-                  boxShadow: isHovered ? "0 8px 24px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+                  boxShadow: isHovered
+                    ? "0 8px 24px rgba(0,0,0,0.08)"
+                    : "0 1px 3px rgba(0,0,0,0.04)",
                   transform: isHovered ? "translateY(-2px)" : "translateY(0)",
                   display: "flex",
                   alignItems: "center",
@@ -93,27 +142,41 @@ export default function LessonsPage() {
                 }}
               >
                 {/* Number Badge */}
-                <div style={{
-                  width: 44, height: 44, borderRadius: 12,
-                  backgroundColor: isHovered ? color.accent : "#f1f5f9",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0, transition: "all 0.2s"
-                }}>
-                  <span style={{
-                    color: isHovered ? "white" : "#64748b",
-                    fontWeight: 700, fontSize: 16
-                  }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    backgroundColor: isHovered ? color.accent : "#f1f5f9",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: isHovered ? "white" : "#64748b",
+                      fontWeight: 700,
+                      fontSize: 16,
+                    }}
+                  >
                     {i + 1}
                   </span>
                 </div>
 
                 {/* Text */}
                 <div style={{ flex: 1 }}>
-                  <p style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: 17, fontWeight: 600,
-                    color: "#0f172a", marginBottom: 4
-                  }}>
+                  <p
+                    style={{
+                      fontFamily: "'Playfair Display', serif",
+                      fontSize: 17,
+                      fontWeight: 600,
+                      color: "#0f172a",
+                      marginBottom: 4,
+                    }}
+                  >
                     {lesson.name}
                   </p>
                   <p style={{ color: "#94a3b8", fontSize: 12 }}>
@@ -122,17 +185,19 @@ export default function LessonsPage() {
                 </div>
 
                 {/* Arrow */}
-                <span style={{
-                  color: isHovered ? color.accent : "#cbd5e1",
-                  fontSize: 18, transition: "color 0.2s"
-                }}>
+                <span
+                  style={{
+                    color: isHovered ? color.accent : "#cbd5e1",
+                    fontSize: 18,
+                    transition: "color 0.2s",
+                  }}
+                >
                   →
                 </span>
               </div>
             );
           })}
         </div>
-
       </main>
     </div>
   );
