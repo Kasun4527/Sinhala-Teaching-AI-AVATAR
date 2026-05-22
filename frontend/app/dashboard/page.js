@@ -166,15 +166,16 @@ export default function StudentDashboard() {
         <div
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}
         >
-          {curriculum.map((item) => {
+          {curriculum.map((item, index) => {
+            const cardKey = `${item.subject}-${index}`;
             const config = subjectConfig[item.subject] || subjectConfig.Biology;
-            const isHovered = hoveredCard === item.subject;
+            const isHovered = hoveredCard === cardKey;
             return (
               <button
-                key={item.subject}
+                key={cardKey}
                 type="button"
                 onClick={() => setPendingEnroll(item)}
-                onMouseEnter={() => setHoveredCard(item.subject)}
+                onMouseEnter={() => setHoveredCard(cardKey)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{
                   backgroundColor: isHovered ? config.bg : "white",
