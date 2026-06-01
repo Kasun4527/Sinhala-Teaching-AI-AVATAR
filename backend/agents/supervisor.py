@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, List
 from agents.quiz_agent import generate_quiz, evaluate_answers
 from agents.content_agent import generate_content
 from agents.progress_agent import (
@@ -7,6 +7,7 @@ from agents.progress_agent import (
     save_delivered_content,
     save_post_quiz_result
 )
+from agents.personalization_agent import personalize_after_quiz
 
 # =========================
 # SHARED STATE
@@ -25,6 +26,10 @@ class LearningState(TypedDict):
     content: Optional[str]
     decision: Optional[str]
     next_agent: Optional[str]  #### orchestrator uses this to route
+    # ── Personalization fields (PC-BKT + BKT-LSTM) ──
+    mastery: Optional[float]
+    bkt_level: Optional[str]
+    quiz_questions: Optional[list]
 
 
 # =========================
@@ -37,6 +42,7 @@ def orchestrator_node(state: LearningState) -> LearningState:
     score = state.get("score")
     content = state.get("content")
     level = state.get("level")
+    mastery = state.get("mastery")
 
     # --- PRE QUIZ FLOW ---
     if quiz_type == "pre":
@@ -46,7 +52,12 @@ def orchestrator_node(state: LearningState) -> LearningState:
             print("🎯 [Orchestrator] → Routing to EvaluatorAgent")
             return {**state, "next_agent": "evaluate"}
 
-        # Step 2: evaluated but no content yet
+        # Step 1.5: evaluated but NOT personalized yet
+        if mastery is None:
+            print("🎯 [Orchestrator] → Routing to PersonalizationAgent")
+            return {**state, "next_agent": "personalize"}
+
+        # Step 2: personalized but no content yet
         if content is None:
             print("🎯 [Orchestrator] → Routing to ContentGeneratorAgent")
             return {**state, "next_agent": "generate_content"}
@@ -62,6 +73,11 @@ def orchestrator_node(state: LearningState) -> LearningState:
         if score is None:
             print("🎯 [Orchestrator] → Routing to EvaluatorAgent")
             return {**state, "next_agent": "evaluate"}
+
+        # Step 1.5: evaluated but NOT personalized yet
+        if mastery is None:
+            print("🎯 [Orchestrator] → Routing to PersonalizationAgent")
+            return {**state, "next_agent": "personalize"}
 
         # Step 2: score < 6 → repeat lesson → generate content again
         if score < 6 and content is None:
@@ -102,6 +118,30 @@ def evaluator_node(state: LearningState) -> LearningState:
     }
 
 
+def personalization_node(state: LearningState) -> LearningState:
+    """PC-BKT + BKT-LSTM personalization node. Overrides level with BKT mastery."""
+    print("🧠 [PersonalizationAgent] Running hybrid personalization...")
+
+    result = personalize_after_quiz(
+        student_id=state["student_id"],
+        subject=state["subject"],
+        lesson=state["lesson"],
+        topic=state["topic"],
+        student_answers=state.get("student_answers", []),
+        correct_answers=state.get("correct_answers", []),
+        quiz_type=state.get("quiz_type", "pre"),
+        quiz_questions=state.get("quiz_questions")
+    )
+
+    # Override level with BKT-derived level for downstream content generation
+    return {
+        **state,
+        "mastery":   result["mastery"],
+        "bkt_level": result["level"],
+        "level":     result["level"]   # override score-based level with BKT level
+    }
+
+
 def content_generator_node(state: LearningState) -> LearningState:
     print("📚 [ContentGeneratorAgent] Generating lesson content...")
 
@@ -119,6 +159,8 @@ def progress_tracker_node(state: LearningState) -> LearningState:
     print("💾 [ProgressTrackerAgent] Saving progress to MongoDB...")
 
     quiz_type = state.get("quiz_type")
+    mastery   = state.get("mastery")
+    bkt_level = state.get("bkt_level")
 
     if quiz_type == "pre":
         save_pre_quiz_result(
@@ -127,7 +169,9 @@ def progress_tracker_node(state: LearningState) -> LearningState:
             lesson=state["lesson"],
             topic=state["topic"],
             level=state["level"],
-            score=state["score"]
+            score=state["score"],
+            mastery=mastery,
+            bkt_level=bkt_level
         )
         save_delivered_content(
             student_id=state["student_id"],
@@ -144,7 +188,9 @@ def progress_tracker_node(state: LearningState) -> LearningState:
             subject=state["subject"],
             lesson=state["lesson"],
             topic=state["topic"],
-            score=state["score"]
+            score=state["score"],
+            mastery=mastery,
+            bkt_level=bkt_level
         )
 
     return state
@@ -174,6 +220,7 @@ def build_learning_graph():
     # Add all nodes
     graph.add_node("orchestrator", orchestrator_node)
     graph.add_node("evaluate", evaluator_node)
+    graph.add_node("personalize", personalization_node)        # ← NEW
     graph.add_node("generate_content", content_generator_node)
     graph.add_node("track_progress", progress_tracker_node)
     graph.add_node("decide", decision_node)
@@ -187,6 +234,7 @@ def build_learning_graph():
         route_from_orchestrator,
         {
             "evaluate": "evaluate",
+            "personalize": "personalize",                     # ← NEW
             "generate_content": "generate_content",
             "track_progress": "track_progress",
             "end": END
@@ -195,6 +243,7 @@ def build_learning_graph():
 
     # After each agent → always return to orchestrator
     graph.add_edge("evaluate", "orchestrator")
+    graph.add_edge("personalize", "orchestrator")             # ← NEW
     graph.add_edge("generate_content", "orchestrator")
 
     # After progress tracked → decision

@@ -1,6 +1,16 @@
+import sys
+# Force UTF-8 stdout/stderr to prevent UnicodeEncodeError on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from typing import Optional
+
+from typing import Optional, List
 from agents.content_agent import generate_content
 from agents.quiz_agent import generate_quiz, evaluate_answers
 from agents.adaptation_agent import decide_next_step
@@ -9,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection
+from db import users_collection, enrollments_collection, ensure_indexes
 from models.User import User
 from auth.security import hash_password
 from jose import jwt
@@ -43,6 +53,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Startup: ensure personalization indexes + load LSTM ──────────
+@app.on_event("startup")
+def on_startup():
+    ensure_indexes()
+    try:
+        from services.lstm_service import load_model
+        load_model()
+    except Exception as e:
+        print(f"[Startup] LSTM model load skipped: {e}")
 # -------- Request Models --------
 
 class QuizSubmission(BaseModel):
@@ -52,7 +72,8 @@ class QuizSubmission(BaseModel):
     student_answers: list
     correct_answers: list
     student_id: str
-    level: Optional[str] = None        
+    level: Optional[str] = None
+    quiz_questions: Optional[list] = None    # ← personalization: quiz text for difficulty tracking
 
 
 class EnrollmentSubmission(BaseModel):
@@ -133,13 +154,19 @@ def submit_pre_quiz(data: QuizSubmission):
         "score": None,
         "level": None,
         "content": None,
-        "decision": None
+        "decision": None,
+        # ── Personalization fields ──
+        "mastery": None,
+        "bkt_level": None,
+        "quiz_questions": data.quiz_questions
     })
 
     return {
         "score": final_state["score"],
         "level": final_state["level"],
-        "content": final_state["content"]
+        "content": final_state["content"],
+        "mastery": final_state.get("mastery"),
+        "bkt_level": final_state.get("bkt_level")
     }
 
 
@@ -168,14 +195,20 @@ def submit_post_quiz(data: QuizSubmission):
         "score": None,
         "level": data.level,
         "content": None,
-        "decision": None
+        "decision": None,
+        # ── Personalization fields ──
+        "mastery": None,
+        "bkt_level": None,
+        "quiz_questions": data.quiz_questions
     })
 
     return {
         "score": final_state["score"],
         "level": final_state["level"],
         "decision": final_state["decision"],
-        "content": final_state.get("content")  # ✅ return content if generated
+        "content": final_state.get("content"),
+        "mastery": final_state.get("mastery"),
+        "bkt_level": final_state.get("bkt_level")
     }
 
 @app.get("/get-lesson/")
@@ -203,10 +236,13 @@ def signup(user: User):
     return {"message": "User created successfully"}
 
 
-
-load_dotenv()
+# Ensure SECRET_KEY is loaded from environment; fallback for local dev
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
+
+if not SECRET_KEY:
+    SECRET_KEY = "dev-secret"
+    print("WARNING: SECRET_KEY not set in environment. Using fallback 'dev-secret'. Set SECRET_KEY in .env for production.")
 
 
 @app.post("/auth/login")
@@ -304,3 +340,66 @@ def get_enrollments(student_id: str):
     subjects = [normalize_enrolled_subject(subject) for subject in doc.get("subjects", [])]
 
     return {"student_id": student_id, "subjects": subjects}
+
+
+# ═══════════════════════════════════════════════════════════════
+# PERSONALIZATION ENDPOINTS (PC-BKT + BKT-LSTM)
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/personalization/mastery")
+def get_mastery_endpoint(student_id: str, subject: str, lesson: str, topic: str):
+    """Get the BKT mastery state for a student on a specific skill."""
+    from services.bkt_service import make_skill_id, get_mastery, mastery_to_level, get_bkt_params
+    skill_id = make_skill_id(subject, lesson, topic)
+    mastery = get_mastery(student_id, skill_id)
+    params  = get_bkt_params(student_id, skill_id)
+    return {
+        "student_id": student_id,
+        "skill_id":   skill_id,
+        "mastery":    mastery,
+        "level":      mastery_to_level(mastery),
+        "params":     params
+    }
+
+
+@app.get("/personalization/all-masteries")
+def get_all_masteries_endpoint(student_id: str):
+    """Get all BKT mastery states for a student across all skills."""
+    from services.bkt_service import get_all_skill_masteries, mastery_to_level
+    masteries = get_all_skill_masteries(student_id)
+    return {
+        "student_id": student_id,
+        "skills": [
+            {"skill_id": sid, "mastery": m, "level": mastery_to_level(m)}
+            for sid, m in masteries.items()
+        ]
+    }
+
+
+@app.get("/personalization/cluster")
+def get_cluster_endpoint(student_id: str):
+    """Get the student's K-Means cluster assignment."""
+    from services.clustering_service import get_student_cluster, CLUSTER_LABELS
+    cluster_id = get_student_cluster(student_id)
+    return {
+        "student_id":    student_id,
+        "cluster_id":    cluster_id,
+        "cluster_label": CLUSTER_LABELS.get(cluster_id, "Unknown")
+    }
+
+
+@app.post("/personalization/retrain-clusters")
+def retrain_clusters():
+    """Admin endpoint: re-run K-Means clustering on all students."""
+    from services.clustering_service import train_and_save_kmeans
+    result = train_and_save_kmeans()
+    if result:
+        return {"status": "success", **result}
+    return {"status": "skipped", "reason": "Not enough data to train K-Means"}
+
+
+@app.get("/personalization/lstm-status")
+def lstm_status():
+    """Get LSTM model status for diagnostics."""
+    from services.lstm_service import get_model_info
+    return get_model_info()
