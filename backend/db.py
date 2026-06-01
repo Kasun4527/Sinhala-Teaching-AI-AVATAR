@@ -1,6 +1,12 @@
+import os
+from dotenv import load_dotenv
 from pymongo import MongoClient, ASCENDING
 
-client = MongoClient("mongodb://localhost:27017")
+# Load environment variables
+load_dotenv(override=True)
+
+mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+client = MongoClient(mongo_uri)
 
 db = client["ai_avatar"]
 
