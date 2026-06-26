@@ -1,4 +1,15 @@
+import sys
+
+# Fix Windows console encoding for Sinhala Unicode
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ('utf-8', 'utf8'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Optional
 from agents.content_agent import generate_content
@@ -35,6 +46,9 @@ load_dotenv(override=True)
 print("GROQ KEY LOADED:", os.getenv("GROQ_API_KEY"))
 
 app = FastAPI()
+
+# Serve images statically
+app.mount("/images", StaticFiles(directory="images"), name="images")
 
 app.add_middleware(
     CORSMiddleware,

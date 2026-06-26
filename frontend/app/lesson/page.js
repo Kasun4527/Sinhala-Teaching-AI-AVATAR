@@ -14,6 +14,58 @@ export default function LessonPage() {
   const level = searchParams.get("level") || "Beginner";
 
   const [content, setContent] = useState("");
+  const BACKEND = "http://localhost:8000";
+
+  // Parse content — [IMAGE: filename] tag position හිදීම image render
+  const renderContentWithImages = (text) => {
+    const lines = text.split("\n");
+    const elements = [];
+    let paraLines = [];
+    let keyIdx = 0;
+
+    const flushPara = () => {
+      const joined = paraLines.join("\n").trim();
+      if (joined) {
+        elements.push(
+          <p key={`p-${keyIdx++}`} style={{ marginBottom: 16, lineHeight: 1.9, color: "#334155", fontSize: 15 }}>
+            {joined}
+          </p>
+        );
+      }
+      paraLines = [];
+    };
+
+    lines.forEach((line) => {
+      // Support both [IMAGE: file.png] and [IMAGE_1.png] formats
+      const imageMatch = line.match(/\[IMAGE:\s*([^\]]+)\]/i) || line.match(/^\[([^\]]*\.(?:png|jpg|jpeg|gif|webp))\]$/i);
+      if (imageMatch) {
+        flushPara();
+        const filename = imageMatch[1].trim();
+        elements.push(
+          <div key={`img-${keyIdx++}`} style={{
+            margin: "28px 0", textAlign: "center",
+            border: "1px solid #e2e8f0", borderRadius: 12,
+            padding: 20, backgroundColor: "#f8fafc",
+          }}>
+            <img
+              src={`${BACKEND}/images/${filename}`}
+              alt={filename}
+              style={{ maxWidth: "100%", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
+              onError={(e) => { e.target.style.display = "none"; }}
+            />
+            <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 8 }}>
+              {filename.replace(/\.[^.]+$/, "").replace(/_/g, " ")}
+            </p>
+          </div>
+        );
+      } else {
+        paraLines.push(line);
+      }
+    });
+
+    flushPara();
+    return elements;
+  };
 
   const subjectColors = {
     Physics: "#2563eb", Chemistry: "#16a34a",
@@ -82,11 +134,8 @@ export default function LessonPage() {
           border: "1px solid #f1f5f9"
         }}>
           {content ? (
-            <div style={{
-              whiteSpace: "pre-line", color: "#334155",
-              fontSize: 15, lineHeight: 1.9
-            }}>
-              {content}
+            <div>
+              {renderContentWithImages(content)}
             </div>
           ) : (
             <div style={{ textAlign: "center", padding: "40px 0" }}>

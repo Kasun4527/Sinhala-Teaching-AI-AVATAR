@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { curriculum } from "@/data/curriculum";
+import { findSubject } from "@/data/curriculum";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 
@@ -9,7 +9,7 @@ export default function LessonsPage() {
   const params = useSearchParams();
   const router = useRouter();
   const subject = params.get("subject");
-  const subjectData = curriculum.find((s) => s.subject === subject);
+  const subjectData = findSubject(subject);
   const [hoveredCard, setHoveredCard] = useState(null);
 
   useEffect(() => {

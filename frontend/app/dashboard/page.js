@@ -99,8 +99,8 @@ export default function StudentDashboard() {
         {/* Stats Row */}
         <div style={{ display: "flex", gap: 16, marginBottom: 40 }}>
           {[
-            { label: "Subjects", value: curriculum.length, color: "#2563eb" },
-            { label: "Available", value: "Physics", color: "#059669" },
+            { label: "Grades", value: curriculum.length, color: "#2563eb" },
+            { label: "Subjects", value: curriculum.reduce((acc, g) => acc + g.subjects.length, 0), color: "#059669" },
           ].map((stat, i) => (
             <div
               key={i}
@@ -114,100 +114,80 @@ export default function StudentDashboard() {
                 gap: 12,
               }}
             >
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  backgroundColor: stat.color,
-                }}
-              />
-              <span style={{ color: "#64748b", fontSize: 13 }}>
-                {stat.label}:
-              </span>
-              <span style={{ color: "#0f172a", fontWeight: 600, fontSize: 13 }}>
-                {stat.value}
-              </span>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: stat.color }} />
+              <span style={{ color: "#64748b", fontSize: 13 }}>{stat.label}:</span>
+              <span style={{ color: "#0f172a", fontWeight: 600, fontSize: 13 }}>{stat.value}</span>
             </div>
           ))}
         </div>
 
-        {/* Subject Cards */}
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}
-        >
-          {curriculum.map((item, i) => {
-            const config = subjectConfig[item.subject] || {
-              icon: "📚",
-              bg: "#f8fafc",
-              border: "#e2e8f0",
-              hover: "#2563eb",
-            };
-            const isHovered = hoveredCard === i;
+        {/* Grade Sections */}
+        {curriculum.map((gradeItem, gi) => (
+          <div key={gi} style={{ marginBottom: 48 }}>
+            {/* Grade Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+              <div style={{ width: 4, height: 28, backgroundColor: "#2563eb", borderRadius: 2 }} />
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", margin: 0 }}>
+                {gradeItem.grade}
+              </h2>
+              <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>
+                ({gradeItem.subjects.length} subject{gradeItem.subjects.length !== 1 ? "s" : ""})
+              </span>
+            </div>
 
-            return (
-              <div
-                key={i}
-                onClick={() => setPendingEnroll(item)}
-                onMouseEnter={() => setHoveredCard(i)}
-                onMouseLeave={() => setHoveredCard(null)}
-                style={{
-                  backgroundColor: isHovered ? config.bg : "white",
-                  border: `2px solid ${isHovered ? config.hover : config.border}`,
-                  borderRadius: 16,
-                  padding: 28,
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  boxShadow: isHovered
-                    ? "0 8px 24px rgba(0,0,0,0.08)"
-                    : "0 1px 3px rgba(0,0,0,0.04)",
-                  transform: isHovered ? "translateY(-2px)" : "translateY(0)",
-                }}
-              >
-                {/* Icon */}
-                <div style={{ fontSize: 36, marginBottom: 16 }}>
-                  {config.icon}
-                </div>
+            {/* Subject Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+              {gradeItem.subjects.map((item, i) => {
+                const cardKey = `${gi}-${i}`;
+                const config = subjectConfig[item.subject] || {
+                  icon: "📚",
+                  bg: "#f8fafc",
+                  border: "#e2e8f0",
+                  hover: "#2563eb",
+                };
+                const isHovered = hoveredCard === cardKey;
 
-                {/* Title */}
-                <h3
-                  style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: "#0f172a",
-                    marginBottom: 6,
-                  }}
-                >
-                  {item.subject}
-                </h3>
-
-                {/* Lessons count */}
-                <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 20 }}>
-                  {item.lessons?.length || 0} lessons available
-                </p>
-
-                {/* CTA */}
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    backgroundColor: isHovered ? config.hover : "#f1f5f9",
-                    color: isHovered ? "white" : "#64748b",
-                    padding: "6px 14px",
-                    borderRadius: 20,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  Start Learning →
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                return (
+                  <div
+                    key={cardKey}
+                    onClick={() => setPendingEnroll(item)}
+                    onMouseEnter={() => setHoveredCard(cardKey)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    style={{
+                      backgroundColor: isHovered ? config.bg : "white",
+                      border: `2px solid ${isHovered ? config.hover : config.border}`,
+                      borderRadius: 16,
+                      padding: 28,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      boxShadow: isHovered ? "0 8px 24px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+                      transform: isHovered ? "translateY(-2px)" : "translateY(0)",
+                    }}
+                  >
+                    <div style={{ fontSize: 36, marginBottom: 16 }}>{config.icon}</div>
+                    <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>
+                      {item.subject}
+                    </h3>
+                    <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 4 }}>
+                      {gradeItem.grade}
+                    </p>
+                    <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 20 }}>
+                      {item.lessons?.length || 0} lessons available
+                    </p>
+                    <div style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      backgroundColor: isHovered ? config.hover : "#f1f5f9",
+                      color: isHovered ? "white" : "#64748b",
+                      padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, transition: "all 0.2s ease",
+                    }}>
+                      Start Learning →
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
 
         {/* Enroll Confirmation Modal */}
         {pendingEnroll && (
