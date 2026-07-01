@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import AvatarTeacher from "@/components/AvatarTeacher";
 
 export default function LessonPage() {
   const searchParams = useSearchParams();
@@ -14,6 +15,8 @@ export default function LessonPage() {
   const level = searchParams.get("level") || "Beginner";
 
   const [content, setContent] = useState("");
+  const [avatarSpeech, setAvatarSpeech] = useState("");
+  const [speechReady, setSpeechReady] = useState(false);
   const BACKEND = "http://localhost:8000";
 
   // Parse content — [IMAGE: filename] tag position හිදීම image render
@@ -88,6 +91,21 @@ export default function LessonPage() {
     if (savedContent) {
       setContent(savedContent);
       localStorage.removeItem("lesson_content");
+
+      fetch(`${BACKEND}/explain-content/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: savedContent }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          setAvatarSpeech(data.explanation || savedContent);
+          setSpeechReady(true);
+        })
+        .catch(() => {
+          setAvatarSpeech(savedContent);
+          setSpeechReady(true);
+        });
     }
   }, [topic, level]);
 
@@ -125,6 +143,11 @@ export default function LessonPage() {
             {level} Level
           </span>
         </div>
+
+        {/* Avatar Teacher */}
+        {content && (
+          <AvatarTeacher content={avatarSpeech || content} topic={topic} speechReady={speechReady} />
+        )}
 
         {/* Content Card */}
         <div style={{

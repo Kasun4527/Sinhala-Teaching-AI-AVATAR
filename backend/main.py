@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Optional
 from agents.content_agent import generate_content
+from agents.explain_agent import generate_explanation
 from agents.quiz_agent import generate_quiz, evaluate_answers
 from agents.adaptation_agent import decide_next_step
 from agents.student_agent import get_level
@@ -26,6 +27,9 @@ from auth.security import hash_password
 from jose import jwt
 from auth.security import verify_password
 from agents.supervisor import learning_graph
+
+from agents.tts_agent import generate_teacher_speech
+from fastapi.responses import Response as FastAPIResponse
 
 from agents.progress_agent import (
     save_pre_quiz_result,
@@ -194,10 +198,30 @@ def submit_post_quiz(data: QuizSubmission):
 
 @app.get("/get-lesson/")
 def get_lesson(subject: str, lesson: str, topic: str, level: str):
-    
     content = generate_content(subject, lesson, topic, level)
-
     return {"content": content}
+
+
+@app.post("/explain-content/")
+def explain_content_route(data: dict):
+    content = data.get("content", "")
+    if not content:
+        raise HTTPException(status_code=400, detail="content is required")
+    explanation = generate_explanation(content)
+    return {"explanation": explanation}
+
+
+@app.post("/generate-tts/")
+def generate_tts(data: dict):
+    """Convert text to WAV audio using Gemini TTS for avatar teacher."""
+    text = data.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    try:
+        wav_bytes = generate_teacher_speech(text)
+        return FastAPIResponse(content=wav_bytes, media_type="audio/wav")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
