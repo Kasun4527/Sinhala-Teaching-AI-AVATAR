@@ -30,7 +30,7 @@ def normalize_quiz_questions(result):
 
 
 def extract_json(text):
-    """Safely extract quiz JSON even if the model adds extra text."""
+    """Safely extract quiz JSON even if the model adds extra text or truncates."""
     if not text:
         return {"questions": [], "error": "Empty quiz response from model."}
 
@@ -38,6 +38,7 @@ def extract_json(text):
 
     candidates = [cleaned_text]
 
+    # Try the outermost JSON object
     match = re.search(r"\{.*\}", cleaned_text, re.DOTALL)
     if match:
         candidates.insert(0, match.group())

@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection
+from db import users_collection, enrollments_collection, student_progress_collection, engagement_collection
 from models.User import User
 from auth.security import hash_password
 from jose import jwt
@@ -298,6 +298,34 @@ def admin_get_topic_details(student_id: str, subject: str):
     return {"topics": details}
 
 
+@app.get("/sidebar-progress")
+def sidebar_progress(student_id: str):
+    """Return enrolled subjects with lessons/topics and completion status for sidebar."""
+    doc = enrollments_collection.find_one({"student_id": student_id})
+    if not doc:
+        return {"subjects": []}
+
+    result = []
+    for subj in doc.get("subjects", []):
+        subj_name = subj.get("subject") or subj.get("name", "")
+        completed_topics = set(
+            r["topic"]
+            for r in student_progress_collection.find(
+                {"student_id": student_id, "subject": subj_name, "lesson_delivered": True},
+                {"topic": 1}
+            )
+        )
+        lessons_out = []
+        for lesson in subj.get("lessons", []):
+            topics_out = [
+                {"name": t, "done": t in completed_topics}
+                for t in lesson.get("topics", [])
+            ]
+            lessons_out.append({"name": lesson.get("name", ""), "topics": topics_out})
+        result.append({"subject": subj_name, "lessons": lessons_out})
+    return {"subjects": result}
+
+
 @app.post("/enroll/")
 def enroll(data: EnrollmentSubmission):
 
@@ -342,3 +370,32 @@ def get_enrollments(student_id: str):
     subjects = [normalize_enrolled_subject(subject) for subject in doc.get("subjects", [])]
 
     return {"student_id": student_id, "subjects": subjects}
+
+
+# ── Engagement endpoints ──────────────────────────────────────────────────────
+
+class EngagementSession(BaseModel):
+    student_id: str
+    subject: str
+    lesson: str
+    topic: str
+    avg_score: float
+    min_score: float
+    max_score: float
+    duration_seconds: int
+    timeline: list  # [{"time": "HH:MM:SS", "score": float, "emotion": str}]
+    started_at: str
+
+@app.post("/engagement-log")
+def log_engagement(data: EngagementSession):
+    doc = data.dict()
+    engagement_collection.insert_one(doc)
+    return {"message": "logged"}
+
+@app.get("/engagement-history")
+def get_engagement_history(student_id: str, subject: str, topic: str):
+    sessions = list(engagement_collection.find(
+        {"student_id": student_id, "subject": subject, "topic": topic},
+        {"_id": 0}
+    ).sort("started_at", -1).limit(10))
+    return {"sessions": sessions}

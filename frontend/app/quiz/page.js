@@ -102,8 +102,8 @@ export default function QuizPage() {
   // Loading state
   if (loading) {
     return (
-      <div style={{ display: "flex", minHeight: "100vh" }}>
-        <Sidebar />
+      <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+        <Sidebar subject={subject} />
         <main style={{ flex: 1, backgroundColor: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{
             backgroundColor: "white", borderRadius: 16,
@@ -133,8 +133,8 @@ export default function QuizPage() {
   // Submitting state
   if (submitting) {
     return (
-      <div style={{ display: "flex", minHeight: "100vh" }}>
-        <Sidebar />
+      <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+        <Sidebar subject={subject} />
         <main style={{ flex: 1, backgroundColor: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{
             backgroundColor: "white", borderRadius: 16,
@@ -164,7 +164,7 @@ export default function QuizPage() {
   if (!quiz?.questions?.length) {
     return (
       <div style={{ display: "flex", minHeight: "100vh" }}>
-        <Sidebar />
+        <Sidebar subject={subject} />
         <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
           <div style={{ maxWidth: 720, backgroundColor: "white", borderRadius: 16, padding: 24, border: "1px solid #fee2e2" }}>
             <p style={{ color: "#b91c1c", fontWeight: 700, marginBottom: 8 }}>
@@ -181,7 +181,7 @@ export default function QuizPage() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar />
+      <Sidebar subject={subject} />
 
       <main style={{ flex: 1, padding: "48px", backgroundColor: "#f8fafc", minWidth: 0 }}>
 

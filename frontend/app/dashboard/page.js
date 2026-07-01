@@ -150,7 +150,7 @@ export default function StudentDashboard() {
                 return (
                   <div
                     key={cardKey}
-                    onClick={() => setPendingEnroll(item)}
+                    onClick={() => setPendingEnroll({ ...item, grade: gradeItem.grade })}
                     onMouseEnter={() => setHoveredCard(cardKey)}
                     onMouseLeave={() => setHoveredCard(null)}
                     style={{
@@ -257,7 +257,7 @@ export default function StudentDashboard() {
                       router.push(
                         `/sub-lesson?subject=${encodeURIComponent(
                           pendingEnroll.subject
-                        )}`
+                        )}&grade=${encodeURIComponent(pendingEnroll.grade || "")}`
                       );
                     } catch (err) {
                       setEnrollError(err?.message || "Enroll failed");

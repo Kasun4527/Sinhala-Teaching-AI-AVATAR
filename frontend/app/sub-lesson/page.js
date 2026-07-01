@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { findSubject } from "@/data/curriculum";
+import { findSubjectByGrade, findSubject } from "@/data/curriculum";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 
@@ -9,7 +9,8 @@ export default function LessonsPage() {
   const params = useSearchParams();
   const router = useRouter();
   const subject = params.get("subject");
-  const subjectData = findSubject(subject);
+  const grade = params.get("grade") || "";
+  const subjectData = grade ? findSubjectByGrade(subject, grade) : findSubject(subject);
   const [hoveredCard, setHoveredCard] = useState(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function LessonsPage() {
 
   if (!subjectData) return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar />
+      <Sidebar subject={subject} />
       <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
         <p style={{ color: "#94a3b8" }}>No lessons found.</p>
       </main>
@@ -37,7 +38,7 @@ export default function LessonsPage() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar />
+      <Sidebar subject={subject} />
 
       <main style={{ flex: 1, padding: "48px", backgroundColor: "#f8fafc", minWidth: 0 }}>
 
@@ -75,7 +76,7 @@ export default function LessonsPage() {
             return (
               <div
                 key={i}
-                onClick={() => router.push(`/topics?subject=${subject}&lesson=${lesson.name}`)}
+                onClick={() => router.push(`/topics?subject=${subject}&lesson=${encodeURIComponent(lesson.name)}&grade=${encodeURIComponent(grade)}`)}
                 onMouseEnter={() => setHoveredCard(i)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{

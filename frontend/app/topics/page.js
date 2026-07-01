@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { findSubject } from "@/data/curriculum";
+import { findSubjectByGrade, findSubject } from "@/data/curriculum";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 
@@ -10,7 +10,8 @@ export default function TopicsPage() {
   const router = useRouter();
   const subject = params.get("subject");
   const lesson = params.get("lesson");
-  const subjectData = findSubject(subject);
+  const grade = params.get("grade") || "";
+  const subjectData = grade ? findSubjectByGrade(subject, grade) : findSubject(subject);
   const lessonData = subjectData?.lessons.find((l) => l.name === lesson);
   const [hoveredCard, setHoveredCard] = useState(null);
 
@@ -30,7 +31,7 @@ export default function TopicsPage() {
 
   if (!lessonData || lessonData.topics.length === 0) return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar />
+      <Sidebar subject={subject} />
       <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
         <p style={{ color: "#94a3b8" }}>No topics available.</p>
       </main>
@@ -39,13 +40,13 @@ export default function TopicsPage() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar />
+      <Sidebar subject={subject} />
 
       <main style={{ flex: 1, padding: "48px", backgroundColor: "#f8fafc", minWidth: 0 }}>
 
         {/* Breadcrumb */}
         <p
-          onClick={() => router.push(`/sub-lesson?subject=${subject}`)}
+          onClick={() => router.push(`/sub-lesson?subject=${subject}&grade=${encodeURIComponent(grade)}`)}
           style={{ color: "#94a3b8", fontSize: 13, cursor: "pointer", marginBottom: 24 }}
         >
           ← Back to Lessons
@@ -78,7 +79,7 @@ export default function TopicsPage() {
               <div
                 key={i}
                 onClick={() => router.push(
-                  `/quiz?subject=${subject}&lesson=${lesson}&topic=${encodeURIComponent(topic)}&type=pre`
+                  `/quiz?subject=${subject}&lesson=${encodeURIComponent(lesson)}&topic=${encodeURIComponent(topic)}&type=pre&grade=${encodeURIComponent(grade)}`
                 )}
                 onMouseEnter={() => setHoveredCard(i)}
                 onMouseLeave={() => setHoveredCard(null)}

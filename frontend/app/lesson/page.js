@@ -1,9 +1,12 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarTeacher from "@/components/AvatarTeacher";
+
+const ENGAGEMENT_SERVER = "http://localhost:5000";
+const BACKEND = "http://localhost:8000";
 
 export default function LessonPage() {
   const searchParams = useSearchParams();
@@ -17,20 +20,66 @@ export default function LessonPage() {
   const [content, setContent] = useState("");
   const [avatarSpeech, setAvatarSpeech] = useState("");
   const [speechReady, setSpeechReady] = useState(false);
-  const BACKEND = "http://localhost:8000";
 
-  // Parse content — [IMAGE: filename] tag position හිදීම image render
+  // Engagement state
+  const [engScore, setEngScore] = useState(null);
+  const [engState, setEngState] = useState("Connecting...");
+  const [engEmotion, setEngEmotion] = useState("");
+  const [engAlert, setEngAlert] = useState(false);
+  const [engConnected, setEngConnected] = useState(false);
+  const engTimelineRef = useRef([]);
+  const sessionStartRef = useRef(new Date().toISOString());
+  const alertCooldownRef = useRef(false);
+  const minScoreRef = useRef(100);
+  const maxScoreRef = useRef(0);
+  const audioCtxRef = useRef(null);
+
+  // Detect if a line looks like a heading (short, no ending punctuation mid-sentence)
+  const isHeading = (line) => {
+    const t = line.trim();
+    if (!t || t.length > 120) return false;
+    if (/^\d+[\.\)]\s/.test(t)) return false; // numbered list items — not headings
+    // Short line ending with ":" or no punctuation → likely a heading
+    if (t.endsWith(":") || t.endsWith("：")) return true;
+    // Short standalone line (likely a section title)
+    if (t.length < 60 && !/[,;]/.test(t) && !/[a-z]{4,}/.test(t)) return true;
+    return false;
+  };
+
   const renderContentWithImages = (text) => {
     const lines = text.split("\n");
     const elements = [];
     let paraLines = [];
     let keyIdx = 0;
+    let sectionCount = 0;
 
     const flushPara = () => {
-      const joined = paraLines.join("\n").trim();
-      if (joined) {
+      const joined = paraLines.join(" ").trim();
+      if (!joined) { paraLines = []; return; }
+
+      // Detect bullet / numbered list
+      if (/^(\d+[\.\)]|•|●|-)\s/.test(joined)) {
+        const items = joined.split(/\n/).filter(Boolean);
         elements.push(
-          <p key={`p-${keyIdx++}`} style={{ marginBottom: 16, lineHeight: 1.9, color: "#334155", fontSize: 15 }}>
+          <ul key={`ul-${keyIdx++}`} style={{ margin: "8px 0 20px 0", paddingLeft: 24 }}>
+            {items.map((item, i) => (
+              <li key={i} style={{
+                marginBottom: 8, lineHeight: 1.85,
+                color: "#334155", fontSize: 15,
+                listStyleType: "disc",
+              }}>{item.replace(/^(\d+[\.\)]|•|●|-)\s*/, "")}</li>
+            ))}
+          </ul>
+        );
+      } else {
+        elements.push(
+          <p key={`p-${keyIdx++}`} style={{
+            marginBottom: 20, lineHeight: 2,
+            color: "#374151", fontSize: 15.5,
+            textAlign: "justify",
+            borderLeft: sectionCount === 0 && elements.length === 0 ? `3px solid ${accent}` : "none",
+            paddingLeft: sectionCount === 0 && elements.length === 0 ? 16 : 0,
+          }}>
             {joined}
           </p>
         );
@@ -39,30 +88,63 @@ export default function LessonPage() {
     };
 
     lines.forEach((line) => {
-      // Support both [IMAGE: file.png] and [IMAGE_1.png] formats
       const imageMatch = line.match(/\[IMAGE:\s*([^\]]+)\]/i) || line.match(/^\[([^\]]*\.(?:png|jpg|jpeg|gif|webp))\]$/i);
       if (imageMatch) {
         flushPara();
         const filename = imageMatch[1].trim();
         elements.push(
           <div key={`img-${keyIdx++}`} style={{
-            margin: "28px 0", textAlign: "center",
-            border: "1px solid #e2e8f0", borderRadius: 12,
-            padding: 20, backgroundColor: "#f8fafc",
+            margin: "32px 0", textAlign: "center",
+            border: `1px solid ${accent}22`,
+            borderRadius: 16, padding: "20px 20px 12px",
+            backgroundColor: "#f8fafc",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
           }}>
             <img
               src={`${BACKEND}/images/${filename}`}
               alt={filename}
-              style={{ maxWidth: "100%", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
+              style={{ maxWidth: "100%", borderRadius: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.10)" }}
               onError={(e) => { e.target.style.display = "none"; }}
             />
-            <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 8 }}>
-              {filename.replace(/\.[^.]+$/, "").replace(/_/g, " ")}
+            <p style={{ color: "#64748b", fontSize: 12, marginTop: 10, fontStyle: "italic" }}>
+              රූපය: {filename.replace(/\.[^.]+$/, "").replace(/_/g, " ")}
             </p>
           </div>
         );
+      } else if (line.trim() === "" || line.trim() === "---") {
+        flushPara();
+        if (line.trim() === "---") {
+          sectionCount++;
+          elements.push(
+            <div key={`div-${keyIdx++}`} style={{
+              margin: "32px 0 24px", display: "flex",
+              alignItems: "center", gap: 12,
+            }}>
+              <div style={{ flex: 1, height: 1, backgroundColor: "#e2e8f0" }} />
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%",
+                backgroundColor: accent, opacity: 0.5,
+              }} />
+              <div style={{ flex: 1, height: 1, backgroundColor: "#e2e8f0" }} />
+            </div>
+          );
+        }
+      } else if (isHeading(line)) {
+        flushPara();
+        sectionCount++;
+        elements.push(
+          <div key={`h-${keyIdx++}`} style={{ margin: "32px 0 12px" }}>
+            <h3 style={{
+              fontSize: 17, fontWeight: 700, color: "#0f172a",
+              borderBottom: `2px solid ${accent}`,
+              paddingBottom: 6, display: "inline-block",
+            }}>
+              {line.trim().replace(/:$/, "")}
+            </h3>
+          </div>
+        );
       } else {
-        paraLines.push(line);
+        paraLines.push(line.trim());
       }
     });
 
@@ -83,6 +165,110 @@ export default function LessonPage() {
   };
   const lc = levelConfig[level] || levelConfig["Beginner"];
 
+  // Unlock AudioContext on first user interaction
+  useEffect(() => {
+    const unlock = () => {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      } else if (audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume();
+      }
+    };
+    window.addEventListener("click", unlock, { once: true });
+    return () => window.removeEventListener("click", unlock);
+  }, []);
+
+  // ── Engagement tracking ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!topic) return;
+    sessionStartRef.current = new Date().toISOString();
+    let es;
+    try {
+      es = new EventSource(`${ENGAGEMENT_SERVER}/api/stats/stream`);
+      es.onopen = () => setEngConnected(true);
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.stopped) { setEngConnected(false); return; }
+          const score = data.current?.score ?? 0;
+          const state = data.current?.state ?? "";
+          const emotion = data.current?.emotion ?? "";
+          setEngScore(Math.round(score));
+          setEngState(state);
+          setEngEmotion(emotion);
+          setEngConnected(true);
+          minScoreRef.current = Math.min(minScoreRef.current, score);
+          maxScoreRef.current = Math.max(maxScoreRef.current, score);
+          engTimelineRef.current.push({
+            time: new Date().toLocaleTimeString("en-GB"),
+            score: Math.round(score),
+            emotion,
+          });
+          // Keep last 300 points (~60s at 5/s)
+          if (engTimelineRef.current.length > 300) engTimelineRef.current.shift();
+
+          // Alert if below 50
+          if (score < 50 && !alertCooldownRef.current) {
+            setEngAlert(true);
+            alertCooldownRef.current = true;
+            try {
+              if (!audioCtxRef.current) {
+                audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+              }
+              const ctx = audioCtxRef.current;
+              if (ctx.state === "suspended") ctx.resume();
+              // Play two beeps
+              [0, 0.4].forEach((delay) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.frequency.value = 880;
+                gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+                gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.5);
+                osc.start(ctx.currentTime + delay);
+                osc.stop(ctx.currentTime + delay + 0.5);
+              });
+            } catch (_) {}
+            setTimeout(() => {
+              setEngAlert(false);
+              alertCooldownRef.current = false;
+            }, 30000); // 30s cooldown
+          }
+        } catch (_) {}
+      };
+      es.onerror = () => setEngConnected(false);
+    } catch (_) {}
+
+    // Save session on unmount
+    const saveSession = () => {
+      const timeline = engTimelineRef.current;
+      if (timeline.length === 0) return;
+      const avg = timeline.reduce((s, p) => s + p.score, 0) / timeline.length;
+      const studentId = localStorage.getItem("student_id");
+      const payload = {
+        student_id: studentId,
+        subject, lesson, topic,
+        avg_score: Math.round(avg * 10) / 10,
+        min_score: minScoreRef.current,
+        max_score: maxScoreRef.current,
+        duration_seconds: Math.round(timeline.length * 0.2),
+        timeline: timeline.filter((_, i) => i % 5 === 0), // sample every 5
+        started_at: sessionStartRef.current,
+      };
+      const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+      navigator.sendBeacon(`${BACKEND}/engagement-log`, blob);
+    };
+
+    window.addEventListener("beforeunload", saveSession);
+    return () => {
+      es?.close();
+      saveSession();
+      window.removeEventListener("beforeunload", saveSession);
+    };
+  }, [topic]);
+
+  // ── Content loading ──────────────────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
@@ -111,7 +297,7 @@ export default function LessonPage() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar />
+      <Sidebar subject={subject} />
 
       <main style={{ flex: 1, padding: "48px", backgroundColor: "#f8fafc", minWidth: 0 }}>
 
@@ -144,6 +330,72 @@ export default function LessonPage() {
           </span>
         </div>
 
+        {/* ── Engagement Widget ── */}
+        {(() => {
+          const scoreColor = engScore === null ? "#94a3b8"
+            : engScore >= 75 ? "#22c55e"
+            : engScore >= 50 ? "#f59e0b"
+            : "#ef4444";
+          return (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 12,
+              marginBottom: 20,
+              backgroundColor: "white",
+              border: `1.5px solid ${engAlert ? "#ef4444" : "#e2e8f0"}`,
+              borderRadius: 14, padding: "12px 20px",
+              boxShadow: engAlert ? "0 0 0 3px rgba(239,68,68,0.15)" : "0 1px 4px rgba(0,0,0,0.05)",
+              transition: "all 0.3s",
+            }}>
+              {/* Dot */}
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%",
+                backgroundColor: engConnected ? "#22c55e" : "#94a3b8",
+                flexShrink: 0,
+              }} />
+
+              <span style={{ color: "#64748b", fontSize: 12, fontWeight: 600 }}>
+                Student Engagement
+              </span>
+
+              {/* Score gauge */}
+              <div style={{ flex: 1, height: 6, backgroundColor: "#f1f5f9", borderRadius: 6, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 6,
+                  width: `${engScore ?? 0}%`,
+                  backgroundColor: scoreColor,
+                  transition: "width 0.4s ease, background-color 0.3s",
+                }} />
+              </div>
+
+              <span style={{ color: scoreColor, fontWeight: 700, fontSize: 14, minWidth: 36 }}>
+                {engScore !== null ? `${engScore}%` : "—"}
+              </span>
+
+              {engEmotion && (
+                <span style={{
+                  backgroundColor: "#f8fafc", border: "1px solid #e2e8f0",
+                  borderRadius: 20, padding: "2px 10px",
+                  color: "#64748b", fontSize: 11,
+                }}>
+                  {engEmotion}
+                </span>
+              )}
+
+              {engAlert && (
+                <span style={{
+                  backgroundColor: "#fef2f2", color: "#ef4444",
+                  borderRadius: 20, padding: "3px 12px",
+                  fontSize: 11, fontWeight: 700,
+                  animation: "pulse 1s infinite",
+                }}>
+                  ⚠️ Low Engagement
+                </span>
+              )}
+              <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
+            </div>
+          );
+        })()}
+
         {/* Avatar Teacher */}
         {content && (
           <AvatarTeacher content={avatarSpeech || content} topic={topic} speechReady={speechReady} />
@@ -151,28 +403,63 @@ export default function LessonPage() {
 
         {/* Content Card */}
         <div style={{
-          backgroundColor: "white", borderRadius: 16,
-          padding: "36px 40px", marginBottom: 24,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-          border: "1px solid #f1f5f9"
+          backgroundColor: "white", borderRadius: 20,
+          marginBottom: 24, overflow: "hidden",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
+          border: "1px solid #f1f5f9",
         }}>
-          {content ? (
-            <div>
-              {renderContentWithImages(content)}
-            </div>
-          ) : (
-            <div style={{ textAlign: "center", padding: "40px 0" }}>
+          {/* Card header bar */}
+          <div style={{
+            background: `linear-gradient(135deg, ${accent}15 0%, ${accent}05 100%)`,
+            borderBottom: `1px solid ${accent}20`,
+            padding: "16px 40px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{
-                width: 40, height: 40, borderRadius: "50%",
-                border: "3px solid #e2e8f0",
-                borderTop: `3px solid ${accent}`,
-                animation: "spin 0.8s linear infinite",
-                margin: "0 auto 16px"
-              }} />
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading lesson content...</p>
+                width: 32, height: 32, borderRadius: 8,
+                backgroundColor: accent, display: "flex",
+                alignItems: "center", justifyContent: "center",
+                fontSize: 16,
+              }}>📖</div>
+              <div>
+                <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 14, margin: 0 }}>
+                  {lesson}
+                </p>
+                <p style={{ color: "#64748b", fontSize: 12, margin: 0 }}>{topic}</p>
+              </div>
             </div>
-          )}
+            {content && (
+              <span style={{
+                backgroundColor: `${accent}15`, color: accent,
+                fontSize: 12, fontWeight: 600,
+                padding: "4px 12px", borderRadius: 20,
+              }}>
+                ~{Math.ceil(content.replace(/\[IMAGE:[^\]]+\]/gi, "").length / 800)} min read
+              </span>
+            )}
+          </div>
+
+          {/* Content body */}
+          <div style={{ padding: "36px 48px" }}>
+            {content ? (
+              <div style={{ maxWidth: 780 }}>
+                {renderContentWithImages(content)}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: "50%",
+                  border: "3px solid #e2e8f0",
+                  borderTop: `3px solid ${accent}`,
+                  animation: "spin 0.8s linear infinite",
+                  margin: "0 auto 16px"
+                }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading lesson content...</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Finish Button */}

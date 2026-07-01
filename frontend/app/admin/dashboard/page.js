@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const [lessonProgress, setLessonProgress] = useState(null);
   const [topicDetails, setTopicDetails] = useState([]);
   const [expandedTopic, setExpandedTopic] = useState(null);
+  const [engagementData, setEngagementData] = useState({});
   const [loading, setLoading] = useState(false);
   const [hoveredStudent, setHoveredStudent] = useState(null);
 
@@ -479,7 +480,18 @@ export default function AdminDashboard() {
 
                         {/* Topic Header */}
                         <div
-                          onClick={() => setExpandedTopic(isExpanded ? null : i)}
+                          onClick={async () => {
+                            const next = isExpanded ? null : i;
+                            setExpandedTopic(next);
+                            if (next !== null && !engagementData[i]) {
+                              try {
+                                const res = await axios.get(`${API}/engagement-history`, {
+                                  params: { student_id: selectedStudent.student_id, subject: selectedSubject, topic: t.topic }
+                                });
+                                setEngagementData(prev => ({ ...prev, [i]: res.data.sessions }));
+                              } catch (_) {}
+                            }
+                          }}
                           style={{
                             display: "flex", alignItems: "center",
                             justifyContent: "space-between",
@@ -572,6 +584,66 @@ export default function AdminDashboard() {
                                 }}>
                                   {t.delivered_content}
                                 </div>
+                              </div>
+                            )}
+
+                            {/* Engagement History */}
+                            {(engagementData[i] || []).length > 0 && (
+                              <div style={{ marginTop: 20 }}>
+                                <p style={{
+                                  color: "#94a3b8", fontSize: 11, fontWeight: 600,
+                                  textTransform: "uppercase", letterSpacing: "0.1em",
+                                  marginBottom: 12
+                                }}>
+                                  Engagement Sessions
+                                </p>
+                                {(engagementData[i] || []).map((session, si) => {
+                                  const scoreColor = session.avg_score >= 75 ? "#22c55e"
+                                    : session.avg_score >= 50 ? "#f59e0b" : "#ef4444";
+                                  return (
+                                    <div key={si} style={{
+                                      backgroundColor: "white", border: "1px solid #e2e8f0",
+                                      borderRadius: 10, padding: "14px 18px", marginBottom: 10,
+                                    }}>
+                                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                                        <p style={{ color: "#64748b", fontSize: 12, margin: 0 }}>
+                                          {new Date(session.started_at).toLocaleString()} · {Math.round(session.duration_seconds / 60)}m
+                                        </p>
+                                        <div style={{ display: "flex", gap: 10 }}>
+                                          {[
+                                            { label: "Avg", value: session.avg_score, color: scoreColor },
+                                            { label: "Min", value: session.min_score, color: "#ef4444" },
+                                            { label: "Max", value: session.max_score, color: "#22c55e" },
+                                          ].map((s, k) => (
+                                            <span key={k} style={{
+                                              backgroundColor: "#f8fafc", borderRadius: 8,
+                                              padding: "3px 10px", fontSize: 11, color: s.color, fontWeight: 700
+                                            }}>
+                                              {s.label}: {s.value}%
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      {/* Timeline bar chart */}
+                                      <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 40 }}>
+                                        {(session.timeline || []).map((pt, pi) => {
+                                          const h = Math.max(2, (pt.score / 100) * 40);
+                                          const c = pt.score >= 75 ? "#22c55e" : pt.score >= 50 ? "#f59e0b" : "#ef4444";
+                                          return (
+                                            <div key={pi} title={`${pt.time}: ${pt.score}%`} style={{
+                                              flex: 1, height: h, backgroundColor: c,
+                                              borderRadius: 2, opacity: 0.8,
+                                            }} />
+                                          );
+                                        })}
+                                      </div>
+                                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                                        <span style={{ fontSize: 9, color: "#94a3b8" }}>Start</span>
+                                        <span style={{ fontSize: 9, color: "#94a3b8" }}>End</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
