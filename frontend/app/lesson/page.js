@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarTeacher from "@/components/AvatarTeacher";
 import ChatBot from "@/components/ChatBot";
+import HexPattern from "@/components/HexPattern";
 
 const ENGAGEMENT_SERVER = "http://localhost:5000";
 const BACKEND = "http://localhost:8000";
@@ -182,16 +183,22 @@ export default function LessonPage() {
     return elements;
   };
 
-  const subjectColors = {
-    Physics: "#2563eb", Chemistry: "#16a34a",
-    Biology: "#059669", Maths: "#9333ea",
+  const SUBJECT_CFG = {
+    Physics:              { hue: "#2563eb", dark: "#1e3a8a" },
+    Chemistry:            { hue: "#0891b2", dark: "#164e63" },
+    Biology:              { hue: "#059669", dark: "#064e3b" },
+    Maths:                { hue: "#7c3aed", dark: "#3b0764" },
+    "ආර්ථික විද්‍යාව":   { hue: "#b45309", dark: "#78350f" },
+    "බුද්ධ ධර්මය":       { hue: "#c026d3", dark: "#701a75" },
   };
-  const accent = subjectColors[subject] || "#2563eb";
+  const cfg    = SUBJECT_CFG[subject] || { hue: "#2563eb", dark: "#1e3a8a" };
+  const accent = cfg.hue;
+  const NAVY   = "#0f172a";
 
   const levelConfig = {
-    Advanced:     { bg: "#f5f3ff", color: "#7c3aed" },
-    Intermediate: { bg: "#fffbeb", color: "#d97706" },
-    Beginner:     { bg: "#f0fdf4", color: "#16a34a" },
+    Advanced:     { bg: "#f5f3ff", color: "#7c3aed", border: "#c4b5fd" },
+    Intermediate: { bg: "#fffbeb", color: "#d97706", border: "#fde68a" },
+    Beginner:     { bg: "#f0fdf4", color: "#16a34a", border: "#6ee7b7" },
   };
   const lc = levelConfig[level] || levelConfig["Beginner"];
 
@@ -326,116 +333,100 @@ export default function LessonPage() {
   }, [topic, level]);
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'Source Sans 3', sans-serif" }}>
       <Sidebar subject={subject} />
 
-      <main style={{ flex: 1, backgroundColor: "#f8fafc", minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", height: "100vh" }}>
+      <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", height: "100vh", background: "#f8fafc" }}>
 
-        {/* ── Top section (does not scroll) ── */}
-        <div style={{ padding: "32px 48px 0", flexShrink: 0 }}>
-
-        {/* Header */}
+        {/* ── HERO ── */}
         <div style={{
-          display: "flex", alignItems: "flex-start",
-          justifyContent: "space-between", marginBottom: 32
+          position: "relative", overflow: "hidden", flexShrink: 0,
+          background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark} 55%, ${accent} 100%)`,
+          padding: "36px 52px 32px",
         }}>
-          <div>
-            <p style={{
-              color: accent, fontSize: 11, fontWeight: 600,
-              letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 8
-            }}>
-              {subject} — {lesson}
-            </p>
-            <h1 style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: 32, fontWeight: 700, color: "#0f172a", marginBottom: 8
-            }}>
-              {topic}
-            </h1>
-          </div>
+          {/* dot grid */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.3,
+            backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize: "26px 26px" }} />
+          <div style={{ position: "absolute", top: -60, right: -40, width: 280, height: 280, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(147,197,253,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-          <span style={{
-            backgroundColor: lc.bg, color: lc.color,
-            padding: "6px 16px", borderRadius: 20,
-            fontSize: 12, fontWeight: 600, flexShrink: 0
-          }}>
-            {level} Level
-          </span>
+          <div style={{ position: "relative" }}>
+            {/* Breadcrumb */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+              {[subject, lesson].filter(Boolean).map((crumb, i, arr) => (
+                <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                    {crumb}
+                  </span>
+                  {i < arr.length - 1 && <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11 }}>›</span>}
+                </span>
+              ))}
+            </div>
+
+            {/* Title row */}
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24 }}>
+              <h1 style={{
+                fontFamily: "'Raleway', sans-serif",
+                fontSize: 34, fontWeight: 700, color: "#f1f5f9",
+                margin: 0, letterSpacing: "0.01em", lineHeight: 1.15,
+              }}>
+                {topic}
+              </h1>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                {/* Level badge */}
+                <span style={{
+                  backgroundColor: lc.bg, color: lc.color,
+                  border: `1px solid ${lc.border}`,
+                  padding: "5px 16px", borderRadius: 100,
+                  fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                }}>
+                  {level}
+                </span>
+
+                {/* Engagement inline pill */}
+                {(() => {
+                  const scoreColor = engScore === null ? "#94a3b8"
+                    : engScore >= 75 ? "#22c55e"
+                    : engScore >= 50 ? "#f59e0b"
+                    : "#ef4444";
+                  return (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      background: engAlert ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.08)",
+                      border: `1px solid ${engAlert ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.14)"}`,
+                      borderRadius: 100, padding: "5px 14px",
+                      transition: "all 0.3s",
+                    }}>
+                      <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: engConnected ? "#22c55e" : "#94a3b8", flexShrink: 0 }} />
+                      <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: 600 }}>Engagement</span>
+                      <span style={{ color: scoreColor, fontWeight: 800, fontSize: 13 }}>
+                        {engScore !== null ? `${engScore}%` : "—"}
+                      </span>
+                      {engEmotion && (
+                        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{engEmotion}</span>
+                      )}
+                      {engAlert && (
+                        <span style={{ color: "#f87171", fontSize: 11, fontWeight: 700, animation: "pulse 1s infinite" }}>
+                          ⚠ Low
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+          <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
         </div>
 
-        {/* ── Engagement Widget ── */}
-        {(() => {
-          const scoreColor = engScore === null ? "#94a3b8"
-            : engScore >= 75 ? "#22c55e"
-            : engScore >= 50 ? "#f59e0b"
-            : "#ef4444";
-          return (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 12,
-              marginBottom: 20,
-              backgroundColor: "white",
-              border: `1.5px solid ${engAlert ? "#ef4444" : "#e2e8f0"}`,
-              borderRadius: 14, padding: "12px 20px",
-              boxShadow: engAlert ? "0 0 0 3px rgba(239,68,68,0.15)" : "0 1px 4px rgba(0,0,0,0.05)",
-              transition: "all 0.3s",
-            }}>
-              {/* Dot */}
-              <div style={{
-                width: 8, height: 8, borderRadius: "50%",
-                backgroundColor: engConnected ? "#22c55e" : "#94a3b8",
-                flexShrink: 0,
-              }} />
+        {/* ── Avatar + Content ── */}
+        <div style={{ display: "flex", flex: 1, gap: 20, overflow: "hidden", padding: "20px 52px 28px", position: "relative" }}>
+          <HexPattern color={accent} />
 
-              <span style={{ color: "#64748b", fontSize: 12, fontWeight: 600 }}>
-                Student Engagement
-              </span>
-
-              {/* Score gauge */}
-              <div style={{ flex: 1, height: 6, backgroundColor: "#f1f5f9", borderRadius: 6, overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", borderRadius: 6,
-                  width: `${engScore ?? 0}%`,
-                  backgroundColor: scoreColor,
-                  transition: "width 0.4s ease, background-color 0.3s",
-                }} />
-              </div>
-
-              <span style={{ color: scoreColor, fontWeight: 700, fontSize: 14, minWidth: 36 }}>
-                {engScore !== null ? `${engScore}%` : "—"}
-              </span>
-
-              {engEmotion && (
-                <span style={{
-                  backgroundColor: "#f8fafc", border: "1px solid #e2e8f0",
-                  borderRadius: 20, padding: "2px 10px",
-                  color: "#64748b", fontSize: 11,
-                }}>
-                  {engEmotion}
-                </span>
-              )}
-
-              {engAlert && (
-                <span style={{
-                  backgroundColor: "#fef2f2", color: "#ef4444",
-                  borderRadius: 20, padding: "3px 12px",
-                  fontSize: 11, fontWeight: 700,
-                  animation: "pulse 1s infinite",
-                }}>
-                  ⚠️ Low Engagement
-                </span>
-              )}
-              <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
-            </div>
-          );
-        })()}
-
-        </div>{/* end top section */}
-
-        {/* Avatar + Content side by side — fills remaining height */}
-        <div style={{ display: "flex", flex: 1, gap: 24, overflow: "hidden", padding: "16px 48px 32px" }}>
-
-          {/* Avatar — never scrolls, always visible */}
-          <div style={{ width: 420, flexShrink: 0, overflowY: "auto", scrollbarWidth: "none" }}>
+          {/* Avatar column */}
+          <div style={{ width: 400, flexShrink: 0, overflowY: "auto", scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
             <AvatarTeacher
               content={avatarSpeech || content}
               topic={topic}
@@ -446,84 +437,125 @@ export default function LessonPage() {
             />
           </div>
 
-          {/* Content — only this column scrolls */}
-          <div style={{ flex: 1, minWidth: 0, overflowY: "auto", scrollbarWidth: "thin" }}>
-        <div style={{
-          backgroundColor: "white", borderRadius: 20,
-          marginBottom: 24, overflow: "hidden",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
-          border: "1px solid #f1f5f9",
-        }}>
-          {/* Card header bar */}
-          <div style={{
-            background: `linear-gradient(135deg, ${accent}15 0%, ${accent}05 100%)`,
-            borderBottom: `1px solid ${accent}20`,
-            padding: "16px 40px",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 8,
-                backgroundColor: accent, display: "flex",
-                alignItems: "center", justifyContent: "center",
-                fontSize: 16,
-              }}>📖</div>
-              <div>
-                <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 14, margin: 0 }}>
-                  {lesson}
-                </p>
-                <p style={{ color: "#64748b", fontSize: 12, margin: 0 }}>{topic}</p>
-              </div>
-            </div>
-            {content && (
-              <span style={{
-                backgroundColor: `${accent}15`, color: accent,
-                fontSize: 12, fontWeight: 600,
-                padding: "4px 12px", borderRadius: 20,
-              }}>
-                ~{Math.ceil(displayContent.replace(/\[IMAGE:[^\]]+\]/gi, "").length / 800)} min read
-              </span>
-            )}
-          </div>
+          {/* Content column */}
+          <div style={{ flex: 1, minWidth: 0, overflowY: "auto", scrollbarWidth: "thin", position: "relative", zIndex: 1 }}>
 
-          {/* Content body */}
-          <div style={{ padding: "36px 48px" }}>
-            {content ? (
-              <div style={{ maxWidth: 780 }}>
-                {renderContentWithImages(displayContent)}
+            {/* Content card */}
+            <div style={{
+              backgroundColor: "white", borderRadius: 22,
+              marginBottom: 20, overflow: "hidden",
+              boxShadow: `0 8px 40px rgba(0,0,0,0.09), 0 0 0 1.5px ${accent}20`,
+            }}>
+              {/* Hero header band */}
+              <div style={{
+                background: `linear-gradient(135deg, ${cfg.dark} 0%, ${accent} 100%)`,
+                padding: "22px 36px",
+                position: "relative", overflow: "hidden",
+              }}>
+                {/* faint dot grid inside header */}
+                <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+                  backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
+                  backgroundSize: "22px 22px" }} />
+                <div style={{ position: "absolute", top: -40, right: -30, width: 160, height: 160, borderRadius: "50%",
+                  background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+                <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    {/* Icon badge */}
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 13,
+                      background: "rgba(255,255,255,0.15)",
+                      border: "1.5px solid rgba(255,255,255,0.25)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, backdropFilter: "blur(4px)",
+                    }}>
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M4 5h12M4 9h8M4 13h10M4 17h6" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "white", fontFamily: "'Raleway', sans-serif", letterSpacing: "0.01em" }}>{lesson}</p>
+                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "rgba(255,255,255,0.55)", fontWeight: 500 }}>{topic}</p>
+                    </div>
+                  </div>
+
+                  {content && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{
+                        background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)",
+                        color: "white", fontSize: 11, fontWeight: 700,
+                        padding: "4px 14px", borderRadius: 100, letterSpacing: "0.05em",
+                      }}>
+                        ~{Math.ceil(displayContent.replace(/\[IMAGE:[^\]]+\]/gi, "").length / 800)} min read
+                      </span>
+                      <span style={{
+                        backgroundColor: lc.bg, color: lc.color,
+                        border: `1px solid ${lc.border}`,
+                        fontSize: 11, fontWeight: 700, padding: "4px 14px",
+                        borderRadius: 100, letterSpacing: "0.05em",
+                      }}>
+                        {level}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 0" }}>
+
+              {/* Content body */}
+              <div style={{ padding: "38px 48px", background: "white" }}>
+                {content ? (
+                  <div style={{ maxWidth: 780 }}>
+                    {renderContentWithImages(displayContent)}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: "center", padding: "72px 0" }}>
+                    <div style={{ position: "relative", width: 60, height: 60, margin: "0 auto 22px" }}>
+                      <div style={{ width: 60, height: 60, borderRadius: "50%", border: "3px solid #f1f5f9", borderTop: `3px solid ${accent}`, animation: "spin 0.9s linear infinite", position: "absolute", inset: 0 }} />
+                      <div style={{ width: 40, height: 40, borderRadius: "50%", border: `2px solid ${accent}20`, borderBottom: `2px solid ${accent}70`, animation: "spin 1.4s linear infinite reverse", position: "absolute", top: 10, left: 10 }} />
+                    </div>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                    <p style={{ color: NAVY, fontWeight: 700, fontSize: 15, margin: "0 0 6px", fontFamily: "'Raleway', sans-serif" }}>Loading Lesson Content</p>
+                    <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>Preparing your personalised material...</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer CTA */}
+              {content && (
                 <div style={{
-                  width: 40, height: 40, borderRadius: "50%",
-                  border: "3px solid #e2e8f0",
-                  borderTop: `3px solid ${accent}`,
-                  animation: "spin 0.8s linear infinite",
-                  margin: "0 auto 16px"
-                }} />
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading lesson content...</p>
-              </div>
-            )}
+                  padding: "16px 36px 20px",
+                  borderTop: "1px solid #f1f5f9",
+                  background: `linear-gradient(135deg, ${accent}06 0%, #f8fafc 100%)`,
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: `linear-gradient(135deg, ${cfg.dark}, ${accent})` }} />
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                      Finished reading? Take the post-lesson quiz.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => router.push(`/quiz?topic=${topic}&level=${level}&type=post&subject=${subject}&lesson=${lesson}`)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 8,
+                      padding: "10px 22px",
+                      background: `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
+                      color: "white", border: "none", borderRadius: 10,
+                      fontSize: 13, fontWeight: 700, cursor: "pointer",
+                      boxShadow: `0 4px 16px ${accent}45`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    Finish &amp; Take Quiz
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>{/* end content card */}
-          {/* Finish Button inside content column */}
-          {content && (
-            <button
-              onClick={() => router.push(`/quiz?topic=${topic}&level=${level}&type=post&subject=${subject}&lesson=${lesson}`)}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "8px 20px", marginBottom: 24,
-                backgroundColor: accent, color: "white",
-                border: "none", borderRadius: 8,
-                fontSize: 13, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              Finish Lesson → Take Quiz
-            </button>
-          )}
-          </div>{/* end right column */}
-        </div>{/* end flex row */}
+        </div>
 
       </main>
 
@@ -567,54 +599,79 @@ export default function LessonPage() {
         };
 
         return (
-          <div style={{ position: "fixed", bottom: 32, right: 32, zIndex: 1000 }}>
-            {/* Panel */}
+          <div style={{ position: "fixed", bottom: 100, right: 32, zIndex: 1000 }}>
             {qaOpen && (
               <div style={{
-                width: 360, backgroundColor: "white",
-                borderRadius: 16, marginBottom: 12,
-                boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-                border: "1px solid #e2e8f0", overflow: "hidden",
+                width: 380, backgroundColor: "white",
+                borderRadius: 20, marginBottom: 12,
+                boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+                border: "1.5px solid #e8edf2", overflow: "hidden",
               }}>
+                {/* Top stripe */}
+                <div style={{ height: 4, background: `linear-gradient(90deg, ${cfg.dark}, ${accent})` }} />
+
                 {/* Header */}
                 <div style={{
-                  background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
-                  padding: "14px 18px",
+                  background: `linear-gradient(135deg, ${accent}10 0%, transparent 100%)`,
+                  borderBottom: `1px solid ${accent}18`,
+                  padding: "16px 20px",
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 16 }}>🎤</span>
-                    <span style={{ color: "white", fontWeight: 700, fontSize: 14 }}>Ask the Teacher</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 10,
+                      background: `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      boxShadow: `0 4px 10px ${accent}40`,
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M8 2a5 5 0 0 1 5 5c0 2.1-1.3 3.9-3.1 4.7L8 14l-1.9-2.3A5 5 0 0 1 3 7a5 5 0 0 1 5-5z" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/>
+                        <circle cx="8" cy="7" r="1.2" fill="white"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: NAVY, fontFamily: "'Raleway', sans-serif" }}>Ask the Teacher</p>
+                      <p style={{ margin: 0, fontSize: 10, color: "#94a3b8" }}>{topic}</p>
+                    </div>
                   </div>
                   <button onClick={() => setQaOpen(false)} style={{
-                    background: "rgba(255,255,255,0.2)", border: "none",
-                    color: "white", borderRadius: 6, padding: "2px 8px",
-                    cursor: "pointer", fontSize: 12,
+                    width: 28, height: 28, borderRadius: "50%",
+                    background: "#f1f5f9", border: "none",
+                    color: "#64748b", cursor: "pointer", fontSize: 13,
+                    display: "flex", alignItems: "center", justifyContent: "center",
                   }}>✕</button>
                 </div>
 
-                <div style={{ padding: "16px" }}>
-                  {/* Mic + question */}
+                <div style={{ padding: "16px 18px" }}>
+                  {/* Mic + input row */}
                   <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                     <button
                       onClick={startListening}
                       style={{
-                        width: 40, height: 40, borderRadius: "50%", border: "none",
-                        backgroundColor: listening ? "#ef4444" : accent,
-                        color: "white", fontSize: 16, cursor: "pointer", flexShrink: 0,
+                        width: 42, height: 42, borderRadius: 12, border: "none",
+                        background: listening
+                          ? "linear-gradient(135deg, #7f1d1d, #ef4444)"
+                          : `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
+                        color: "white", cursor: "pointer", flexShrink: 0,
+                        boxShadow: listening ? "0 4px 12px rgba(239,68,68,0.4)" : `0 4px 12px ${accent}40`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
                         animation: listening ? "pulse 1s infinite" : "none",
                       }}
                     >
-                      🎤
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <rect x="5" y="1" width="6" height="9" rx="3" stroke="white" strokeWidth="1.5"/>
+                        <path d="M2 8a6 6 0 0 0 12 0M8 14v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
                     </button>
                     <input
                       value={question}
                       onChange={e => setQuestion(e.target.value)}
-                      placeholder="ප්‍රශ්නය කතා කරන්න හෝ ටයිප් කරන්න..."
+                      placeholder="ප්‍රශ්නය ටයිප් කරන්න..."
                       style={{
-                        flex: 1, border: "1.5px solid #e2e8f0", borderRadius: 8,
-                        padding: "8px 12px", fontSize: 13, outline: "none",
-                        color: "#0f172a",
+                        flex: 1, border: "1.5px solid #e2e8f0", borderRadius: 12,
+                        padding: "10px 14px", fontSize: 13, outline: "none",
+                        color: NAVY, background: "#f8fafc",
+                        fontFamily: "inherit",
                       }}
                       onKeyDown={e => e.key === "Enter" && askQuestion()}
                     />
@@ -624,36 +681,43 @@ export default function LessonPage() {
                     onClick={askQuestion}
                     disabled={!question.trim() || qaLoading}
                     style={{
-                      width: "100%", padding: "9px",
-                      backgroundColor: (!question.trim() || qaLoading) ? "#e2e8f0" : accent,
+                      width: "100%", padding: "10px",
+                      background: (!question.trim() || qaLoading)
+                        ? "#f1f5f9"
+                        : `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
                       color: (!question.trim() || qaLoading) ? "#94a3b8" : "white",
-                      border: "none", borderRadius: 8,
-                      fontSize: 13, fontWeight: 600, cursor: qaLoading ? "wait" : "pointer",
+                      border: "none", borderRadius: 10,
+                      fontSize: 13, fontWeight: 700, cursor: qaLoading ? "wait" : "pointer",
                       marginBottom: 12,
+                      boxShadow: (!question.trim() || qaLoading) ? "none" : `0 4px 14px ${accent}40`,
+                      transition: "all 0.2s",
                     }}
                   >
                     {qaLoading ? "Thinking..." : "Get Answer"}
                   </button>
 
-                  {/* Answer */}
                   {qaAnswer && (
                     <div style={{
-                      backgroundColor: "#f8fafc", borderRadius: 10,
-                      border: `1px solid ${accent}30`, padding: "12px 14px",
+                      backgroundColor: "#f8fafc", borderRadius: 12,
+                      border: `1.5px solid ${accent}20`, padding: "14px 16px",
                     }}>
-                      <p style={{ color: "#374151", fontSize: 13, lineHeight: 1.8, margin: "0 0 10px" }}>
+                      <p style={{ color: "#374151", fontSize: 13, lineHeight: 1.85, margin: "0 0 12px" }}>
                         {qaAnswer}
                       </p>
                       <button
                         onClick={() => { setAvatarAnswer(qaAnswer); setQaOpen(false); }}
                         style={{
-                          backgroundColor: accent, color: "white",
-                          border: "none", borderRadius: 8,
-                          padding: "7px 16px", fontSize: 12, fontWeight: 600,
-                          cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          background: `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
+                          color: "white", border: "none", borderRadius: 8,
+                          padding: "7px 16px", fontSize: 12, fontWeight: 700,
+                          cursor: "pointer", boxShadow: `0 3px 10px ${accent}40`,
                         }}
                       >
-                        ▶ Hear from Avatar
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <polygon points="2,1 11,6 2,11" fill="white"/>
+                        </svg>
+                        Hear from Avatar
                       </button>
                     </div>
                   )}
@@ -661,23 +725,26 @@ export default function LessonPage() {
               </div>
             )}
 
-            {/* Floating mic button */}
+            {/* Floating button */}
             <button
               onClick={() => setQaOpen(o => !o)}
               style={{
-                width: 56, height: 56, borderRadius: "50%",
-                backgroundColor: qaOpen ? "#64748b" : accent,
-                border: "none", color: "white",
-                fontSize: 22, cursor: "pointer",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                width: 56, height: 56, borderRadius: "50%", border: "none",
+                background: qaOpen
+                  ? "linear-gradient(135deg, #334155, #64748b)"
+                  : `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
+                color: "white", cursor: "pointer",
+                boxShadow: qaOpen ? "0 4px 16px rgba(0,0,0,0.2)" : `0 6px 20px ${accent}50`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "all 0.2s",
               }}
-              title="Ask a question"
             >
-              {qaOpen ? "✕" : "🎤"}
+              {qaOpen
+                ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4l10 10M14 4L4 14" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+                : <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="10" height="13" rx="3" stroke="white" strokeWidth="1.6"/><path d="M3 10a8 8 0 0 0 15 0" stroke="white" strokeWidth="1.6" strokeLinecap="round"/><path d="M10 15v3" stroke="white" strokeWidth="1.6" strokeLinecap="round"/></svg>
+              }
             </button>
-            <style>{`@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.7;transform:scale(1.1)} }`}</style>
+            <style>{`@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.7;transform:scale(1.08)} }`}</style>
           </div>
         );
       })()}
