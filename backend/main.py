@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection, student_progress_collection, engagement_collection
+from db import users_collection, enrollments_collection, student_progress_collection, engagement_collection, qa_collection
 from models.User import User
 from auth.security import hash_password
 from jose import jwt
@@ -399,3 +399,63 @@ def get_engagement_history(student_id: str, subject: str, topic: str):
         {"_id": 0}
     ).sort("started_at", -1).limit(10))
     return {"sessions": sessions}
+
+
+# ── Student Q&A endpoint ──────────────────────────────────────────────────────
+import json as _json
+import requests as _requests
+
+class QuestionRequest(BaseModel):
+    question: str
+    subject: str
+    lesson: str
+    topic: str
+    student_id: Optional[str] = None
+
+@app.post("/ask-question")
+def ask_question(data: QuestionRequest):
+    from services.retriever import get_relevant_context
+    import datetime
+    context = get_relevant_context(data.subject, data.lesson, data.topic, k=5)
+    if not context:
+        context = f"{data.topic} relating to {data.subject} - {data.lesson}"
+
+    instruction = "ඔබ දක්ෂ ගුරුවරයෙකි. පහත context ඇසුරින් සිසුවාගේ ප්‍රශ්නයට සරල සිංහල පිළිතුරක් දෙන්න."
+    input_text = f"Context:\n{context[:2000]}\n\nප්‍රශ්නය: {data.question}"
+
+    FINETUNED_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+    try:
+        resp = _requests.post(
+            FINETUNED_URL,
+            headers={"Content-Type": "application/json"},
+            data=_json.dumps({"instruction": instruction, "input": input_text, "max_new_tokens": 400}, ensure_ascii=False).encode("utf-8"),
+            timeout=120,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        answer = result.get("answer") or result.get("response") or "පිළිතුර ලබා ගත නොහැකි විය."
+        answer = answer.strip()
+
+        # Save to DB
+        if data.student_id:
+            qa_collection.insert_one({
+                "student_id": data.student_id,
+                "subject": data.subject,
+                "lesson": data.lesson,
+                "topic": data.topic,
+                "question": data.question,
+                "answer": answer,
+                "asked_at": datetime.datetime.utcnow().isoformat(),
+            })
+
+        return {"answer": answer}
+    except Exception as e:
+        return {"answer": f"Error: {str(e)}"}
+
+@app.get("/admin/student-qa")
+def get_student_qa(student_id: str, subject: str, topic: str):
+    records = list(qa_collection.find(
+        {"student_id": student_id, "subject": subject, "topic": topic},
+        {"_id": 0}
+    ).sort("asked_at", -1))
+    return {"qa": records}

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { curriculum } from "@/data/curriculum";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import ChatBot from "@/components/ChatBot";
 import { enrollSubject } from "@/services/api";
 
 const subjectConfig = {
@@ -281,6 +282,7 @@ export default function StudentDashboard() {
           </div>
         )}
       </main>
+      <ChatBot accent="#2563eb" />
     </div>
   );
 }

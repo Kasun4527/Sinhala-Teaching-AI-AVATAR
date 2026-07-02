@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarTeacher from "@/components/AvatarTeacher";
+import ChatBot from "@/components/ChatBot";
 
 const ENGAGEMENT_SERVER = "http://localhost:5000";
 const BACKEND = "http://localhost:8000";
@@ -20,6 +21,20 @@ export default function LessonPage() {
   const [content, setContent] = useState("");
   const [avatarSpeech, setAvatarSpeech] = useState("");
   const [speechReady, setSpeechReady] = useState(false);
+  const [speechProgress, setSpeechProgress] = useState(-1);
+
+  // Q&A state
+  const [qaOpen, setQaOpen] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [qaLoading, setQaLoading] = useState(false);
+  const [qaAnswer, setQaAnswer] = useState("");
+  const [avatarAnswer, setAvatarAnswer] = useState("");
+
+  // Show only retrieved PDF content (strip LLM intro before "---")
+  const displayContent = content.includes("\n---\n")
+    ? content.split("\n---\n").slice(1).join("\n---\n").trim()
+    : content;
 
   // Engagement state
   const [engScore, setEngScore] = useState(null);
@@ -46,16 +61,24 @@ export default function LessonPage() {
     return false;
   };
 
+  // Pre-count paragraphs in displayContent so we can map progress → index
+  const paraCountRef = useRef(0);
+  const highlightedParaIdx = speechProgress >= 0 && paraCountRef.current > 0
+    ? Math.min(Math.floor(speechProgress * paraCountRef.current), paraCountRef.current - 1)
+    : -1;
+
   const renderContentWithImages = (text) => {
     const lines = text.split("\n");
     const elements = [];
     let paraLines = [];
     let keyIdx = 0;
     let sectionCount = 0;
+    let localParaCount = 0;
 
     const flushPara = () => {
       const joined = paraLines.join(" ").trim();
       if (!joined) { paraLines = []; return; }
+      const thisParaIdx = localParaCount++;
 
       // Detect bullet / numbered list
       if (/^(\d+[\.\)]|•|●|-)\s/.test(joined)) {
@@ -72,13 +95,19 @@ export default function LessonPage() {
           </ul>
         );
       } else {
+        const isHighlighted = thisParaIdx === highlightedParaIdx;
         elements.push(
           <p key={`p-${keyIdx++}`} style={{
             marginBottom: 20, lineHeight: 2,
-            color: "#374151", fontSize: 15.5,
+            color: isHighlighted ? "#0f172a" : "#374151", fontSize: 15.5,
             textAlign: "justify",
-            borderLeft: sectionCount === 0 && elements.length === 0 ? `3px solid ${accent}` : "none",
-            paddingLeft: sectionCount === 0 && elements.length === 0 ? 16 : 0,
+            borderLeft: isHighlighted ? `4px solid ${accent}` : sectionCount === 0 && thisParaIdx === 0 ? `3px solid ${accent}` : "none",
+            paddingLeft: isHighlighted || (sectionCount === 0 && thisParaIdx === 0) ? 16 : 0,
+            backgroundColor: isHighlighted ? `${accent}12` : "transparent",
+            borderRadius: isHighlighted ? 8 : 0,
+            padding: isHighlighted ? "10px 16px" : undefined,
+            transition: "all 0.5s ease",
+            boxShadow: isHighlighted ? `0 0 0 2px ${accent}30` : "none",
           }}>
             {joined}
           </p>
@@ -149,6 +178,7 @@ export default function LessonPage() {
     });
 
     flushPara();
+    paraCountRef.current = localParaCount;
     return elements;
   };
 
@@ -296,10 +326,13 @@ export default function LessonPage() {
   }, [topic, level]);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <Sidebar subject={subject} />
 
-      <main style={{ flex: 1, padding: "48px", backgroundColor: "#f8fafc", minWidth: 0 }}>
+      <main style={{ flex: 1, backgroundColor: "#f8fafc", minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", height: "100vh" }}>
+
+        {/* ── Top section (does not scroll) ── */}
+        <div style={{ padding: "32px 48px 0", flexShrink: 0 }}>
 
         {/* Header */}
         <div style={{
@@ -396,12 +429,25 @@ export default function LessonPage() {
           );
         })()}
 
-        {/* Avatar Teacher */}
-        {content && (
-          <AvatarTeacher content={avatarSpeech || content} topic={topic} speechReady={speechReady} />
-        )}
+        </div>{/* end top section */}
 
-        {/* Content Card */}
+        {/* Avatar + Content side by side — fills remaining height */}
+        <div style={{ display: "flex", flex: 1, gap: 24, overflow: "hidden", padding: "16px 48px 32px" }}>
+
+          {/* Avatar — never scrolls, always visible */}
+          <div style={{ width: 420, flexShrink: 0, overflowY: "auto", scrollbarWidth: "none" }}>
+            <AvatarTeacher
+              content={avatarSpeech || content}
+              topic={topic}
+              speechReady={speechReady}
+              onSentenceChange={setSpeechProgress}
+              answerContent={avatarAnswer || undefined}
+              onAnswerSpoken={() => setAvatarAnswer("")}
+            />
+          </div>
+
+          {/* Content — only this column scrolls */}
+          <div style={{ flex: 1, minWidth: 0, overflowY: "auto", scrollbarWidth: "thin" }}>
         <div style={{
           backgroundColor: "white", borderRadius: 20,
           marginBottom: 24, overflow: "hidden",
@@ -435,7 +481,7 @@ export default function LessonPage() {
                 fontSize: 12, fontWeight: 600,
                 padding: "4px 12px", borderRadius: 20,
               }}>
-                ~{Math.ceil(content.replace(/\[IMAGE:[^\]]+\]/gi, "").length / 800)} min read
+                ~{Math.ceil(displayContent.replace(/\[IMAGE:[^\]]+\]/gi, "").length / 800)} min read
               </span>
             )}
           </div>
@@ -444,7 +490,7 @@ export default function LessonPage() {
           <div style={{ padding: "36px 48px" }}>
             {content ? (
               <div style={{ maxWidth: 780 }}>
-                {renderContentWithImages(content)}
+                {renderContentWithImages(displayContent)}
               </div>
             ) : (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
@@ -460,24 +506,183 @@ export default function LessonPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Finish Button */}
-        {content && (
-          <button
-            onClick={() => router.push(`/quiz?topic=${topic}&level=${level}&type=post&subject=${subject}&lesson=${lesson}`)}
-            style={{
-              width: "100%", padding: "14px",
-              backgroundColor: accent, color: "white",
-              border: "none", borderRadius: 12,
-              fontSize: 15, fontWeight: 600, cursor: "pointer"
-            }}
-          >
-            Finish Lesson → Take Quiz
-          </button>
-        )}
+        </div>{/* end content card */}
+          {/* Finish Button inside content column */}
+          {content && (
+            <button
+              onClick={() => router.push(`/quiz?topic=${topic}&level=${level}&type=post&subject=${subject}&lesson=${lesson}`)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "8px 20px", marginBottom: 24,
+                backgroundColor: accent, color: "white",
+                border: "none", borderRadius: 8,
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Finish Lesson → Take Quiz
+            </button>
+          )}
+          </div>{/* end right column */}
+        </div>{/* end flex row */}
 
       </main>
+
+      {/* ── Floating Q&A Widget ── */}
+      {content && (() => {
+        const startListening = () => {
+          const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SR) { alert("Your browser does not support speech recognition. Use Chrome."); return; }
+          const recog = new SR();
+          recog.lang = "si-LK";
+          recog.interimResults = false;
+          recog.onstart = () => setListening(true);
+          recog.onend   = () => setListening(false);
+          recog.onresult = (e) => {
+            const text = e.results[0][0].transcript;
+            setQuestion(text);
+            setQaAnswer("");
+            setAvatarAnswer("");
+          };
+          recog.onerror = () => setListening(false);
+          recog.start();
+        };
+
+        const askQuestion = async () => {
+          if (!question.trim()) return;
+          setQaLoading(true);
+          setQaAnswer("");
+          try {
+            const res = await fetch(`${BACKEND}/ask-question`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ question, subject, lesson, topic, student_id: localStorage.getItem("student_id") }),
+            });
+            const data = await res.json();
+            setQaAnswer(data.answer || "පිළිතුර ලබා ගත නොහැකි විය.");
+          } catch {
+            setQaAnswer("Error fetching answer.");
+          } finally {
+            setQaLoading(false);
+          }
+        };
+
+        return (
+          <div style={{ position: "fixed", bottom: 32, right: 32, zIndex: 1000 }}>
+            {/* Panel */}
+            {qaOpen && (
+              <div style={{
+                width: 360, backgroundColor: "white",
+                borderRadius: 16, marginBottom: 12,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+                border: "1px solid #e2e8f0", overflow: "hidden",
+              }}>
+                {/* Header */}
+                <div style={{
+                  background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
+                  padding: "14px 18px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>🎤</span>
+                    <span style={{ color: "white", fontWeight: 700, fontSize: 14 }}>Ask the Teacher</span>
+                  </div>
+                  <button onClick={() => setQaOpen(false)} style={{
+                    background: "rgba(255,255,255,0.2)", border: "none",
+                    color: "white", borderRadius: 6, padding: "2px 8px",
+                    cursor: "pointer", fontSize: 12,
+                  }}>✕</button>
+                </div>
+
+                <div style={{ padding: "16px" }}>
+                  {/* Mic + question */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                    <button
+                      onClick={startListening}
+                      style={{
+                        width: 40, height: 40, borderRadius: "50%", border: "none",
+                        backgroundColor: listening ? "#ef4444" : accent,
+                        color: "white", fontSize: 16, cursor: "pointer", flexShrink: 0,
+                        animation: listening ? "pulse 1s infinite" : "none",
+                      }}
+                    >
+                      🎤
+                    </button>
+                    <input
+                      value={question}
+                      onChange={e => setQuestion(e.target.value)}
+                      placeholder="ප්‍රශ්නය කතා කරන්න හෝ ටයිප් කරන්න..."
+                      style={{
+                        flex: 1, border: "1.5px solid #e2e8f0", borderRadius: 8,
+                        padding: "8px 12px", fontSize: 13, outline: "none",
+                        color: "#0f172a",
+                      }}
+                      onKeyDown={e => e.key === "Enter" && askQuestion()}
+                    />
+                  </div>
+
+                  <button
+                    onClick={askQuestion}
+                    disabled={!question.trim() || qaLoading}
+                    style={{
+                      width: "100%", padding: "9px",
+                      backgroundColor: (!question.trim() || qaLoading) ? "#e2e8f0" : accent,
+                      color: (!question.trim() || qaLoading) ? "#94a3b8" : "white",
+                      border: "none", borderRadius: 8,
+                      fontSize: 13, fontWeight: 600, cursor: qaLoading ? "wait" : "pointer",
+                      marginBottom: 12,
+                    }}
+                  >
+                    {qaLoading ? "Thinking..." : "Get Answer"}
+                  </button>
+
+                  {/* Answer */}
+                  {qaAnswer && (
+                    <div style={{
+                      backgroundColor: "#f8fafc", borderRadius: 10,
+                      border: `1px solid ${accent}30`, padding: "12px 14px",
+                    }}>
+                      <p style={{ color: "#374151", fontSize: 13, lineHeight: 1.8, margin: "0 0 10px" }}>
+                        {qaAnswer}
+                      </p>
+                      <button
+                        onClick={() => { setAvatarAnswer(qaAnswer); setQaOpen(false); }}
+                        style={{
+                          backgroundColor: accent, color: "white",
+                          border: "none", borderRadius: 8,
+                          padding: "7px 16px", fontSize: 12, fontWeight: 600,
+                          cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                        }}
+                      >
+                        ▶ Hear from Avatar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Floating mic button */}
+            <button
+              onClick={() => setQaOpen(o => !o)}
+              style={{
+                width: 56, height: 56, borderRadius: "50%",
+                backgroundColor: qaOpen ? "#64748b" : accent,
+                border: "none", color: "white",
+                fontSize: 22, cursor: "pointer",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.2s",
+              }}
+              title="Ask a question"
+            >
+              {qaOpen ? "✕" : "🎤"}
+            </button>
+            <style>{`@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.7;transform:scale(1.1)} }`}</style>
+          </div>
+        );
+      })()}
+
+      <ChatBot subject={subject} lesson={lesson} topic={topic} accent={accent} />
     </div>
   );
 }

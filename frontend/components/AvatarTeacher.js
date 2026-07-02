@@ -4,10 +4,21 @@ import { useEffect, useRef, useState } from "react";
 
 const AVTR_HOST = "https://stifle-implement-feminist.ngrok-free.dev";
 const NGROK_HDR = { "ngrok-skip-browser-warning": "1" };
+const WPM = 130; // average speaking pace
 
-export default function AvatarTeacher({ content, topic, speechReady = true }) {
+function splitSentences(text) {
+  if (!text) return [];
+  return text
+    .replace(/\[IMAGE:[^\]]+\]/gi, "")
+    .split(/(?<=[.!?।])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 4);
+}
+
+export default function AvatarTeacher({ content, topic, speechReady = true, onSentenceChange, answerContent, onAnswerSpoken }) {
   const videoRef  = useRef(null);
   const pcRef     = useRef(null);
+  const timerRef  = useRef(null);
 
   const [status, setStatus]                 = useState("idle");
   const [error, setError]                   = useState("");
@@ -15,6 +26,17 @@ export default function AvatarTeacher({ content, topic, speechReady = true }) {
   const [bgList, setBgList]                 = useState([]);
   const [selectedAvatar, setSelectedAvatar] = useState("");
   const [selectedBg, setSelectedBg]         = useState("");
+  const [activeSentence, setActiveSentence] = useState(-1);
+
+  const activeContent = answerContent || content;
+  const sentences = splitSentences(activeContent);
+
+  // When answerContent arrives, stop current session and start new one
+  useEffect(() => {
+    if (!answerContent) return;
+    stopSession();
+    setTimeout(() => startSession(), 400);
+  }, [answerContent]);
 
   useEffect(() => {
     fetch(`${AVTR_HOST}/avatars`, { headers: NGROK_HDR })
@@ -30,6 +52,14 @@ export default function AvatarTeacher({ content, topic, speechReady = true }) {
       .catch(() => {});
   }, []);
 
+  // Notify parent of speech progress (0..1)
+  useEffect(() => {
+    if (onSentenceChange && activeSentence >= 0 && sentences.length > 0) {
+      const progress = activeSentence / sentences.length;
+      onSentenceChange(progress);
+    }
+  }, [activeSentence]);
+
   async function waitForIceComplete(pc, ms = 8000) {
     if (pc.iceGatheringState === "complete") return;
     return new Promise(resolve => {
@@ -40,46 +70,69 @@ export default function AvatarTeacher({ content, topic, speechReady = true }) {
     });
   }
 
+  function startSentenceTimer() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    let idx = 0;
+    setActiveSentence(0);
+
+    timerRef.current = setInterval(() => {
+      if (idx >= sentences.length - 1) {
+        clearInterval(timerRef.current);
+        return;
+      }
+      const wordCount = (sentences[idx]?.split(/\s+/).length || 5);
+      const durationMs = (wordCount / WPM) * 60 * 1000;
+
+      setTimeout(() => {
+        idx++;
+        setActiveSentence(idx);
+      }, durationMs);
+    }, 100);
+
+    // Better approach: schedule each sentence transition upfront
+    clearInterval(timerRef.current);
+    let elapsed = 0;
+    sentences.forEach((s, i) => {
+      const wordCount = s.split(/\s+/).length || 5;
+      const durationMs = (wordCount / WPM) * 60 * 1000;
+      setTimeout(() => setActiveSentence(i), elapsed);
+      elapsed += durationMs;
+    });
+  }
+
   async function startSession() {
     try {
       setError("");
       setStatus("connecting");
 
-      // 1. Fetch ICE config
       const iceResp = await fetch(`${AVTR_HOST}/ice-servers`, { headers: NGROK_HDR });
       if (!iceResp.ok) throw new Error("Failed to get ICE servers");
       const iceCfg = await iceResp.json();
 
-      // 2. Create peer connection
       const pc = new RTCPeerConnection({
         iceServers: iceCfg.iceServers || [],
         iceTransportPolicy: iceCfg.iceTransportPolicy || "all",
       });
       pcRef.current = pc;
 
-      // 3. Receive video + audio from avatar
       pc.addTransceiver("video", { direction: "recvonly" });
       pc.addTransceiver("audio", { direction: "recvonly" });
 
-      // 4. Attach incoming streams to video element
       pc.ontrack = (e) => {
         if (e.streams && e.streams[0] && videoRef.current) {
           videoRef.current.srcObject = e.streams[0];
         }
       };
 
-      // 5. Create offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await waitForIceComplete(pc);
 
-      // 6. Strip [IMAGE: ...] tags — can't be spoken
-      const speechText = content
+      const speechText = activeContent
         .replace(/\[IMAGE:[^\]]+\]/gi, "")
         .trim()
         .slice(0, 5000);
 
-      // 7. POST offer to AVTR-1 with lesson content
       const body = {
         sdp:           pc.localDescription.sdp,
         type:          "offer",
@@ -102,17 +155,18 @@ export default function AvatarTeacher({ content, topic, speechReady = true }) {
         throw new Error(`Offer rejected (${answerResp.status}): ${txt}`);
       }
       const answer = await answerResp.json();
-
-      // 8. Set remote answer
       await pc.setRemoteDescription(answer);
 
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
           setStatus("idle");
+          setActiveSentence(-1);
         }
       };
 
       setStatus("live");
+      // Small delay to let avatar start speaking before highlighting
+      setTimeout(() => startSentenceTimer(), 1200);
 
     } catch (err) {
       console.error("AvatarTeacher:", err);
@@ -124,7 +178,9 @@ export default function AvatarTeacher({ content, topic, speechReady = true }) {
   function stopSession() {
     if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
     if (videoRef.current) videoRef.current.srcObject = null;
+    if (timerRef.current) clearInterval(timerRef.current);
     setStatus("idle");
+    setActiveSentence(-1);
   }
 
   const isLive = status === "live";
@@ -137,24 +193,24 @@ export default function AvatarTeacher({ content, topic, speechReady = true }) {
       border: "1px solid #1e293b",
     }}>
       {/* Video area */}
-      <div style={{ position: "relative", background: "#000", minHeight: 280 }}>
+      <div style={{ position: "relative", background: "#000", minHeight: 340 }}>
         <video
           ref={videoRef}
           autoPlay
           playsInline
           controls
           style={{
-            width: "100%", height: 320, objectFit: "cover",
+            width: "100%", height: 340, objectFit: "cover",
             display: isLive ? "block" : "none",
           }}
         />
 
         {!isLive && (
           <div style={{
-            height: 320, display: "flex", flexDirection: "column",
+            height: 340, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 12,
           }}>
-            <div style={{ fontSize: 48 }}>👩‍🏫</div>
+            <div style={{ fontSize: 56 }}>👩‍🏫</div>
             <p style={{ color: "#64748b", fontSize: 13 }}>
               {isBusy ? "Connecting to avatar teacher..." : "Click below to start teacher explanation"}
             </p>
@@ -224,14 +280,11 @@ export default function AvatarTeacher({ content, topic, speechReady = true }) {
 
         <div>
           {isLive ? (
-            <button
-              onClick={stopSession}
-              style={{
-                backgroundColor: "#ef4444", color: "white",
-                border: "none", borderRadius: 8,
-                padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              }}
-            >
+            <button onClick={stopSession} style={{
+              backgroundColor: "#ef4444", color: "white",
+              border: "none", borderRadius: 8,
+              padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+            }}>
               ■ Stop
             </button>
           ) : (
@@ -251,6 +304,7 @@ export default function AvatarTeacher({ content, topic, speechReady = true }) {
           )}
         </div>
       </div>
+
 
       {error && (
         <div style={{

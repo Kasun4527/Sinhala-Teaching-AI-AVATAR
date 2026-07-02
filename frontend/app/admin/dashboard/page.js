@@ -17,6 +17,7 @@ export default function AdminDashboard() {
   const [topicDetails, setTopicDetails] = useState([]);
   const [expandedTopic, setExpandedTopic] = useState(null);
   const [engagementData, setEngagementData] = useState({});
+  const [qaData, setQaData] = useState({});
   const [loading, setLoading] = useState(false);
   const [hoveredStudent, setHoveredStudent] = useState(null);
 
@@ -483,12 +484,15 @@ export default function AdminDashboard() {
                           onClick={async () => {
                             const next = isExpanded ? null : i;
                             setExpandedTopic(next);
-                            if (next !== null && !engagementData[i]) {
+                            if (next !== null) {
                               try {
-                                const res = await axios.get(`${API}/engagement-history`, {
-                                  params: { student_id: selectedStudent.student_id, subject: selectedSubject, topic: t.topic }
-                                });
-                                setEngagementData(prev => ({ ...prev, [i]: res.data.sessions }));
+                                const params = { student_id: selectedStudent.student_id, subject: selectedSubject, topic: t.topic };
+                                const [engRes, qaRes] = await Promise.all([
+                                  !engagementData[i] ? axios.get(`${API}/engagement-history`, { params }) : null,
+                                  !qaData[i] ? axios.get(`${API}/admin/student-qa`, { params }) : null,
+                                ]);
+                                if (engRes) setEngagementData(prev => ({ ...prev, [i]: engRes.data.sessions }));
+                                if (qaRes) setQaData(prev => ({ ...prev, [i]: qaRes.data.qa }));
                               } catch (_) {}
                             }
                           }}
@@ -644,6 +648,34 @@ export default function AdminDashboard() {
                                     </div>
                                   );
                                 })}
+                              </div>
+                            )}
+                            {/* Q&A History */}
+                            {(qaData[i] || []).length > 0 && (
+                              <div style={{ marginTop: 20 }}>
+                                <p style={{
+                                  color: "#94a3b8", fontSize: 11, fontWeight: 600,
+                                  textTransform: "uppercase", letterSpacing: "0.1em",
+                                  marginBottom: 12
+                                }}>
+                                  Student Questions &amp; Answers
+                                </p>
+                                {(qaData[i] || []).map((qa, qi) => (
+                                  <div key={qi} style={{
+                                    backgroundColor: "white", border: "1px solid #e2e8f0",
+                                    borderRadius: 10, padding: "14px 18px", marginBottom: 10,
+                                  }}>
+                                    <p style={{ color: "#64748b", fontSize: 10, margin: "0 0 8px" }}>
+                                      {new Date(qa.asked_at).toLocaleString()}
+                                    </p>
+                                    <p style={{ color: "#0f172a", fontSize: 13, fontWeight: 600, margin: "0 0 6px" }}>
+                                      Q: {qa.question}
+                                    </p>
+                                    <p style={{ color: "#374151", fontSize: 13, margin: 0, lineHeight: 1.7 }}>
+                                      A: {qa.answer}
+                                    </p>
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>

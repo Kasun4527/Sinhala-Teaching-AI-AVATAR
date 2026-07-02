@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { findSubjectByGrade, findSubject } from "@/data/curriculum";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import ChatBot from "@/components/ChatBot";
 
 export default function TopicsPage() {
   const params = useSearchParams();
@@ -35,6 +36,7 @@ export default function TopicsPage() {
       <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
         <p style={{ color: "#94a3b8" }}>No topics available.</p>
       </main>
+      <ChatBot subject={subject} lesson={lesson} accent={color.accent} />
     </div>
   );
 
@@ -134,6 +136,8 @@ export default function TopicsPage() {
         </div>
 
       </main>
+
+      <ChatBot subject={subject} lesson={lesson} accent={color.accent} />
     </div>
   );
 }

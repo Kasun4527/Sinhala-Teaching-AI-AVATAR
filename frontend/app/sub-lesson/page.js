@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { findSubjectByGrade, findSubject } from "@/data/curriculum";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import ChatBot from "@/components/ChatBot";
 
 export default function LessonsPage() {
   const params = useSearchParams();
@@ -135,6 +136,8 @@ export default function LessonsPage() {
         </div>
 
       </main>
+
+      <ChatBot subject={subject} accent={color.accent} />
     </div>
   );
 }
