@@ -6,44 +6,41 @@ import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
 
-function GridWave({ color = "#2563eb" }) {
+function FloatingPattern({ color }) {
   const canvasRef = useRef(null);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
+    const chars = "0123456789ABCDEFabcdefijklmnopqrstuvwxyz+-=><[]{}|/\\".split("");
     let W = canvas.width  = canvas.offsetWidth;
     let H = canvas.height = canvas.offsetHeight;
-    const SPACING = 36;
-    let t = 0, raf;
-
+    const particles = Array.from({ length: 120 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      char: chars[Math.floor(Math.random() * chars.length)],
+      size: 9 + Math.random() * 8,
+      speed: 0.18 + Math.random() * 0.32,
+      opacity: 0.35 + Math.random() * 0.30,
+      drift: (Math.random() - 0.5) * 0.15,
+    }));
+    let raf;
     const draw = () => {
       ctx.clearRect(0, 0, W, H);
-      const cols = Math.ceil(W / SPACING) + 1;
-      const rows = Math.ceil(H / SPACING) + 1;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const x = c * SPACING;
-          const y = r * SPACING;
-          const wave = Math.sin(t + c * 0.4 + r * 0.4);
-          const alpha = 0.08 + Math.abs(wave) * 0.22;
-          const radius = 2 + Math.abs(wave) * 2.5;
-          ctx.beginPath();
-          ctx.arc(x, y, radius, 0, Math.PI * 2);
-          ctx.fillStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0");
-          ctx.fill();
-        }
+      for (const p of particles) {
+        ctx.font = `${p.size}px monospace`;
+        ctx.fillStyle = color + Math.round(p.opacity * 255).toString(16).padStart(2, "0");
+        ctx.fillText(p.char, p.x, p.y);
+        p.y += p.speed; p.x += p.drift;
+        if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; p.char = chars[Math.floor(Math.random() * chars.length)]; }
+        if (p.x < -20 || p.x > W + 20) p.x = Math.random() * W;
       }
-      t += 0.022;
       raf = requestAnimationFrame(draw);
     };
     draw();
-
     const onResize = () => { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; };
     window.addEventListener("resize", onResize);
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
   }, [color]);
-
   return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
 }
 import { enrollSubject } from "@/services/api";
@@ -163,7 +160,7 @@ export default function StudentDashboard() {
 
         {/* ═══ BODY ═══ */}
         <div style={{ padding: "48px 60px 80px", position: "relative" }}>
-          <GridWave color={BLUE} />
+          <FloatingPattern color={BLUE} />
 
           {/* Header row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, flexWrap: "wrap", gap: 16, position: "relative", zIndex: 1 }}>

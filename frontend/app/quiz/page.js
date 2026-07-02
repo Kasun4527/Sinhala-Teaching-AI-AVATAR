@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import { getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz } from "@/services/api";
 
@@ -16,6 +16,44 @@ const SUBJECT_CFG = {
   "බුද්ධ ධර්මය":       { hue: "#c026d3", dark: "#701a75" },
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a" };
+
+function FloatingPattern({ color }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const chars = "0123456789ABCDEFabcdefijklmnopqrstuvwxyz+-=><[]{}|/\\".split("");
+    let W = canvas.width  = canvas.offsetWidth;
+    let H = canvas.height = canvas.offsetHeight;
+    const particles = Array.from({ length: 120 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      char: chars[Math.floor(Math.random() * chars.length)],
+      size: 9 + Math.random() * 8,
+      speed: 0.18 + Math.random() * 0.32,
+      opacity: 0.35 + Math.random() * 0.30,
+      drift: (Math.random() - 0.5) * 0.15,
+    }));
+    let raf;
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (const p of particles) {
+        ctx.font = `${p.size}px monospace`;
+        ctx.fillStyle = color + Math.round(p.opacity * 255).toString(16).padStart(2, "0");
+        ctx.fillText(p.char, p.x, p.y);
+        p.y += p.speed; p.x += p.drift;
+        if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; p.char = chars[Math.floor(Math.random() * chars.length)]; }
+        if (p.x < -20 || p.x > W + 20) p.x = Math.random() * W;
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    const onResize = () => { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; };
+    window.addEventListener("resize", onResize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
+  }, [color]);
+  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
+}
 
 // ── Fullscreen loading/submitting overlay ──────────────────────────
 function LoadingScreen({ subject, cfg, title, subtitle }) {
@@ -238,8 +276,9 @@ export default function QuizPage() {
         </div>
 
         {/* ── BODY ── */}
-        <div style={{ padding: "40px 60px 72px" }}>
-          <div style={{ maxWidth: 760 }}>
+        <div style={{ padding: "40px 60px 72px", position: "relative", overflow: "hidden" }}>
+          <FloatingPattern color={accent} />
+          <div style={{ maxWidth: 760, position: "relative", zIndex: 1 }}>
 
             {/* Questions */}
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>

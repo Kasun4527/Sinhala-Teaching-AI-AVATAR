@@ -5,10 +5,47 @@ import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarTeacher from "@/components/AvatarTeacher";
 import ChatBot from "@/components/ChatBot";
-import HexPattern from "@/components/HexPattern";
 
 const ENGAGEMENT_SERVER = "http://localhost:5000";
 const BACKEND = "http://localhost:8000";
+
+function FloatingPattern({ color }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const chars = "0123456789ABCDEFabcdefijklmnopqrstuvwxyz+-=><[]{}|/\\".split("");
+    let W = canvas.width  = canvas.offsetWidth;
+    let H = canvas.height = canvas.offsetHeight;
+    const particles = Array.from({ length: 120 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      char: chars[Math.floor(Math.random() * chars.length)],
+      size: 9 + Math.random() * 8,
+      speed: 0.18 + Math.random() * 0.32,
+      opacity: 0.35 + Math.random() * 0.30,
+      drift: (Math.random() - 0.5) * 0.15,
+    }));
+    let raf;
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (const p of particles) {
+        ctx.font = `${p.size}px monospace`;
+        ctx.fillStyle = color + Math.round(p.opacity * 255).toString(16).padStart(2, "0");
+        ctx.fillText(p.char, p.x, p.y);
+        p.y += p.speed; p.x += p.drift;
+        if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; p.char = chars[Math.floor(Math.random() * chars.length)]; }
+        if (p.x < -20 || p.x > W + 20) p.x = Math.random() * W;
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    const onResize = () => { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; };
+    window.addEventListener("resize", onResize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
+  }, [color]);
+  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
+}
 
 export default function LessonPage() {
   const searchParams = useSearchParams();
@@ -423,7 +460,7 @@ export default function LessonPage() {
 
         {/* ── Avatar + Content ── */}
         <div style={{ display: "flex", flex: 1, gap: 20, overflow: "hidden", padding: "20px 52px 28px", position: "relative" }}>
-          <HexPattern color={accent} />
+          <FloatingPattern color={accent} />
 
           {/* Avatar column */}
           <div style={{ width: 400, flexShrink: 0, overflowY: "auto", scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
