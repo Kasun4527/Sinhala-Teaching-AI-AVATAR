@@ -23,7 +23,7 @@ function FloatingPattern({ color }) {
       char: chars[Math.floor(Math.random() * chars.length)],
       size: 9 + Math.random() * 8,
       speed: 0.18 + Math.random() * 0.32,
-      opacity: 0.35 + Math.random() * 0.30,
+      opacity: 0.85 + Math.random() * 0.35,
       drift: (Math.random() - 0.5) * 0.15,
     }));
     let raf;
@@ -481,7 +481,8 @@ export default function LessonPage() {
             <div style={{
               backgroundColor: "white", borderRadius: 22,
               marginBottom: 20, overflow: "hidden",
-              boxShadow: `0 8px 40px rgba(0,0,0,0.09), 0 0 0 1.5px ${accent}20`,
+              border: `1.5px solid ${accent}40`,
+              boxShadow: `0 8px 40px rgba(0,0,0,0.09)`,
             }}>
               {/* Hero header band */}
               <div style={{
