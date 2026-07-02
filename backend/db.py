@@ -19,6 +19,8 @@ topics_collection = db["topics"]
 student_progress_collection = db["student_progress"]
 delivered_content_collection = db["delivered_content"]
 enrollments_collection = db["enrollments"]
+engagement_collection = db["engagement_sessions"]
+qa_collection = db["student_qa"]
 
 # ── Personalization Collections (PC-BKT + BKT-LSTM) ─────────────────────────
 

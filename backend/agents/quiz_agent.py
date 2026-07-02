@@ -1,6 +1,8 @@
 import json
 import re
 import random
+import requests
+from services.retriever import get_relevant_context
 
 
 def normalize_quiz_questions(result):
@@ -27,11 +29,8 @@ def normalize_quiz_questions(result):
     return result
 
 
-# =========================
-# JSON SAFE PARSER
-# =========================
 def extract_json(text):
-    """Safely extract quiz JSON even if the model adds extra text."""
+    """Safely extract quiz JSON even if the model adds extra text or truncates."""
     if not text:
         return {"questions": [], "error": "Empty quiz response from model."}
 
@@ -39,6 +38,7 @@ def extract_json(text):
 
     candidates = [cleaned_text]
 
+    # Try the outermost JSON object
     match = re.search(r"\{.*\}", cleaned_text, re.DOTALL)
     if match:
         candidates.insert(0, match.group())
@@ -111,28 +111,39 @@ def extract_json(text):
 # =========================
 # QUIZ GENERATOR (PRE / POST)
 # =========================
-import requests
-
 def generate_quiz(subject, lesson, topic, level, quiz_type):
     print("\n[DEBUG] Quiz Generation Started")
-    
-    # The URL for your pre-trained model tunnel
-    URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
-    
-    # STEP 1: Set the Instruction based on quiz type
-    if quiz_type == "pre":
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. කරුණාකර පහත මාතෘකාව ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න."
-    else:
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. කරුණාකර පහත මාතෘකාව ඇසුරින් පසු-අධ්‍යයන පරිගණන සඳහා ප්‍රශ්නාවලියක් සකසන්න."
 
-    # STEP 2: Create the specific input prompt for the model
-    # We ask for JSON format specifically in the prompt
-    input_text = f"""
+    URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+
+    # ✅ Fetch vector DB context
+    context = get_relevant_context(subject, lesson, topic, k=6, use_vector_ranking=True)
+
+    # Fallback if context is empty
+    if not context or context.strip() == "":
+        print("[WARNING] Empty context from vector DB — using fallback")
+        context = "No context available."
+    else:
+        # Truncate to avoid overloading the model (keep shorter to prevent CUDA OOM)
+        context = context[:1500]
+
+    print(f"[DEBUG] Context length sent to model: {len(context)} chars")
+    print(f"[DEBUG] Context preview: {context[:150]}")
+
+    # STEP 1: Set instruction based on quiz type
+    if quiz_type == "pre":
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න."
+    else:
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න."
+
+    # STEP 2: Build input prompt with context
+    input_text = f"""Context:
+{context}
+
 පාඩම: {lesson}
 මාතෘකාව: {topic}
 
-පහත දැක්වෙන JSON ආකෘතියට අනුව ප්‍රශ්න පහක් සකසන්න.
-සෑම ප්‍රශ්නයකටම පිළිතුරු 4ක් සහ එක් නිවැරදි පිළිතුරක් තිබිය යුතුය.
+JSON ආකෘතියට ප්‍රශ්න 5ක් සකසන්න. සෑම ප්‍රශ්නයකටම පිළිතුරු 4ක් සහ නිවැරදි පිළිතුරක් තිබිය යුතුය.
 
 Format:
 {{
@@ -140,17 +151,16 @@ Format:
     {{
       "question": "...",
       "options": ["A", "B", "C", "D"],
-      "answer": "Option text here"
+      "answer": "correct option text"
     }}
   ]
-}}
-"""
+}}"""
 
     # STEP 3: Call your pre-trained model with up to 3 retries
     payload = {
         "instruction": instruction,
         "input": input_text,
-        "max_new_tokens": 1024,
+        "max_new_tokens": 800,
     }
 
     max_retries = 3
@@ -200,6 +210,7 @@ Format:
             continue
 
 
+
 # =========================
 # EVALUATION LOGIC
 # =========================
@@ -214,7 +225,6 @@ def evaluate_answers(student_answers, correct_answers):
 
     percentage = (score / total) * 10  # scale 10
 
-    # LEVEL DECISION
     if percentage >= 8:
         level = "Advanced"
     elif percentage >= 5:

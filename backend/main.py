@@ -1,17 +1,19 @@
 import sys
-# Force UTF-8 stdout/stderr to prevent UnicodeEncodeError on Windows
+# Fix Windows console encoding for Sinhala Unicode
 if hasattr(sys.stdout, "reconfigure"):
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from typing import Optional, List
 from agents.content_agent import generate_content
+from agents.explain_agent import generate_explanation
 from agents.quiz_agent import generate_quiz, evaluate_answers
 from agents.adaptation_agent import decide_next_step
 from agents.student_agent import get_level
@@ -19,12 +21,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection, ensure_indexes
+from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection
 from models.User import User
 from auth.security import hash_password
 from jose import jwt
 from auth.security import verify_password
 from agents.supervisor import learning_graph
+
+from agents.tts_agent import generate_teacher_speech
+from fastapi.responses import Response as FastAPIResponse
 
 from agents.progress_agent import (
     save_pre_quiz_result,
@@ -45,6 +50,9 @@ load_dotenv(override=True)
 print("GROQ KEY LOADED:", os.getenv("GROQ_API_KEY"))
 
 app = FastAPI()
+
+# Serve images statically
+app.mount("/images", StaticFiles(directory="images"), name="images")
 
 app.add_middleware(
     CORSMiddleware,
@@ -213,10 +221,30 @@ def submit_post_quiz(data: QuizSubmission):
 
 @app.get("/get-lesson/")
 def get_lesson(subject: str, lesson: str, topic: str, level: str):
-    
     content = generate_content(subject, lesson, topic, level)
-
     return {"content": content}
+
+
+@app.post("/explain-content/")
+def explain_content_route(data: dict):
+    content = data.get("content", "")
+    if not content:
+        raise HTTPException(status_code=400, detail="content is required")
+    explanation = generate_explanation(content)
+    return {"explanation": explanation}
+
+
+@app.post("/generate-tts/")
+def generate_tts(data: dict):
+    """Convert text to WAV audio using Gemini TTS for avatar teacher."""
+    text = data.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    try:
+        wav_bytes = generate_teacher_speech(text)
+        return FastAPIResponse(content=wav_bytes, media_type="audio/wav")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -294,6 +322,34 @@ def admin_get_lesson_progress(student_id: str, subject: str):
 def admin_get_topic_details(student_id: str, subject: str):
     details = get_topic_details(student_id, subject)
     return {"topics": details}
+
+
+@app.get("/sidebar-progress")
+def sidebar_progress(student_id: str):
+    """Return enrolled subjects with lessons/topics and completion status for sidebar."""
+    doc = enrollments_collection.find_one({"student_id": student_id})
+    if not doc:
+        return {"subjects": []}
+
+    result = []
+    for subj in doc.get("subjects", []):
+        subj_name = subj.get("subject") or subj.get("name", "")
+        completed_topics = set(
+            r["topic"]
+            for r in student_progress_collection.find(
+                {"student_id": student_id, "subject": subj_name, "lesson_delivered": True},
+                {"topic": 1}
+            )
+        )
+        lessons_out = []
+        for lesson in subj.get("lessons", []):
+            topics_out = [
+                {"name": t, "done": t in completed_topics}
+                for t in lesson.get("topics", [])
+            ]
+            lessons_out.append({"name": lesson.get("name", ""), "topics": topics_out})
+        result.append({"subject": subj_name, "lessons": lessons_out})
+    return {"subjects": result}
 
 
 @app.post("/enroll/")
@@ -403,3 +459,92 @@ def lstm_status():
     """Get LSTM model status for diagnostics."""
     from services.lstm_service import get_model_info
     return get_model_info()
+
+
+# ── Engagement endpoints ──────────────────────────────────────────────────────
+
+class EngagementSession(BaseModel):
+    student_id: str
+    subject: str
+    lesson: str
+    topic: str
+    avg_score: float
+    min_score: float
+    max_score: float
+    duration_seconds: int
+    timeline: list  # [{"time": "HH:MM:SS", "score": float, "emotion": str}]
+    started_at: str
+
+@app.post("/engagement-log")
+def log_engagement(data: EngagementSession):
+    doc = data.dict()
+    engagement_collection.insert_one(doc)
+    return {"message": "logged"}
+
+@app.get("/engagement-history")
+def get_engagement_history(student_id: str, subject: str, topic: str):
+    sessions = list(engagement_collection.find(
+        {"student_id": student_id, "subject": subject, "topic": topic},
+        {"_id": 0}
+    ).sort("started_at", -1).limit(10))
+    return {"sessions": sessions}
+
+
+# ── Student Q&A endpoint ──────────────────────────────────────────────────────
+import json as _json
+import requests as _requests
+
+class QuestionRequest(BaseModel):
+    question: str
+    subject: str
+    lesson: str
+    topic: str
+    student_id: Optional[str] = None
+
+@app.post("/ask-question")
+def ask_question(data: QuestionRequest):
+    from services.retriever import get_relevant_context
+    import datetime
+    context = get_relevant_context(data.subject, data.lesson, data.topic, k=5)
+    if not context:
+        context = f"{data.topic} relating to {data.subject} - {data.lesson}"
+
+    instruction = "ඔබ දක්ෂ ගුරුවරයෙකි. පහත context ඇසුරින් සිසුවාගේ ප්‍රශ්නයට සරල සිංහල පිළිතුරක් දෙන්න."
+    input_text = f"Context:\n{context[:2000]}\n\nප්‍රශ්නය: {data.question}"
+
+    FINETUNED_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+    try:
+        resp = _requests.post(
+            FINETUNED_URL,
+            headers={"Content-Type": "application/json"},
+            data=_json.dumps({"instruction": instruction, "input": input_text, "max_new_tokens": 400}, ensure_ascii=False).encode("utf-8"),
+            timeout=120,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        answer = result.get("answer") or result.get("response") or "පිළිතුර ලබා ගත නොහැකි විය."
+        answer = answer.strip()
+
+        # Save to DB
+        if data.student_id:
+            qa_collection.insert_one({
+                "student_id": data.student_id,
+                "subject": data.subject,
+                "lesson": data.lesson,
+                "topic": data.topic,
+                "question": data.question,
+                "answer": answer,
+                "asked_at": datetime.datetime.utcnow().isoformat(),
+            })
+
+        return {"answer": answer}
+    except Exception as e:
+        return {"answer": f"Error: {str(e)}"}
+
+@app.get("/admin/student-qa")
+def get_student_qa(student_id: str, subject: str, topic: str):
+    records = list(qa_collection.find(
+        {"student_id": student_id, "subject": subject, "topic": topic},
+        {"_id": 0}
+    ).sort("asked_at", -1))
+    return {"qa": records}
