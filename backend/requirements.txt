@@ -12,7 +12,8 @@ python-jose[cryptography]
 passlib[bcrypt]
 pydantic[email]
 requests
-chromadb
+chromadb 
 langgraph
 google-genai
-tensorflow-cpu
+
+tensorflow-cpu
