@@ -1,0 +1,807 @@
+# Azure Deployment Plan — Sinhala Teaching AI Avatar
+
+## 1. Current Project Assessment
+
+### Component Inventory
+
+| Component | Technology | Details |
+|-----------|-----------|---------|
+| **Frontend** | Next.js 16 + React 19 + TailwindCSS 4 | SSR app, 10 pages, calls backend API at `localhost:8000` |
+| **Backend** | FastAPI + Uvicorn (Python 3.10) | 20+ REST endpoints, LangGraph supervisor pipeline |
+| **Database** | MongoDB (local, port 27017) | 11 collections: `users`, `subjects`, `student_progress`, `skill_mastery`, `bkt_params`, `interaction_logs`, `student_clusters`, `problem_difficulty`, `kmeans_models`, `engagement_sessions`, `student_qa` |
+| **Vector DB** | ChromaDB (local SQLite, 26 MB) | Embedded vector store for RAG, uses `intfloat/multilingual-e5-base` embeddings |
+| **LLM — Content/Quiz/Q&A** | Self-hosted fine-tuned model via Ngrok tunnel | `https://cupbearer-pointing-serotonin.ngrok-free.dev/ask` |
+| **LLM — Groq** | Groq Cloud API (`llama-3.3-70b-versatile`) | Used in `llm.py` (currently not directly called in main flow) |
+| **TTS** | Google Gemini TTS (`gemini-2.5-flash-preview-tts`) | Converts lesson text to WAV audio for avatar |
+| **Personalization** | PC-BKT + K-Means + LSTM (optional) | Hybrid Bayesian Knowledge Tracing pipeline |
+| **Auth** | JWT + bcrypt (passlib) | Custom signup/login, no OAuth |
+| **Static Assets** | 217 PNG images (7 MB), 149 Sinhala text docs (1.3 MB) | Served via FastAPI `StaticFiles` |
+
+### Key Architectural Observations
+
+1. **The fine-tuned Sinhala model** is the critical dependency — hosted externally via Ngrok. This model powers quiz generation, content generation, explanations, and Q&A. You need to decide whether to keep it external or move it to Azure.
+2. **ChromaDB** is embedded (file-based SQLite) — it ships with the backend and doesn't need a separate service.
+3. **LSTM is optional** — TensorFlow is not installed; the system gracefully falls back to PC-BKT alone.
+4. **Frontend is a standard Next.js app** — only needs the backend API URL changed from `localhost:8000` to the Azure backend URL.
+
+---
+
+## 2. Recommended Azure Architecture
+
+```mermaid
+graph TB
+    subgraph "Internet"
+        User["👨‍🎓 Students / Teachers"]
+    end
+
+    subgraph "Azure — Resource Group: rg-sinhala-avatar-prod"
+        subgraph "Frontend"
+            SWA["Azure Static Web Apps<br/>(Next.js SSG/SSR)<br/>Free Tier"]
+        end
+
+        subgraph "Backend"
+            APP["Azure App Service<br/>(FastAPI + Uvicorn)<br/>B1 Linux Plan"]
+            CHROMA["ChromaDB<br/>(Embedded in App Service<br/>persistent storage)"]
+        end
+
+        subgraph "Database"
+            COSMOS["Azure Cosmos DB<br/>for MongoDB (RU/s)<br/>Free Tier: 1000 RU/s"]
+        end
+
+        subgraph "Security"
+            KV["Azure Key Vault<br/>Free Tier"]
+        end
+
+        subgraph "Monitoring"
+            AI["Application Insights<br/>Free: 5 GB/month"]
+        end
+    end
+
+    subgraph "External Services (No Change)"
+        NGROK["Fine-tuned Sinhala Model<br/>(Ngrok Tunnel — Your GPU)"]
+        GROQ["Groq Cloud API<br/>(llama-3.3-70b)"]
+        GEMINI["Google Gemini TTS<br/>(gemini-2.5-flash-preview-tts)"]
+    end
+
+    User -->|HTTPS| SWA
+    SWA -->|API calls| APP
+    APP --> COSMOS
+    APP --> CHROMA
+    APP -->|HTTP POST| NGROK
+    APP -->|API| GROQ
+    APP -->|API| GEMINI
+    APP --> KV
+    APP --> AI
+```
+
+### Architecture Rationale
+
+> [!IMPORTANT]
+> **Minimal changes, minimal cost.** This architecture keeps your existing external AI services (Groq, Ngrok fine-tuned model, Google Gemini TTS) unchanged. Your fine-tuned model stays on your own GPU machine for now. When you get more users and funding, you can migrate it to Azure GPU hosting (NC-series VMs or AI Foundry Managed Endpoints).
+
+---
+
+## 3. Azure Service Selection
+
+### 3.1 Frontend: Azure Static Web Apps (Free Tier)
+
+| Aspect | Details |
+|--------|---------|
+| **Why this** | Purpose-built for Next.js. Free SSL, free custom domain, global CDN, GitHub Actions CI/CD built-in |
+| **Why not App Service** | App Service would cost $13+/month for a simple frontend. Static Web Apps is free |
+| **Why not Azure CDN + Storage** | More complex setup, no built-in SSR support |
+| **Free tier** | ✅ 100 GB bandwidth/month, 2 custom domains, free SSL |
+| **Estimated cost** | **$0/month** |
+| **Code change needed** | Change `API` URL in [api.js](file:///c:/Users/some1/Downloads/FYP_main_project/Sinhala-Teaching-AI-AVATAR/frontend/services/api.js) from `http://127.0.0.1:8000` to your Azure backend URL. Use environment variable instead. |
+
+### 3.2 Backend: Azure App Service (B1 Linux)
+
+| Aspect | Details |
+|--------|---------|
+| **Why this** | Easiest way to deploy a Python FastAPI app. Supports persistent file storage (for ChromaDB), startup commands, environment variables, managed SSL |
+| **Why not Container Apps** | Overkill for a single container. Container Apps has cold-start issues on free tier |
+| **Why not Azure Functions** | FastAPI is a long-running web server, not suitable for serverless function model |
+| **Why not Free (F1) tier** | F1 has 60 min/day CPU limit, no custom domain, no SSL — not production-ready |
+| **Plan** | B1 Linux: 1 core, 1.75 GB RAM, 10 GB storage |
+| **Estimated cost** | **~$13/month** |
+| **Scaling** | Scale up to B2/S1 if needed. Enable autoscale on Standard tier |
+
+> [!NOTE]
+> ChromaDB (~26 MB) and static images (~7 MB) and documents (~1.3 MB) will be stored on App Service's persistent storage. Total < 35 MB, well within B1's 10 GB limit.
+
+### 3.3 Database: Azure Cosmos DB for MongoDB (Free Tier)
+
+| Aspect | Details |
+|--------|---------|
+| **Why this** | Your app already uses PyMongo with MongoDB. Cosmos DB for MongoDB is wire-compatible — zero code changes needed |
+| **Why not MongoDB Atlas** | Cosmos DB free tier gives 1000 RU/s + 25 GB storage. Atlas free tier gives 512 MB. Cosmos DB wins on capacity and is Azure-native |
+| **Why not Azure SQL/PostgreSQL** | Your app is built for MongoDB. Switching would require massive code rewrites |
+| **Free tier** | ✅ 1000 RU/s + 25 GB storage, first account per subscription |
+| **Estimated cost** | **$0/month** (free tier) |
+| **Code change needed** | Change `MONGODB_URI` environment variable in `.env` to Cosmos DB connection string |
+
+### 3.4 Secrets: Azure Key Vault (Free Tier)
+
+| Aspect | Details |
+|--------|---------|
+| **Why this** | Securely store API keys (`GROQ_API_KEY`, `SECRET_KEY`, `GOOGLE_API_KEY`, `MONGODB_URI`) instead of `.env` files |
+| **Free tier** | ✅ Standard tier: 10,000 transactions/month free |
+| **Estimated cost** | **$0/month** |
+
+### 3.5 Monitoring: Application Insights
+
+| Aspect | Details |
+|--------|---------|
+| **Why this** | Built-in with App Service. Tracks request rates, failures, response times, exceptions |
+| **Free tier** | ✅ 5 GB/month data ingestion free |
+| **Estimated cost** | **$0/month** |
+
+### 3.6 Services NOT Recommended
+
+| Service | Why NOT |
+|---------|---------|
+| **Azure AI Foundry** | See section 4 below |
+| **Azure OpenAI** | You already use Groq (free tier) and a self-hosted fine-tuned model. Azure OpenAI would add ~$5-50/month with no benefit |
+| **Azure AI Search** | You already have ChromaDB with multilingual-e5-base embeddings. Azure AI Search starts at $75/month |
+| **Azure Front Door** | Overkill for your traffic level. Static Web Apps has built-in CDN |
+| **Azure Container Registry** | Not needed unless you containerize. App Service deploys directly from Git |
+| **Microsoft Entra ID** | Your app uses custom JWT auth. Adding Entra ID would require frontend and backend rewrites |
+| **Azure DNS** | Only needed if you buy a custom domain. Can use free subdomain from Static Web Apps/App Service |
+
+---
+
+## 4. Microsoft AI Foundry Integration
+
+### Verdict: **Do NOT use AI Foundry now — revisit when scaling**
+
+| Factor | Analysis |
+|--------|----------|
+| **Your fine-tuned model** | Stays on your own GPU for now. When ready to scale, use AI Foundry Managed Online Endpoints with NC6s_v3 ($0.90/hr) or NC4as_T4_v3 ($0.53/hr) |
+| **Azure OpenAI models** | Don't support Sinhala language at the quality of your fine-tuned model |
+| **AI Foundry model catalog** | No Sinhala-specialized models available |
+| **Prompt flow** | Your LangGraph pipeline is already built. Migrating to Prompt Flow would require full rewrite |
+| **Safety features** | AI Foundry content safety is English-centric. Limited Sinhala support |
+| **Cost** | AI Foundry adds Azure OpenAI costs ($5-50/month per model) with minimal benefit |
+
+> [!TIP]
+> **Future GPU Migration Path (when you have more users + funding):**
+> 1. **Option A — AI Foundry Managed Endpoints:** Deploy your fine-tuned model as a managed endpoint. Use `NC4as_T4_v3` (cheapest GPU) at ~$380/month.
+> 2. **Option B — Azure Container Apps with GPU:** Deploy as a container with GPU allocation. More flexible, similar cost.
+> 3. **Option C — Azure VM (NC-series):** Rent a GPU VM, run your model server directly. ~$500-700/month but full control.
+> 
+> **When to migrate:** When your Ngrok tunnel becomes unreliable for production users, or when you need guaranteed uptime/SLA.
+
+**Current Recommendation:** Keep your existing external services (own GPU + Ngrok, Groq API, Google Gemini TTS). They are free or near-free and already working.
+
+---
+
+## 5. Deployment Roadmap
+
+### Step 1: Create Azure for Students Account
+
+**Objective:** Set up your Azure for Students account with $100 free credit.
+
+**Actions:**
+1. Go to [Azure for Students](https://azure.microsoft.com/en-us/free/students/)
+2. Sign in with your **university email** (`.edu` or `.ac.lk` email)
+3. Verify your student status — no credit card required
+4. You will receive **$100 credit** valid for 12 months
+
+> [!NOTE]
+> **$100 covers ~7 months** of the recommended $13/month setup. After credit runs out, you can renew annually as long as you remain a student.
+
+**Budget setup (Azure Portal):**
+- Navigate to: **Cost Management + Billing** → **Budgets** → **Add**
+- Set monthly budget: **$15** (alert at 80% = $12)
+
+**Verification:** You can access the Azure Portal and see your subscription.
+
+---
+
+### Step 2: Create Resource Group
+
+**Objective:** Organize all resources under one group.
+
+```powershell
+# Install Azure CLI if not installed
+# winget install -e --id Microsoft.AzureCLI
+
+# Login
+az login
+
+# Set subscription (if multiple)
+az account set --subscription "<your-subscription-id>"
+
+# Create resource group (Southeast Asia is closest to Sri Lanka)
+az group create --name rg-sinhala-avatar-prod --location southeastasia --tags project=sinhala-avatar environment=production team=fyp
+```
+
+**Naming Convention:**
+
+| Resource | Name |
+|----------|------|
+| Resource Group | `rg-sinhala-avatar-prod` |
+| App Service Plan | `plan-sinhala-backend` |
+| App Service (Backend) | `app-sinhala-backend` |
+| Static Web App (Frontend) | `swa-sinhala-frontend` |
+| Cosmos DB Account | `cosmos-sinhala-avatar` |
+| Key Vault | `kv-sinhala-avatar` |
+| Application Insights | `ai-sinhala-avatar` |
+
+---
+
+### Step 3: Create Azure Cosmos DB for MongoDB
+
+**Objective:** Replace local MongoDB with cloud-hosted Cosmos DB.
+
+```powershell
+# Create Cosmos DB account with MongoDB API and free tier
+az cosmosdb create `
+  --name cosmos-sinhala-avatar `
+  --resource-group rg-sinhala-avatar-prod `
+  --kind MongoDB `
+  --server-version 4.2 `
+  --locations regionName=southeastasia failoverPriority=0 `
+  --enable-free-tier true `
+  --default-consistency-level Session
+
+# Create the database
+az cosmosdb mongodb database create `
+  --account-name cosmos-sinhala-avatar `
+  --resource-group rg-sinhala-avatar-prod `
+  --name ai_avatar `
+  --throughput 400
+```
+
+**Get Connection String:**
+```powershell
+az cosmosdb keys list `
+  --name cosmos-sinhala-avatar `
+  --resource-group rg-sinhala-avatar-prod `
+  --type connection-strings `
+  --query "connectionStrings[0].connectionString" -o tsv
+```
+
+**Verification:** Connect to Cosmos DB from your local machine using the connection string in your `.env` file to test compatibility:
+```
+MONGODB_URI=<cosmos-db-connection-string>
+```
+
+> [!WARNING]
+> **Cosmos DB MongoDB compatibility notes:**
+> - Your `$group` aggregation pipelines in `clustering_service.py` work fine
+> - Unique indexes in `ensure_indexes()` are supported
+> - `sort()` operations are supported
+> - Test locally first before deploying!
+
+---
+
+### Step 4: Create Azure Key Vault
+
+**Objective:** Store all secrets securely.
+
+```powershell
+# Create Key Vault
+az keyvault create `
+  --name kv-sinhala-avatar `
+  --resource-group rg-sinhala-avatar-prod `
+  --location southeastasia `
+  --sku standard
+
+# Store secrets
+az keyvault secret set --vault-name kv-sinhala-avatar --name GROQ-API-KEY --value "KEY"
+az keyvault secret set --vault-name kv-sinhala-avatar --name SECRET-KEY --value "KEY"
+az keyvault secret set --vault-name kv-sinhala-avatar --name MONGODB-URI --value "<cosmos-db-connection-string>"
+# Add GOOGLE_API_KEY if you have one for Gemini TTS
+```
+
+> [!CAUTION]
+> **Rotate your `GROQ_API_KEY` immediately** — it was visible in your `.env` file and in earlier conversation output. Generate a new key at [console.groq.com](https://console.groq.com).
+
+---
+
+### Step 5: Deploy Backend to Azure App Service
+
+**Objective:** Deploy FastAPI backend.
+
+**5a. Create App Service Plan + App:**
+```powershell
+# Create Linux App Service Plan (B1)
+az appservice plan create `
+  --name plan-sinhala-backend `
+  --resource-group rg-sinhala-avatar-prod `
+  --sku B1 `
+  --is-linux `
+  --location southeastasia
+
+# Create Web App with Python 3.10
+az webapp create `
+  --name app-sinhala-backend `
+  --resource-group rg-sinhala-avatar-prod `
+  --plan plan-sinhala-backend `
+  --runtime "PYTHON:3.10"
+```
+
+**5b. Configure Startup Command:**
+```powershell
+az webapp config set `
+  --name app-sinhala-backend `
+  --resource-group rg-sinhala-avatar-prod `
+  --startup-file "uvicorn main:app --host 0.0.0.0 --port 8000"
+```
+
+**5c. Set Environment Variables:**
+```powershell
+az webapp config appsettings set `
+  --name app-sinhala-backend `
+  --resource-group rg-sinhala-avatar-prod `
+  --settings `
+    MONGODB_URI="<cosmos-db-connection-string>" `
+    GROQ_API_KEY="<your-new-groq-key>" `
+    SECRET_KEY="<your-secret-key>" `
+    GOOGLE_API_KEY="<your-google-api-key>" `
+    SCM_DO_BUILD_DURING_DEPLOYMENT="true" `
+    WEBSITES_PORT="8000"
+```
+
+**5d. Update `requirements.txt`** (add all missing dependencies):
+```
+fastapi
+uvicorn[standard]
+langchain
+langchain-community
+langchain-groq
+sentence-transformers
+pypdf
+numpy
+scikit-learn
+pymongo
+python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic[email]
+requests
+chromadb
+langgraph
+google-genai
+tensorflow-cpu
+```
+
+**5e. Deploy from local Git:**
+```powershell
+# Navigate to backend directory
+cd c:\Users\some1\Downloads\FYP_main_project\Sinhala-Teaching-AI-AVATAR\backend
+
+# Initialize git if not already (within backend/)
+# Deploy using ZIP deploy
+az webapp deploy `
+  --name app-sinhala-backend `
+  --resource-group rg-sinhala-avatar-prod `
+  --src-path . `
+  --type zip
+```
+
+**Or use Git deployment:**
+```powershell
+az webapp deployment source config-local-git `
+  --name app-sinhala-backend `
+  --resource-group rg-sinhala-avatar-prod
+```
+
+**5f. Configure CORS:**
+```powershell
+az webapp cors add `
+  --name app-sinhala-backend `
+  --resource-group rg-sinhala-avatar-prod `
+  --allowed-origins "https://swa-sinhala-frontend.azurestaticapps.net"
+```
+
+**Verification:** Visit `https://app-sinhala-backend.azurewebsites.net/` — should return `{"message": "Adaptive Learning AI Running 🚀"}`
+
+**Possible Errors:**
+- **ModuleNotFoundError**: Ensure `requirements.txt` has all dependencies
+- **Application Error**: Check logs with `az webapp log tail --name app-sinhala-backend --resource-group rg-sinhala-avatar-prod`
+- **ChromaDB path error**: App Service uses `/home/site/wwwroot/` as CWD. ChromaDB will be at `/home/site/wwwroot/chroma_db/`
+
+---
+
+### Step 6: Deploy Frontend to Azure Static Web Apps
+
+**Objective:** Deploy Next.js frontend.
+
+**6a. Update API URL:**
+
+Change [api.js](file:///c:/Users/some1/Downloads/FYP_main_project/Sinhala-Teaching-AI-AVATAR/frontend/services/api.js):
+```javascript
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+```
+
+**6b. Create Static Web App (via Azure Portal is easiest):**
+1. Go to Azure Portal → **Create a resource** → **Static Web App**
+2. **Name:** `swa-sinhala-frontend`
+3. **Plan:** Free
+4. **Source:** GitHub (connect your repo)
+5. **Build details:**
+   - Framework: Next.js
+   - App location: `/frontend`
+   - Output location: (leave empty for Next.js)
+6. **Environment variables:**
+   - `NEXT_PUBLIC_API_URL` = `https://app-sinhala-backend.azurewebsites.net`
+
+**Or via CLI:**
+```powershell
+az staticwebapp create `
+  --name swa-sinhala-frontend `
+  --resource-group rg-sinhala-avatar-prod `
+  --location southeastasia `
+  --source https://github.com/Kasun4527/Sinhala-Teaching-AI-AVATAR `
+  --branch sachinthana/hybrid `
+  --app-location "/frontend" `
+  --login-with-github
+```
+
+**Verification:** Visit the auto-generated URL like `https://swa-sinhala-frontend.azurestaticapps.net`
+
+---
+
+### Step 7: Verify Fresh Database
+
+**Objective:** Confirm Cosmos DB is working with empty collections (fresh start).
+
+Since you're starting fresh, no data migration is needed. When the backend starts up, `ensure_indexes()` will automatically create the required indexes on first startup.
+
+**Verification:**
+1. Go to Azure Portal → Cosmos DB → Data Explorer
+2. Check that the `ai_avatar` database was created
+3. Collections will be created automatically when the first user signs up
+
+**Also ensure ChromaDB is included:** The `chroma_db/` folder (~26 MB) must be included in your backend deployment package. Without it, the RAG retrieval system won't work.
+
+---
+
+### Step 8: Enable Application Insights
+
+```powershell
+# Create Application Insights
+az monitor app-insights component create `
+  --app ai-sinhala-avatar `
+  --location southeastasia `
+  --resource-group rg-sinhala-avatar-prod `
+  --kind web
+
+# Link to App Service
+az webapp config appsettings set `
+  --name app-sinhala-backend `
+  --resource-group rg-sinhala-avatar-prod `
+  --settings APPINSIGHTS_INSTRUMENTATIONKEY="<instrumentation-key>"
+```
+
+---
+
+## 6. CI/CD Pipeline (GitHub Actions)
+
+### Recommended: GitHub Actions
+
+**Why:** Your repo is already on GitHub. GitHub Actions is free for public repos and has 2000 min/month for private repos.
+
+### Backend Pipeline — `.github/workflows/backend-deploy.yml`
+
+```yaml
+name: Deploy Backend to Azure App Service
+
+on:
+  push:
+    branches: [sachinthana/hybrid]
+    paths: ['backend/**']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Zip backend
+        working-directory: ./backend
+        run: |
+          zip -r ../backend.zip . -x "__pycache__/*" "*.pyc" ".env" "temp/*"
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: app-sinhala-backend
+          publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+          package: backend.zip
+```
+
+### Frontend Pipeline — Auto-configured by Static Web Apps
+
+Azure Static Web Apps automatically creates a GitHub Actions workflow when you link your repo. No manual setup needed.
+
+### Secrets to Configure in GitHub:
+- `AZURE_BACKEND_PUBLISH_PROFILE` — Download from Azure Portal → App Service → Get publish profile
+
+---
+
+## 7. Security Checklist
+
+| Item | Status | Action |
+|------|--------|--------|
+| HTTPS | ✅ Auto | App Service and Static Web Apps both enforce HTTPS |
+| CORS | ⚠️ Required | Configure allowed origins to only your frontend domain |
+| API Keys in Key Vault | ⚠️ Required | Move all keys from `.env` to Key Vault or App Service config |
+| `.env` not in Git | ✅ Done | Already in `.gitignore` |
+| JWT Secret | ⚠️ Required | Use a strong random secret (32+ chars), store in App Settings |
+| Rate Limiting | ❌ Not done | Add `slowapi` to FastAPI for rate limiting |
+| MongoDB Auth | ✅ Auto | Cosmos DB requires connection string authentication |
+| DDoS | ✅ Auto | Azure has basic DDoS protection on all public IPs |
+| Managed Identity | 💡 Optional | Use for Key Vault access instead of connection strings |
+
+> [!CAUTION]
+> **Critical:** Your `GROQ_API_KEY` has been exposed. Regenerate it immediately at [console.groq.com](https://console.groq.com/keys).
+
+---
+
+## 8. Cost Optimization
+
+### Monthly Cost Estimates
+
+| Scenario | Frontend | Backend | Database | Key Vault | Monitoring | **Total** | **Azure for Students Coverage** |
+|----------|----------|---------|----------|-----------|------------|-----------|---|
+| **Free Tier** (testing) | $0 (SWA Free) | $0 (F1 — 60 min/day limit) | $0 (Cosmos Free) | $0 | $0 | **$0** | ∞ months |
+| **Student Budget** ⭐ | $0 (SWA Free) | $13 (B1) | $0 (Cosmos Free) | $0 | $0 | **~$13** | **~7 months** |
+| **Low Traffic** (<100 users) | $0 (SWA Free) | $13 (B1) | $0 (Cosmos Free) | $0 | $0 | **~$13** | ~7 months |
+| **Medium Traffic** (100-500 users) | $0 (SWA Free) | $27 (B2) | $0-25 (may exceed free) | $0 | $0 | **~$27-52** | ~2-3 months |
+| **Production** (500+ users) | $9 (SWA Standard) | $55 (S1 + autoscale) | $25 (400 RU/s) | $0 | $0 | **~$85** | ~1 month |
+
+### Cost Breakdown — What generates charges:
+
+| Service | Free Allowance | What triggers charges |
+|---------|---------------|----------------------|
+| App Service | F1: 60 min CPU/day | B1+ plan for always-on |
+| Cosmos DB | 1000 RU/s + 25 GB | Exceeding 1000 RU/s or 25 GB storage |
+| Static Web Apps | 100 GB bandwidth | Exceeding 100 GB or needing staging slots |
+| Key Vault | 10,000 ops/month | Extremely high secret access volume |
+| Application Insights | 5 GB/month | Exceeding 5 GB log ingestion |
+
+### Cost Reduction Tips:
+1. **Use Cosmos DB Free Tier** — saves $25/month
+2. **Use SWA Free Tier** — saves $9/month
+3. **Start with B1** App Service — upgrade only when needed
+4. **Keep AI services external** — Groq free tier, self-hosted model via Ngrok, Google Gemini free tier
+5. **Set budget alerts** at $15 and $20 thresholds
+
+---
+
+## 9. Production Readiness Checklist
+
+### Pre-Launch
+
+- [ ] All secrets moved to Azure App Settings (not `.env` files)
+- [ ] CORS configured to allow only your frontend domain
+- [ ] `GROQ_API_KEY` rotated (current key is compromised)
+- [ ] Frontend `API` URL points to Azure backend
+- [ ] ChromaDB included in backend deployment
+- [ ] MongoDB data migrated to Cosmos DB
+- [ ] Custom domain configured (optional)
+- [ ] Health check endpoint tested: `GET /`
+
+### Monitoring
+
+- [ ] Application Insights connected
+- [ ] Log streaming configured: `az webapp log tail`
+- [ ] Budget alerts set ($15 and $20)
+- [ ] Uptime check configured (Azure Monitor → Availability test)
+
+### Performance
+
+- [ ] App Service "Always On" enabled (B1+)
+- [ ] Response time < 5s for quiz generation (model-dependent)
+- [ ] Frontend build succeeds with no errors
+- [ ] Images load correctly from `/images/` path
+
+### Security
+
+- [ ] HTTPS enforced
+- [ ] JWT secret is strong and stored securely
+- [ ] No secrets in Git history
+- [ ] CORS whitelist is minimal
+- [ ] Rate limiting added to quiz/auth endpoints
+
+### Backup
+
+- [ ] Cosmos DB point-in-time restore enabled (free with continuous backup)
+- [ ] GitHub repo has all code
+
+---
+
+## 10. Testing Guide
+
+### Frontend Testing
+```powershell
+# Build locally to catch errors before deployment
+cd frontend
+npm run build
+# Should complete with no errors
+```
+Then visit the Static Web App URL and test: login, signup, subject enrollment, quiz flow, lesson page.
+
+### Backend Testing
+```powershell
+# Test the deployed backend
+curl https://app-sinhala-backend.azurewebsites.net/
+# Expected: {"message":"Adaptive Learning AI Running 🚀"}
+
+# Test pre-quiz endpoint
+curl "https://app-sinhala-backend.azurewebsites.net/pre-quiz/?subject=බුද්ධ ධර්මය&lesson=බුදු ගුණ අනන්ය&topic=අසරණ සරණ ගුණය"
+```
+
+### Database Testing
+- Verify Cosmos DB connection: Sign in to Azure Portal → Cosmos DB → Data Explorer → Check `ai_avatar` database and collections
+
+### AI Feature Testing
+- Quiz generation: Depends on Ngrok tunnel being active
+- TTS: Depends on `GOOGLE_API_KEY` being set
+- Personalization: Test BKT flow by submitting quiz answers and checking mastery updates
+
+---
+
+## 11. Troubleshooting Guide
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `ModuleNotFoundError` on App Service | Missing dependency in `requirements.txt` | Add the module to `requirements.txt` and redeploy |
+| `Application Error` on startup | Startup command wrong or port mismatch | Set `WEBSITES_PORT=8000` and startup command to `uvicorn main:app --host 0.0.0.0 --port 8000` |
+| ChromaDB `FileNotFoundError` | `chroma_db/` not included in deployment | Include it in your ZIP deployment package |
+| Cosmos DB `ServerSelectionTimeoutError` | Connection string wrong or firewall blocking | Check App Settings for `MONGODB_URI`. Enable "Allow access from Azure services" in Cosmos DB Networking |
+| CORS error in browser | Backend CORS not configured | Add frontend URL to `az webapp cors add` |
+| Frontend shows blank page | `NEXT_PUBLIC_API_URL` not set | Set it in Static Web App Configuration → Application settings |
+| Quiz generation timeout | Ngrok tunnel is down | Restart your local model server and update the Ngrok URL |
+| 502 Bad Gateway | App Service needs more memory | Scale up from B1 to B2, or check for memory leaks |
+
+---
+
+## 12. Required Code Changes Summary
+
+Only **2 files** need changes:
+
+### 1. `frontend/services/api.js` — Use environment variable
+```diff
+-const API = "http://127.0.0.1:8000";
++const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+```
+
+### 2. `backend/requirements.txt` — Add missing dependencies
+```diff
+ fastapi
+-uvicorn
++uvicorn[standard]
+ langchain
+ langchain-community
++langchain-groq
+ sentence-transformers
+ pypdf
+ numpy
+ scikit-learn
++pymongo
++python-dotenv
++python-jose[cryptography]
++passlib[bcrypt]
++pydantic[email]
++requests
++chromadb
++langgraph
++google-genai
++tensorflow-cpu
+```
+
+### 3. `backend/main.py` — Update CORS for production
+After deployment, update the CORS origins to include your Azure frontend URL:
+```diff
+ app.add_middleware(
+     CORSMiddleware,
+-    allow_origins=["http://localhost:3000"],
++    allow_origins=[
++        "http://localhost:3000",
++        "https://swa-sinhala-frontend.azurestaticapps.net",
++        "https://sinhalateacher.lk",  # your custom domain
++    ],
+     allow_credentials=True,
+     allow_methods=["*"],
+     allow_headers=["*"],
+ )
+```
+
+---
+
+## 13. Final Azure Resource Summary
+
+| Resource | SKU | Monthly Cost |
+|----------|-----|-------------|
+| Azure Static Web Apps | Free | $0 |
+| Azure App Service (B1 Linux) | B1 | ~$13 |
+| Azure Cosmos DB for MongoDB | Free Tier | $0 |
+| Azure Key Vault | Standard | $0 |
+| Application Insights | Free (5 GB) | $0 |
+| **Total** | | **~$13/month** |
+| **Azure for Students credit** | | **$100 (~7 months)** |
+
+---
+
+## Step 9: Custom Domain Setup (when you purchase your domain)
+
+### 9a. Frontend — Static Web Apps Custom Domain
+
+```powershell
+# Add custom domain to Static Web App
+az staticwebapp hostname set \
+  --name swa-sinhala-frontend \
+  --hostname sinhalateacher.lk
+
+# Also add www subdomain
+az staticwebapp hostname set \
+  --name swa-sinhala-frontend \
+  --hostname www.sinhalateacher.lk
+```
+
+**DNS Records to add at your domain registrar:**
+
+| Type | Name | Value |
+|------|------|-------|
+| CNAME | `www` | `swa-sinhala-frontend.azurestaticapps.net` |
+| TXT | `@` | (validation token from Azure Portal) |
+| A | `@` | (IP from Azure Portal) |
+
+SSL certificate is **automatically provisioned** by Azure — no cost, no setup.
+
+### 9b. Backend — App Service Custom Domain
+
+```powershell
+# Add custom domain for API
+az webapp config hostname add \
+  --webapp-name app-sinhala-backend \
+  --resource-group rg-sinhala-avatar-prod \
+  --hostname api.sinhalateacher.lk
+
+# Create free managed SSL certificate
+az webapp config ssl create \
+  --name app-sinhala-backend \
+  --resource-group rg-sinhala-avatar-prod \
+  --hostname api.sinhalateacher.lk
+```
+
+**DNS Record:**
+
+| Type | Name | Value |
+|------|------|-------|
+| CNAME | `api` | `app-sinhala-backend.azurewebsites.net` |
+
+### Final URL Mapping
+
+| Purpose | URL |
+|---------|-----|
+| Frontend | `https://sinhalateacher.lk` |
+| Backend API | `https://api.sinhalateacher.lk` |
+| API Docs | `https://api.sinhalateacher.lk/docs` |
+
+---
+
+## Finalized Decisions
+
+| Decision | Choice | Impact |
+|----------|--------|--------|
+| **Fine-tuned model** | Keep on own GPU + Ngrok for now | $0/month. Migrate to Azure GPU (NC4as_T4_v3 ~$380/month) when scaling |
+| **Custom domain** | Will purchase soon (e.g., `sinhalateacher.lk`) | Step 9 above covers full DNS + SSL setup |
+| **Azure subscription** | Azure for Students | $100 free credit = ~7 months of $13/month hosting |
+| **Data migration** | Fresh start | No migration needed. Collections auto-created on first use |
