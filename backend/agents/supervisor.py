@@ -28,6 +28,7 @@ class LearningState(TypedDict):
     next_agent: Optional[str]  #### orchestrator uses this to route
     # ── Personalization fields (PC-BKT + BKT-LSTM) ──
     mastery: Optional[float]
+    hybrid_mastery: Optional[float]     # Bug #2: BKT+LSTM fused mastery
     bkt_level: Optional[str]
     quiz_questions: Optional[list]
 
@@ -119,7 +120,7 @@ def evaluator_node(state: LearningState) -> LearningState:
 
 
 def personalization_node(state: LearningState) -> LearningState:
-    """PC-BKT + BKT-LSTM personalization node. Overrides level with BKT mastery."""
+    """PC-BKT + BKT-LSTM personalization node. Overrides level with hybrid mastery."""
     print("🧠 [PersonalizationAgent] Running hybrid personalization...")
 
     result = personalize_after_quiz(
@@ -133,12 +134,13 @@ def personalization_node(state: LearningState) -> LearningState:
         quiz_questions=state.get("quiz_questions")
     )
 
-    # Override level with BKT-derived level for downstream content generation
+    # Bug #2 Fix: Override level with hybrid mastery-derived level
     return {
         **state,
-        "mastery":   result["mastery"],
-        "bkt_level": result["level"],
-        "level":     result["level"]   # override score-based level with BKT level
+        "mastery":        result["mastery"],
+        "hybrid_mastery": result["hybrid_mastery"],
+        "bkt_level":      result["level"],
+        "level":          result["level"]   # now uses hybrid mastery level
     }
 
 

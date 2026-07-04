@@ -32,9 +32,10 @@ from db import (
 
 N_CLUSTERS          = 3      # High, Medium, Low
 COLD_START_CLUSTER  = 3      # Cluster ID for new students
-UPDATE_INTERVAL     = 20     # Re-run clustering every N new interactions
+UPDATE_INTERVAL     = 30     # Re-run clustering every N new interactions (Bug #5: was 20)
 MIN_STUDENTS_TRAIN  = 3      # Minimum students needed to train K-Means
 DEFAULT_CAPABILITY  = 0.5    # Neutral capability for unseen skills
+MIN_INTERACTIONS_FOR_CLUSTER = 15  # Bug #5: Minimum interactions before hard clustering
 
 CLUSTER_LABELS = {0: "High", 1: "Medium", 2: "Low", 3: "New"}
 
@@ -184,8 +185,18 @@ def get_student_cluster(student_id: str) -> int:
 def assign_new_student_cluster(student_id: str) -> int:
     """
     Assign cluster to a student using pre-trained K-Means model.
+    Bug #5 Fix: Requires MIN_INTERACTIONS_FOR_CLUSTER interactions before
+    hard clustering. Also stores soft probability distribution.
     Defaults to Medium (1) if no model available yet.
     """
+    # Bug #5: Check if student has enough interactions for hard clustering
+    total_attempts = interaction_logs_col.count_documents(
+        {"student_id": student_id}
+    )
+    if total_attempts < MIN_INTERACTIONS_FOR_CLUSTER:
+        _set_cluster(student_id, COLD_START_CLUSTER, "New")
+        return COLD_START_CLUSTER
+
     model_doc = kmeans_models_col.find_one({"model_version": "latest"})
     if not model_doc:
         _set_cluster(student_id, 1, "Medium")
@@ -200,19 +211,29 @@ def assign_new_student_cluster(student_id: str) -> int:
     raw_label  = int(np.argmin(distances))
     mapped     = int(label_remap.get(str(raw_label), 1))
 
-    _set_cluster(student_id, mapped, CLUSTER_LABELS.get(mapped, "Medium"))
+    # Bug #5: Compute soft probability distribution (softmax of negative distances)
+    neg_distances = -distances
+    exp_vals = np.exp(neg_distances - np.max(neg_distances))  # numerical stability
+    soft_probs = (exp_vals / np.sum(exp_vals)).tolist()
+
+    _set_cluster(student_id, mapped, CLUSTER_LABELS.get(mapped, "Medium"),
+                 soft_probs=soft_probs)
     return mapped
 
 
-def _set_cluster(student_id: str, cluster_id: int, label: str):
-    """Upsert cluster assignment in DB."""
+def _set_cluster(student_id: str, cluster_id: int, label: str,
+                 soft_probs: list = None):
+    """Upsert cluster assignment in DB with optional soft probabilities."""
+    update_doc = {
+        "cluster_id":    cluster_id,
+        "cluster_label": label,
+        "assigned_at":   datetime.utcnow()
+    }
+    if soft_probs is not None:
+        update_doc["cluster_probabilities"] = soft_probs
     student_clusters_col.update_one(
         {"student_id": student_id},
-        {"$set": {
-            "cluster_id":    cluster_id,
-            "cluster_label": label,
-            "assigned_at":   datetime.utcnow()
-        }},
+        {"$set": update_doc},
         upsert=True
     )
 

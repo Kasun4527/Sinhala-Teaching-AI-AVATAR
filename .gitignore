@@ -12,6 +12,7 @@ __pycache__/
 backend/temp/
 mongodb_data/
 backend/mongodb_data/
+backend/.venv/
 
 # Personalization / BKT Services ignore
 backend/services/bkt/
@@ -19,3 +20,7 @@ backend/services/bkt
 backend/models/README.md
 conference_paper_personalization_content.md
 implementation_plan.md
+
+# ChromaDB Vector Store
+backend/chroma_db/
+*.sqlite3

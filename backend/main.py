@@ -84,6 +84,19 @@ class QuizSubmission(BaseModel):
     quiz_questions: Optional[list] = None    # ← personalization: quiz text for difficulty tracking
 
 
+# Bug #10: Single answer submission model for per-answer online learning
+class SingleAnswerSubmission(BaseModel):
+    student_id: str
+    subject: str
+    lesson: str
+    topic: str
+    question_index: int
+    student_answer: str
+    correct_answer: str
+    question_text: Optional[str] = None
+    quiz_type: str = "pre"
+
+
 class EnrollmentSubmission(BaseModel):
     student_id: str
     subject: str
@@ -165,6 +178,7 @@ def submit_pre_quiz(data: QuizSubmission):
         "decision": None,
         # ── Personalization fields ──
         "mastery": None,
+        "hybrid_mastery": None,
         "bkt_level": None,
         "quiz_questions": data.quiz_questions
     })
@@ -174,6 +188,7 @@ def submit_pre_quiz(data: QuizSubmission):
         "level": final_state["level"],
         "content": final_state["content"],
         "mastery": final_state.get("mastery"),
+        "hybrid_mastery": final_state.get("hybrid_mastery"),
         "bkt_level": final_state.get("bkt_level")
     }
 
@@ -206,6 +221,7 @@ def submit_post_quiz(data: QuizSubmission):
         "decision": None,
         # ── Personalization fields ──
         "mastery": None,
+        "hybrid_mastery": None,
         "bkt_level": None,
         "quiz_questions": data.quiz_questions
     })
@@ -216,8 +232,57 @@ def submit_post_quiz(data: QuizSubmission):
         "decision": final_state["decision"],
         "content": final_state.get("content"),
         "mastery": final_state.get("mastery"),
+        "hybrid_mastery": final_state.get("hybrid_mastery"),
         "bkt_level": final_state.get("bkt_level")
     }
+
+
+# ── Bug #10: Per-answer online learning endpoint ─────────────────────────────
+@app.post("/submit-answer/")
+def submit_single_answer(data: SingleAnswerSubmission):
+    """
+    Incremental BKT update for a single answer (online learning).
+    Called per-answer during quiz for real-time mastery updates.
+    """
+    from services.bkt_service import make_skill_id, process_single_answer
+    from services.difficulty_service import update_difficulty_single
+
+    skill_id = make_skill_id(data.subject, data.lesson, data.topic)
+    is_correct = 1 if str(data.student_answer).strip() == str(data.correct_answer).strip() else 0
+
+    # Get difficulty for this question if text provided
+    difficulty = 5
+    if data.question_text:
+        from services.difficulty_service import get_difficulty
+        difficulty = get_difficulty(data.question_text)
+
+    result = process_single_answer(
+        student_id=data.student_id,
+        skill_id=skill_id,
+        is_correct=is_correct,
+        quiz_type=data.quiz_type,
+        question_id=data.question_text,
+        difficulty=difficulty
+    )
+
+    # Update difficulty for this question
+    if data.question_text:
+        try:
+            update_difficulty_single(
+                question_text=data.question_text,
+                is_correct=is_correct,
+                skill_id=skill_id
+            )
+        except Exception as e:
+            print(f"[submit-answer] Difficulty update failed: {e}")
+
+    return {
+        "mastery": result["mastery"],
+        "level": result["level"],
+        "is_uncertain": result["is_uncertain"],
+        "question_index": data.question_index
+    }
+
 
 @app.get("/get-lesson/")
 def get_lesson(subject: str, lesson: str, topic: str, level: str):

@@ -1,5 +1,29 @@
-.env
-__pycache__/
-**/__pycache__/
+# Python
 *.py[cod]
+*$py.class
+
+# Bytecode
+__pycache__/
+*/__pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Database dumps
+*.db
+*.sql
+*.sqlite
+*.sqlitedb
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store

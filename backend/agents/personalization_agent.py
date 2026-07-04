@@ -10,8 +10,10 @@ Flow:
   3. Process via bkt_service.process_quiz_session()
   4. Update problem difficulty via difficulty_service
   5. Check/update student cluster via clustering_service
-  6. Optionally run LSTM prediction if model available
-  7. Return unified result with mastery, level, params, prediction
+  6. Run LSTM prediction if model available
+  7. Compute hybrid mastery (BKT + LSTM fusion) — Bug #2 fix
+  8. Apply LSTM→BKT feedback correction — Bug #6 fix
+  9. Return unified result with hybrid mastery, level, params, prediction
 """
 
 import numpy as np
@@ -39,6 +41,13 @@ from services.lstm_service import (
     is_available as lstm_is_available
 )
 
+# ── Bug #2 Fix: BKT-LSTM fusion weights ──────────────────────
+BKT_WEIGHT  = 0.7    # Weight for BKT mastery in hybrid fusion
+LSTM_WEIGHT = 0.3    # Weight for LSTM prediction in hybrid fusion
+
+# ── Bug #6 Fix: LSTM→BKT feedback threshold ─────────────────
+LSTM_BKT_DIVERGENCE_THRESHOLD = 0.20  # If LSTM < BKT by this much, apply correction
+
 
 def personalize_after_quiz(
     student_id:      str,
@@ -65,13 +74,16 @@ def personalize_after_quiz(
 
     Returns:
         {
-          "mastery":           float,
-          "level":             str,       # Beginner / Intermediate / Advanced
-          "params":            dict,      # {L0, T, G, S}
+          "mastery":           float,      # raw BKT mastery
+          "hybrid_mastery":    float,      # BKT + LSTM fused mastery
+          "level":             str,        # Beginner / Intermediate / Advanced (from hybrid)
+          "params":            dict,       # {L0, T, G, S}
           "predicted_score":   float,
           "lstm_prediction":   float|None,
           "cluster_id":        int,
-          "cluster_label":     str
+          "cluster_label":     str,
+          "is_uncertain":      bool,
+          "confidence_warning": bool
         }
     """
     print(f"\n🧠 [PersonalizationAgent] Processing quiz for student={student_id}")
@@ -104,8 +116,9 @@ def personalize_after_quiz(
         question_ids=question_texts,
         difficulties=difficulties
     )
-    print(f"   BKT result: mastery={bkt_result['mastery']:.4f}, "
-          f"level={bkt_result['level']}")
+    bkt_mastery = bkt_result["mastery"]
+    print(f"   BKT result: mastery={bkt_mastery:.4f}, "
+          f"level={bkt_result['level']}, uncertain={bkt_result['is_uncertain']}")
 
     # ── 6. Update problem difficulty scores ───────────────────────────────────
     if quiz_questions and len(quiz_questions) == len(student_answers):
@@ -126,7 +139,7 @@ def personalize_after_quiz(
         cluster_id = assign_new_student_cluster(student_id)
     print(f"   Cluster: {cluster_id} (updated={cluster_updated})")
 
-    # ── 8. LSTM prediction (optional) ─────────────────────────────────────────
+    # ── 8. LSTM prediction ────────────────────────────────────────────────────
     lstm_prediction = None
     if lstm_is_available():
         try:
@@ -135,7 +148,7 @@ def personalize_after_quiz(
             difficulty_oh  = get_difficulty_one_hot(avg_difficulty)
 
             lstm_prediction = predict_next_mastery(
-                mastery=bkt_result["mastery"],
+                mastery=bkt_mastery,
                 cluster_one_hot=cluster_oh,
                 difficulty_one_hot=difficulty_oh
             )
@@ -144,21 +157,49 @@ def personalize_after_quiz(
         except Exception as e:
             print(f"   LSTM prediction failed: {e}")
 
-    # ── 9. Build unified result ───────────────────────────────────────────────
+    # ── 9. Bug #2 Fix: Compute hybrid mastery (BKT + LSTM fusion) ────────────
+    confidence_warning = False
+    if lstm_prediction is not None:
+        hybrid_mastery = BKT_WEIGHT * bkt_mastery + LSTM_WEIGHT * lstm_prediction
+
+        # Bug #6 Fix: LSTM→BKT feedback loop
+        # If LSTM predicts significantly lower than BKT, the LSTM suspects
+        # guessing or inconsistency → reduce hybrid mastery further
+        if bkt_mastery - lstm_prediction > LSTM_BKT_DIVERGENCE_THRESHOLD:
+            correction = (bkt_mastery - lstm_prediction) * 0.5
+            hybrid_mastery -= correction
+            confidence_warning = True
+            print(f"   ⚠️ LSTM→BKT feedback: LSTM diverges by "
+                  f"{bkt_mastery - lstm_prediction:.4f}, "
+                  f"applying correction of -{correction:.4f}")
+
+        hybrid_mastery = float(np.clip(hybrid_mastery, 0.0, 0.99))
+        print(f"   Hybrid mastery: {hybrid_mastery:.4f} "
+              f"(BKT={bkt_mastery:.4f}, LSTM={lstm_prediction:.4f})")
+    else:
+        hybrid_mastery = bkt_mastery
+        print(f"   Hybrid mastery: {hybrid_mastery:.4f} (LSTM unavailable, using BKT only)")
+
+    # ── 10. Build unified result ──────────────────────────────────────────────
     from services.clustering_service import CLUSTER_LABELS
 
+    hybrid_level = mastery_to_level(hybrid_mastery)
+
     result = {
-        "mastery":         bkt_result["mastery"],
-        "level":           bkt_result["level"],
-        "params":          bkt_result["params"],
-        "predicted_score": bkt_result["predicted_score"],
-        "lstm_prediction": lstm_prediction,
-        "cluster_id":      cluster_id,
-        "cluster_label":   CLUSTER_LABELS.get(cluster_id, "Medium"),
-        "correct_count":   bkt_result["correct_count"],
-        "total_count":     bkt_result["total_count"]
+        "mastery":           bkt_mastery,
+        "hybrid_mastery":    hybrid_mastery,
+        "level":             hybrid_level,          # Now uses hybrid mastery!
+        "params":            bkt_result["params"],
+        "predicted_score":   bkt_result["predicted_score"],
+        "lstm_prediction":   lstm_prediction,
+        "cluster_id":        cluster_id,
+        "cluster_label":     CLUSTER_LABELS.get(cluster_id, "Medium"),
+        "correct_count":     bkt_result["correct_count"],
+        "total_count":       bkt_result["total_count"],
+        "is_uncertain":      bkt_result["is_uncertain"],
+        "confidence_warning": confidence_warning
     }
 
     print(f"   ✅ Personalization complete: level={result['level']}, "
-          f"mastery={result['mastery']:.4f}")
+          f"hybrid_mastery={result['hybrid_mastery']:.4f}")
     return result

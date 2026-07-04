@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
-import { getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz } from "@/services/api";
+import { getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer } from "@/services/api";
 
 const NAVY = "#0f172a";
 
@@ -164,7 +164,8 @@ export default function QuizPage() {
     try {
       const correctAnswers = quiz.questions.map((q) => q.answer);
       const studentId = localStorage.getItem("student_id");
-      const payload = { subject, lesson, topic, level, student_answers: answers, correct_answers: correctAnswers, student_id: studentId };
+      // Bug #3 Fix: Send quiz_questions for difficulty tracking
+      const payload = { subject, lesson, topic, level, student_answers: answers, correct_answers: correctAnswers, student_id: studentId, quiz_questions: quiz.questions };
       if (isPost) {
         const res = await submitPostQuiz(payload);
         if (res?.data?.content) localStorage.setItem("lesson_content", res.data.content);
@@ -318,7 +319,22 @@ export default function QuizPage() {
                         return (
                           <div
                             key={idx}
-                            onClick={() => { const a = [...answers]; a[i] = opt; setAnswers(a); }}
+                            onClick={() => {
+                              const a = [...answers]; a[i] = opt; setAnswers(a);
+                              // Bug #10: Fire per-answer online learning update (non-blocking)
+                              const studentId = localStorage.getItem("student_id");
+                              if (studentId && q.answer) {
+                                submitSingleAnswer({
+                                  student_id: studentId,
+                                  subject, lesson, topic,
+                                  question_index: i,
+                                  student_answer: opt,
+                                  correct_answer: q.answer,
+                                  question_text: q.question || q.text || "",
+                                  quiz_type: isPost ? "post" : "pre"
+                                }).catch(err => console.warn("Per-answer update failed:", err?.message));
+                              }
+                            }}
                             style={{
                               display: "flex", alignItems: "center", gap: 14,
                               padding: "11px 16px", borderRadius: 11, cursor: "pointer",

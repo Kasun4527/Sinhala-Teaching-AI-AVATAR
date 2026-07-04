@@ -114,6 +114,50 @@ def update_difficulty_batch(
         )
 
 
+def update_difficulty_single(
+    question_text: str,
+    is_correct:    int,
+    skill_id:      str
+):
+    """
+    Update difficulty score for a single question (Bug #10: online learning).
+
+    Args:
+        question_text: The question text
+        is_correct:    1 if correct, 0 if incorrect
+        skill_id:      The skill this question tests
+    """
+    if not question_text:
+        return
+
+    now = datetime.utcnow()
+    q_hash = hash_question(question_text)
+
+    existing = problem_difficulty_col.find_one({"question_hash": q_hash})
+
+    if existing:
+        new_attempts = existing["attempt_count"] + 1
+        new_correct  = existing["correct_first_attempts"] + is_correct
+    else:
+        new_attempts = 1
+        new_correct  = is_correct
+
+    new_difficulty = compute_difficulty(new_attempts, new_correct)
+
+    problem_difficulty_col.update_one(
+        {"question_hash": q_hash},
+        {"$set": {
+            "question_text":         question_text,
+            "skill_id":              skill_id,
+            "difficulty":            new_difficulty,
+            "attempt_count":         new_attempts,
+            "correct_first_attempts": new_correct,
+            "updated_at":            now
+        }},
+        upsert=True
+    )
+
+
 def get_difficulties_for_quiz(question_texts: List[str]) -> List[int]:
     """Return difficulty scores for a list of question texts."""
     return [get_difficulty(qt) for qt in question_texts]

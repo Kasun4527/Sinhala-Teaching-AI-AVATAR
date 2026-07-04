@@ -39,3 +39,7 @@ export const getEnrollments = (studentId) =>
   axios.get(`${API}/enrollments`, {
     params: { student_id: studentId },
   });
+
+// Bug #10: Per-answer online learning submission
+export const submitSingleAnswer = (data) =>
+  axios.post(`${API}/submit-answer/`, data);

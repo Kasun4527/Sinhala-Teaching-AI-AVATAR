@@ -3,9 +3,12 @@ Hybrid BKT Service — PC-BKT Empirical Probabilities + BKT State Tracking
 
 Implements:
   - PC-BKT EP parameter fitting (per-student, per-skill personalization)
-  - BKT state update equations
+  - Bayesian prior blending for small data (prevents EP degeneration)
+  - BKT state update equations with mastery delta cap
+  - Accuracy sanity check (prevents 50% correct → Advanced paradox)
   - PC-BKT performance prediction formula
-  - Mastery-to-level mapping
+  - Mastery-to-level mapping with uncertainty zone
+  - Incremental single-answer updates (online learning)
   - MongoDB-backed state persistence
 """
 
@@ -23,14 +26,29 @@ from db import (
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────
 
-MASTERY_CAP         = 0.95   # PC-BKT: prevents model from saturating
+MASTERY_CAP         = 0.99   # Raised from 0.95; growth is now controlled by delta cap
 DEFAULT_L0          = 0.30   # cold-start prior knowledge
 DEFAULT_T           = 0.10   # cold-start learn rate
-DEFAULT_G           = 0.25   # cold-start guess rate
+DEFAULT_G           = 0.20   # cold-start guess rate (calibrated)
 DEFAULT_S           = 0.10   # cold-start slip rate
 
 BEGINNER_THRESHOLD      = 0.40
 INTERMEDIATE_THRESHOLD  = 0.70
+
+# ── Bug #1 Fix: Tighter EP parameter clipping ranges ──────────
+EP_G_MIN, EP_G_MAX  = 0.10, 0.30   # was [0.01, 0.50]
+EP_S_MIN, EP_S_MAX  = 0.05, 0.20   # was [0.01, 0.50]
+EP_T_MIN, EP_T_MAX  = 0.05, 0.30   # was [0.01, 0.90]
+EP_L0_MIN, EP_L0_MAX = 0.05, 0.70  # was [0.01, 0.95]
+
+# ── Bug #1 Fix: Minimum data for EP fitting ──────────────────
+MIN_EP_FIT_THRESHOLD = 20   # Use defaults until we have 20 responses
+
+# ── Bug #8 Fix: Cap mastery growth per single step ───────────
+MAX_MASTERY_DELTA    = 0.10  # Mastery cannot jump more than 0.10 per step
+
+# ── Bug #7 Fix: Uncertainty zone ─────────────────────────────
+UNCERTAINTY_THRESHOLD = 15   # First 15 interactions are "uncertain"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -48,7 +66,7 @@ def make_skill_id(subject: str, lesson: str, topic: str) -> str:
 
 def bkt_update(prev_L: float, action: int, p_T: float, p_G: float, p_S: float) -> float:
     """
-    PC-BKT knowledge state update.
+    PC-BKT knowledge state update with mastery delta cap.
 
     Step 1 — posterior given observation:
       If correct: P(L | 1) = P(L)·(1-P(S)) / [P(L)·(1-P(S)) + (1-P(L))·P(G)]
@@ -57,8 +75,11 @@ def bkt_update(prev_L: float, action: int, p_T: float, p_G: float, p_S: float) -
     Step 2 — apply learning transition:
       P(L_next) = P(L|obs) + (1 - P(L|obs)) · P(T)
 
+    Step 3 — apply mastery delta cap (Bug #8 fix):
+      P(L_next) = min(P(L_next), prev_L + MAX_MASTERY_DELTA)
+
     Returns:
-        Updated mastery, capped at MASTERY_CAP
+        Updated mastery, capped at MASTERY_CAP and delta-limited
     """
     eps = 1e-9
     if action == 1:
@@ -70,6 +91,9 @@ def bkt_update(prev_L: float, action: int, p_T: float, p_G: float, p_S: float) -
 
     L_given = num / (den + eps)
     next_L  = L_given + (1.0 - L_given) * p_T
+
+    # Bug #8 Fix: Cap mastery growth per step
+    next_L = min(next_L, prev_L + MAX_MASTERY_DELTA)
 
     return float(min(np.clip(next_L, 0.0, 1.0), MASTERY_CAP))
 
@@ -93,14 +117,43 @@ def mastery_to_level(mastery: float) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
+# BUG #4 FIX: ACCURACY SANITY CHECK
+# ─────────────────────────────────────────────────────────────
+
+def accuracy_sanity_check(mastery: float, all_responses: List[int]) -> float:
+    """
+    Prevent the 'Advanced Student Paradox' where a student with low
+    raw accuracy gets classified as Advanced due to BKT math degeneration.
+
+    Rule: If raw accuracy < 60%, mastery is clamped below Intermediate.
+          If raw accuracy < 40%, mastery is clamped below Beginner threshold.
+    """
+    if not all_responses:
+        return mastery
+
+    raw_accuracy = sum(all_responses) / len(all_responses)
+
+    if raw_accuracy < 0.40:
+        # Very weak performance → cap at Beginner zone
+        mastery = min(mastery, BEGINNER_THRESHOLD - 0.01)
+    elif raw_accuracy < 0.60:
+        # Below-average performance → never allow Advanced
+        mastery = min(mastery, INTERMEDIATE_THRESHOLD - 0.01)
+
+    return mastery
+
+
+# ─────────────────────────────────────────────────────────────
 # PC-BKT EMPIRICAL PROBABILITIES (EP) FITTING
 # ─────────────────────────────────────────────────────────────
 
 def fit_bkt_ep(responses: List[int]) -> Dict[str, float]:
     """
-    PC-BKT Empirical Probabilities algorithm.
-    Fits PERSONALIZED {L0, T, G, S} for one student-skill pair
-    from their complete binary response history.
+    PC-BKT Empirical Probabilities algorithm with Bayesian prior blending.
+
+    Bug #1 Fix: For small data (< MIN_EP_FIT_THRESHOLD responses), uses
+    calibrated defaults instead of pure EP fitting. For intermediate data,
+    blends EP-fitted values with defaults weighted by data confidence.
 
     Algorithm:
       1. Generate all valid monotone 0→1 state sequences (no forgetting).
@@ -108,6 +161,7 @@ def fit_bkt_ep(responses: List[int]) -> Dict[str, float]:
       3. Average tied sequences → fractional knowledge state K_j ∈ [0,1].
       4. Compute G, S, T empirically from C (responses) and K (states).
       5. Derive L0 from Correct First Attempt (CFA).
+      6. Blend with Bayesian priors based on data confidence.
     """
     J = len(responses)
 
@@ -120,8 +174,16 @@ def fit_bkt_ep(responses: List[int]) -> Dict[str, float]:
         p_S  = DEFAULT_S
         p_T  = DEFAULT_T
         p_L0 = (1.0 - p_G) if responses[0] == 1 else p_S
-        return {"L0": float(np.clip(p_L0, 0.01, 0.95)),
+        return {"L0": float(np.clip(p_L0, EP_L0_MIN, EP_L0_MAX)),
                 "T":  p_T, "G": p_G, "S": p_S}
+
+    # Bug #1 Fix: For very small data, return calibrated defaults
+    # with L0 adjusted by first-attempt result
+    if J < MIN_EP_FIT_THRESHOLD:
+        raw_accuracy = sum(responses) / J
+        # Scale L0 based on actual performance, not just first answer
+        p_L0 = float(np.clip(raw_accuracy * 0.7, EP_L0_MIN, EP_L0_MAX))
+        return {"L0": p_L0, "T": DEFAULT_T, "G": DEFAULT_G, "S": DEFAULT_S}
 
     # ── Step 1: Generate all valid monotone sequences ─────────────────────────
     valid_sequences = []
@@ -146,28 +208,40 @@ def fit_bkt_ep(responses: List[int]) -> Dict[str, float]:
     # Guess: correct answers while unlearned
     unlearned     = 1.0 - K
     sum_unlearned = np.sum(unlearned)
-    p_G = (float(np.sum(C * unlearned) / sum_unlearned)
+    ep_G = (float(np.sum(C * unlearned) / sum_unlearned)
            if sum_unlearned > 1e-9 else DEFAULT_G)
 
     # Slip: incorrect answers while learned
     sum_learned = np.sum(K)
-    p_S = (float(np.sum((1.0 - C) * K) / sum_learned)
+    ep_S = (float(np.sum((1.0 - C) * K) / sum_learned)
            if sum_learned > 1e-9 else DEFAULT_S)
 
     # Transition (learn rate): 0→1 transitions
     num_T = sum((1.0 - K[j-1]) * K[j]   for j in range(1, J))
     den_T = sum((1.0 - K[j-1])           for j in range(1, J))
-    p_T   = float(num_T / den_T) if den_T > 1e-9 else DEFAULT_T
+    ep_T  = float(num_T / den_T) if den_T > 1e-9 else DEFAULT_T
 
-    # ── Step 5: Boundary capping (PC-BKT requirement) ─────────────────────────
-    p_G = float(np.clip(p_G, 0.01, 0.50))
-    p_S = float(np.clip(p_S, 0.01, 0.50))
-    p_T = float(np.clip(p_T, 0.01, 0.90))
+    # ── Step 5: Tighter boundary capping (Bug #1 fix) ────────────────────────
+    ep_G = float(np.clip(ep_G, EP_G_MIN, EP_G_MAX))
+    ep_S = float(np.clip(ep_S, EP_S_MIN, EP_S_MAX))
+    ep_T = float(np.clip(ep_T, EP_T_MIN, EP_T_MAX))
+
+    # ── Step 6: Bayesian prior blending (Bug #1 fix) ─────────────────────────
+    # Confidence factor: 0.0 at MIN_EP_FIT_THRESHOLD, 1.0 at 2x threshold
+    alpha = min(1.0, (J - MIN_EP_FIT_THRESHOLD) / MIN_EP_FIT_THRESHOLD)
+    p_G = alpha * ep_G + (1.0 - alpha) * DEFAULT_G
+    p_S = alpha * ep_S + (1.0 - alpha) * DEFAULT_S
+    p_T = alpha * ep_T + (1.0 - alpha) * DEFAULT_T
+
+    # Re-clip after blending
+    p_G = float(np.clip(p_G, EP_G_MIN, EP_G_MAX))
+    p_S = float(np.clip(p_S, EP_S_MIN, EP_S_MAX))
+    p_T = float(np.clip(p_T, EP_T_MIN, EP_T_MAX))
 
     # Initial knowledge from Correct First Attempt
     cfa  = responses[0]
     p_L0 = float((1.0 - p_G) if cfa == 1 else p_S)
-    p_L0 = float(np.clip(p_L0, 0.01, 0.95))
+    p_L0 = float(np.clip(p_L0, EP_L0_MIN, EP_L0_MAX))
 
     return {"L0": p_L0, "T": p_T, "G": p_G, "S": p_S}
 
@@ -219,7 +293,8 @@ def process_quiz_session(
       1. Fetch existing interaction history for this student-skill pair.
       2. Re-fit EP parameters on ALL responses (history + new).
       3. Replay BKT updates from scratch with new parameters.
-      4. Persist new interaction logs, updated params, updated mastery.
+      4. Apply accuracy sanity check (Bug #4 fix).
+      5. Persist new interaction logs, updated params, updated mastery.
 
     Returns:
         {
@@ -228,7 +303,8 @@ def process_quiz_session(
           "params":          dict,
           "predicted_score": float,
           "correct_count":   int,
-          "total_count":     int
+          "total_count":     int,
+          "is_uncertain":    bool
         }
     """
     now = datetime.utcnow()
@@ -251,9 +327,15 @@ def process_quiz_session(
             mastery, resp, params["T"], params["G"], params["S"]
         )
 
+    # ── 4. Apply accuracy sanity check (Bug #4 fix) ──────────────────────────
+    mastery = accuracy_sanity_check(mastery, all_responses)
+
     predicted_score = predict_correctness(mastery, params["G"], params["S"])
 
-    # ── 4. Persist new interaction logs ───────────────────────────────────────
+    # ── 5. Bug #7: Determine uncertainty status ──────────────────────────────
+    is_uncertain = len(all_responses) < UNCERTAINTY_THRESHOLD
+
+    # ── 6. Persist new interaction logs ───────────────────────────────────────
     q_ids  = question_ids or ([None] * len(quiz_answers))
     diffs  = difficulties  or ([5]    * len(quiz_answers))
 
@@ -268,7 +350,7 @@ def process_quiz_session(
             "created_at":  now
         })
 
-    # ── 5. Upsert personalized BKT parameters ─────────────────────────────────
+    # ── 7. Upsert personalized BKT parameters ─────────────────────────────────
     bkt_params_col.update_one(
         {"student_id": student_id, "skill_id": skill_id},
         {"$set": {
@@ -280,7 +362,7 @@ def process_quiz_session(
         upsert=True
     )
 
-    # ── 6. Upsert skill mastery ────────────────────────────────────────────────
+    # ── 8. Upsert skill mastery ────────────────────────────────────────────────
     correct_count = sum(all_responses)
     skill_mastery_col.update_one(
         {"student_id": student_id, "skill_id": skill_id},
@@ -288,6 +370,7 @@ def process_quiz_session(
             "mastery":          mastery,
             "total_attempts":   len(all_responses),
             "correct_attempts": correct_count,
+            "is_uncertain":     is_uncertain,
             "updated_at":       now
         },
         "$setOnInsert": {
@@ -302,5 +385,97 @@ def process_quiz_session(
         "params":          params,
         "predicted_score": predicted_score,
         "correct_count":   correct_count,
-        "total_count":     len(all_responses)
+        "total_count":     len(all_responses),
+        "is_uncertain":    is_uncertain
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# BUG #10 FIX: INCREMENTAL SINGLE-ANSWER UPDATE
+# ─────────────────────────────────────────────────────────────
+
+def process_single_answer(
+    student_id:   str,
+    skill_id:     str,
+    is_correct:   int,
+    quiz_type:    str = "pre",
+    question_id:  Optional[str] = None,
+    difficulty:   int = 5,
+) -> Dict:
+    """
+    Incremental BKT update for a single answer (online learning).
+
+    Instead of replaying the full history, this function:
+      1. Fetches the current mastery and BKT params from DB.
+      2. Runs a single bkt_update() step.
+      3. Applies accuracy sanity check using a rolling window.
+      4. Persists the single interaction log and updated mastery.
+
+    Returns:
+        {
+          "mastery":       float,
+          "level":         str,
+          "is_uncertain":  bool
+        }
+    """
+    now = datetime.utcnow()
+
+    # ── 1. Fetch current state ────────────────────────────────────────────────
+    mastery = get_mastery(student_id, skill_id)
+    params  = get_bkt_params(student_id, skill_id)
+
+    # ── 2. Run single BKT update ─────────────────────────────────────────────
+    new_mastery = bkt_update(
+        mastery, is_correct, params["T"], params["G"], params["S"]
+    )
+
+    # ── 3. Apply accuracy sanity check using recent history ──────────────────
+    # Fetch last N responses for sanity check
+    recent_docs = list(interaction_logs_col.find(
+        {"student_id": student_id, "skill_id": skill_id},
+        sort=[("created_at", -1)],
+        limit=20
+    ))
+    recent_responses = [int(doc["correct"]) for doc in recent_docs] + [is_correct]
+    new_mastery = accuracy_sanity_check(new_mastery, recent_responses)
+
+    # ── 4. Persist the single interaction log ────────────────────────────────
+    interaction_logs_col.insert_one({
+        "student_id":  student_id,
+        "skill_id":    skill_id,
+        "question_id": question_id,
+        "correct":     int(is_correct),
+        "quiz_type":   quiz_type,
+        "difficulty":  difficulty,
+        "created_at":  now
+    })
+
+    # ── 5. Count total attempts ──────────────────────────────────────────────
+    total_attempts = interaction_logs_col.count_documents(
+        {"student_id": student_id, "skill_id": skill_id}
+    )
+    is_uncertain = total_attempts < UNCERTAINTY_THRESHOLD
+
+    # ── 6. Update mastery in DB ──────────────────────────────────────────────
+    skill_mastery_col.update_one(
+        {"student_id": student_id, "skill_id": skill_id},
+        {"$set": {
+            "mastery":        new_mastery,
+            "total_attempts": total_attempts,
+            "is_uncertain":   is_uncertain,
+            "updated_at":     now
+        },
+        "$setOnInsert": {
+            "created_at": now
+        },
+        "$inc": {
+            "correct_attempts": is_correct
+        }},
+        upsert=True
+    )
+
+    return {
+        "mastery":       new_mastery,
+        "level":         mastery_to_level(new_mastery),
+        "is_uncertain":  is_uncertain
     }
