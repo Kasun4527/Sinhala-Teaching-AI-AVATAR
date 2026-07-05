@@ -7,7 +7,7 @@ import AvatarTeacher from "@/components/AvatarTeacher";
 import ChatBot from "@/components/ChatBot";
 
 const ENGAGEMENT_SERVER = "http://localhost:5000";
-const BACKEND = "http://localhost:8000";
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 function FloatingPattern({ color }) {
   const canvasRef = useRef(null);

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://127.0.0.1:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export const getPreQuiz = (subject, lesson, topic) =>
   axios.get(`${API}/pre-quiz/`, {
@@ -42,4 +42,4 @@ export const getEnrollments = (studentId) =>
 
 // Bug #10: Per-answer online learning submission
 export const submitSingleAnswer = (data) =>
-  axios.post(`${API}/submit-answer/`, data);
+  axios.post(`${API}/submit-answer/`, data);

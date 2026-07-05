@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -84,16 +84,16 @@ export default function AdminDashboard() {
   };
 
   const subjectColors = {
-    Physics:   { accent: "#2563eb", bg: "#eff6ff" },
+    Physics: { accent: "#2563eb", bg: "#eff6ff" },
     Chemistry: { accent: "#16a34a", bg: "#f0fdf4" },
-    Biology:   { accent: "#059669", bg: "#ecfdf5" },
-    Maths:     { accent: "#9333ea", bg: "#faf5ff" },
+    Biology: { accent: "#059669", bg: "#ecfdf5" },
+    Maths: { accent: "#9333ea", bg: "#faf5ff" },
   };
 
   const levelConfig = {
-    Advanced:     { bg: "#f5f3ff", color: "#7c3aed" },
+    Advanced: { bg: "#f5f3ff", color: "#7c3aed" },
     Intermediate: { bg: "#fffbeb", color: "#d97706" },
-    Beginner:     { bg: "#f0fdf4", color: "#16a34a" },
+    Beginner: { bg: "#f0fdf4", color: "#16a34a" },
   };
 
   return (
@@ -493,7 +493,7 @@ export default function AdminDashboard() {
                                 ]);
                                 if (engRes) setEngagementData(prev => ({ ...prev, [i]: engRes.data.sessions }));
                                 if (qaRes) setQaData(prev => ({ ...prev, [i]: qaRes.data.qa }));
-                              } catch (_) {}
+                              } catch (_) { }
                             }
                           }}
                           style={{

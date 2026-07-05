@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const BACKEND = "http://localhost:8000";
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // All Sinhala strings as \u escapes so this file is pure ASCII
 const SI_TITLE       = "AI සහායක";
