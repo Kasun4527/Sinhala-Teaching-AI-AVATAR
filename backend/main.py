@@ -7,6 +7,11 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
+# Fix for ChromaDB on Azure App Service Linux (Outdated SQLite)
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field

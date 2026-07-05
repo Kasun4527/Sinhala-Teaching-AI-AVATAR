@@ -16,3 +16,4 @@ chromadb
 langgraph
 google-genai
 langchain-groq
+pysqlite3-binary
