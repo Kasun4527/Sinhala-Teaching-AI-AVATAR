@@ -41,17 +41,22 @@ def hash_question(question_text: str) -> str:
 
 def compute_difficulty(attempt_count: int, correct_first_attempts: int) -> int:
     """
-    BKT-LSTM difficulty formula:
-      PD(p_j) = round(correct_first_attempts / attempt_count * 10)
-              if attempt_count >= 4, else 5
+    Priority 6: IRT-style dynamic difficulty formula.
 
-    Higher value = easier (higher success rate).
+    Difficulty is the INVERSE of success rate:
+      difficulty_raw = 1.0 - (correct_first_attempts / attempt_count)
+
+    A question answered correctly by 90% of students → difficulty 0.10 → scale 1 (Easy).
+    A question answered correctly by 20% of students → difficulty 0.80 → scale 8 (Hard).
+
+    Scale: round(difficulty_raw * 10), clamped to [1, 10].
     """
     if attempt_count < MIN_ATTEMPTS_FOR_DIFFICULTY:
         return DEFAULT_DIFFICULTY
 
     success_rate = correct_first_attempts / attempt_count
-    difficulty = round(success_rate * 10)
+    difficulty_raw = 1.0 - success_rate
+    difficulty = round(difficulty_raw * 10)
     return max(1, min(MAX_DIFFICULTY, int(difficulty)))
 
 
@@ -112,6 +117,50 @@ def update_difficulty_batch(
             }},
             upsert=True
         )
+
+
+def update_difficulty_single(
+    question_text: str,
+    is_correct:    int,
+    skill_id:      str
+):
+    """
+    Update difficulty score for a single question (Bug #10: online learning).
+
+    Args:
+        question_text: The question text
+        is_correct:    1 if correct, 0 if incorrect
+        skill_id:      The skill this question tests
+    """
+    if not question_text:
+        return
+
+    now = datetime.utcnow()
+    q_hash = hash_question(question_text)
+
+    existing = problem_difficulty_col.find_one({"question_hash": q_hash})
+
+    if existing:
+        new_attempts = existing["attempt_count"] + 1
+        new_correct  = existing["correct_first_attempts"] + is_correct
+    else:
+        new_attempts = 1
+        new_correct  = is_correct
+
+    new_difficulty = compute_difficulty(new_attempts, new_correct)
+
+    problem_difficulty_col.update_one(
+        {"question_hash": q_hash},
+        {"$set": {
+            "question_text":         question_text,
+            "skill_id":              skill_id,
+            "difficulty":            new_difficulty,
+            "attempt_count":         new_attempts,
+            "correct_first_attempts": new_correct,
+            "updated_at":            now
+        }},
+        upsert=True
+    )
 
 
 def get_difficulties_for_quiz(question_texts: List[str]) -> List[int]:
