@@ -41,17 +41,22 @@ def hash_question(question_text: str) -> str:
 
 def compute_difficulty(attempt_count: int, correct_first_attempts: int) -> int:
     """
-    BKT-LSTM difficulty formula:
-      PD(p_j) = round(correct_first_attempts / attempt_count * 10)
-              if attempt_count >= 4, else 5
+    Priority 6: IRT-style dynamic difficulty formula.
 
-    Higher value = easier (higher success rate).
+    Difficulty is the INVERSE of success rate:
+      difficulty_raw = 1.0 - (correct_first_attempts / attempt_count)
+
+    A question answered correctly by 90% of students → difficulty 0.10 → scale 1 (Easy).
+    A question answered correctly by 20% of students → difficulty 0.80 → scale 8 (Hard).
+
+    Scale: round(difficulty_raw * 10), clamped to [1, 10].
     """
     if attempt_count < MIN_ATTEMPTS_FOR_DIFFICULTY:
         return DEFAULT_DIFFICULTY
 
     success_rate = correct_first_attempts / attempt_count
-    difficulty = round(success_rate * 10)
+    difficulty_raw = 1.0 - success_rate
+    difficulty = round(difficulty_raw * 10)
     return max(1, min(MAX_DIFFICULTY, int(difficulty)))
 
 

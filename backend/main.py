@@ -244,25 +244,21 @@ def submit_single_answer(data: SingleAnswerSubmission):
     Incremental BKT update for a single answer (online learning).
     Called per-answer during quiz for real-time mastery updates.
     """
-    from services.bkt_service import make_skill_id, process_single_answer
+    from services.bkt_service import make_skill_id
     from services.difficulty_service import update_difficulty_single
+    from agents.personalization_agent import personalize_single_answer
 
     skill_id = make_skill_id(data.subject, data.lesson, data.topic)
     is_correct = 1 if str(data.student_answer).strip() == str(data.correct_answer).strip() else 0
 
-    # Get difficulty for this question if text provided
-    difficulty = 5
-    if data.question_text:
-        from services.difficulty_service import get_difficulty
-        difficulty = get_difficulty(data.question_text)
-
-    result = process_single_answer(
+    result = personalize_single_answer(
         student_id=data.student_id,
-        skill_id=skill_id,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
         is_correct=is_correct,
         quiz_type=data.quiz_type,
-        question_id=data.question_text,
-        difficulty=difficulty
+        question_text=data.question_text
     )
 
     # Update difficulty for this question
@@ -280,7 +276,10 @@ def submit_single_answer(data: SingleAnswerSubmission):
         "mastery": result["mastery"],
         "level": result["level"],
         "is_uncertain": result["is_uncertain"],
-        "question_index": data.question_index
+        "question_index": data.question_index,
+        # Priority 1 & 5: Adaptive learning signals
+        "hint_required": result.get("hint_required", False),
+        "adapt_difficulty": result.get("adapt_difficulty", "maintain")
     }
 
 

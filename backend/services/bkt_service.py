@@ -45,10 +45,28 @@ EP_L0_MIN, EP_L0_MAX = 0.05, 0.70  # was [0.01, 0.95]
 MIN_EP_FIT_THRESHOLD = 20   # Use defaults until we have 20 responses
 
 # ── Bug #8 Fix: Cap mastery growth per single step ───────────
-MAX_MASTERY_DELTA    = 0.10  # Mastery cannot jump more than 0.10 per step
+# Priority 4: Reduced from 0.10 → 0.05 so a perfect 10/10 quiz only adds
+# ~0.50 mastery max, requiring sustained performance across multiple sessions.
+MAX_MASTERY_DELTA    = 0.05
 
 # ── Bug #7 Fix: Uncertainty zone ─────────────────────────────
 UNCERTAINTY_THRESHOLD = 15   # First 15 interactions are "uncertain"
+
+# ── Priority 2: Cluster-driven BKT parameter profiles ────────
+# Each cluster maps to a behavioral learning profile that physically
+# changes how BKT processes student responses.
+CLUSTER_PROFILES = {
+    0: {"T": 0.25, "G": 0.15, "S": 0.05, "label": "Fast Learner"},
+    1: {"T": 0.05, "G": 0.25, "S": 0.20, "label": "Struggling"},
+    2: {"T": 0.15, "G": 0.10, "S": 0.30, "label": "Careless"},
+    3: {"T": DEFAULT_T, "G": DEFAULT_G, "S": DEFAULT_S, "label": "Cold-Start"},
+}
+
+
+def get_cluster_priors(cluster_id: int) -> Dict[str, float]:
+    """Return BKT parameter priors driven by the student's cluster assignment."""
+    profile = CLUSTER_PROFILES.get(cluster_id, CLUSTER_PROFILES[3])
+    return {"T": profile["T"], "G": profile["G"], "S": profile["S"]}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -58,6 +76,34 @@ UNCERTAINTY_THRESHOLD = 15   # First 15 interactions are "uncertain"
 def make_skill_id(subject: str, lesson: str, topic: str) -> str:
     """Composite skill identifier matching the curriculum hierarchy."""
     return f"{subject}::{lesson}::{topic}"
+
+
+def get_subject_transfer_L0(student_id: str, subject: str) -> float:
+    """
+    Priority 3: Cross-lesson knowledge transfer.
+
+    When a student starts a new lesson in the same subject, instead of
+    defaulting to L0=0.30, we blend the default with their average mastery
+    across all previously completed skills in this subject.
+
+    Formula: L0_new = 0.5 * DEFAULT_L0 + 0.5 * avg_subject_mastery
+    """
+    import re
+    # Find all skill_mastery records for this student in this subject
+    records = list(skill_mastery_col.find({
+        "student_id": student_id,
+        "skill_id": {"$regex": f"^{re.escape(subject)}::"}
+    }))
+
+    if not records:
+        return DEFAULT_L0
+
+    avg_mastery = sum(float(r["mastery"]) for r in records) / len(records)
+    transfer_L0 = 0.5 * DEFAULT_L0 + 0.5 * avg_mastery
+    transfer_L0 = float(np.clip(transfer_L0, EP_L0_MIN, EP_L0_MAX))
+    print(f"   [KnowledgeTransfer] Subject={subject}, past_skills={len(records)}, "
+          f"avg_mastery={avg_mastery:.3f}, transfer_L0={transfer_L0:.3f}")
+    return transfer_L0
 
 
 # ─────────────────────────────────────────────────────────────
@@ -147,13 +193,17 @@ def accuracy_sanity_check(mastery: float, all_responses: List[int]) -> float:
 # PC-BKT EMPIRICAL PROBABILITIES (EP) FITTING
 # ─────────────────────────────────────────────────────────────
 
-def fit_bkt_ep(responses: List[int]) -> Dict[str, float]:
+def fit_bkt_ep(responses: List[int], cluster_id: int = 3,
+               transfer_L0: Optional[float] = None) -> Dict[str, float]:
     """
     PC-BKT Empirical Probabilities algorithm with Bayesian prior blending.
 
     Bug #1 Fix: For small data (< MIN_EP_FIT_THRESHOLD responses), uses
     calibrated defaults instead of pure EP fitting. For intermediate data,
     blends EP-fitted values with defaults weighted by data confidence.
+
+    Priority 2: Uses cluster-driven priors instead of global defaults.
+    Priority 3: Uses transfer_L0 from cross-lesson knowledge transfer.
 
     Algorithm:
       1. Generate all valid monotone 0→1 state sequences (no forgetting).
@@ -165,25 +215,35 @@ def fit_bkt_ep(responses: List[int]) -> Dict[str, float]:
     """
     J = len(responses)
 
+    # Priority 2: Get cluster-driven priors instead of global defaults
+    cluster_priors = get_cluster_priors(cluster_id)
+    prior_T = cluster_priors["T"]
+    prior_G = cluster_priors["G"]
+    prior_S = cluster_priors["S"]
+
+    # Priority 3: Use transfer L0 if available, otherwise default
+    base_L0 = transfer_L0 if transfer_L0 is not None else DEFAULT_L0
+
     # Fallback defaults for insufficient data
     if J == 0:
-        return {"L0": DEFAULT_L0, "T": DEFAULT_T, "G": DEFAULT_G, "S": DEFAULT_S}
+        return {"L0": base_L0, "T": prior_T, "G": prior_G, "S": prior_S}
 
     if J == 1:
-        p_G  = DEFAULT_G
-        p_S  = DEFAULT_S
-        p_T  = DEFAULT_T
-        p_L0 = (1.0 - p_G) if responses[0] == 1 else p_S
+        p_L0 = (1.0 - prior_G) if responses[0] == 1 else prior_S
         return {"L0": float(np.clip(p_L0, EP_L0_MIN, EP_L0_MAX)),
-                "T":  p_T, "G": p_G, "S": p_S}
+                "T":  prior_T, "G": prior_G, "S": prior_S}
 
-    # Bug #1 Fix: For very small data, return calibrated defaults
+    # Bug #1 Fix: For very small data, return calibrated cluster priors
     # with L0 adjusted by first-attempt result
     if J < MIN_EP_FIT_THRESHOLD:
         raw_accuracy = sum(responses) / J
-        # Scale L0 based on actual performance, not just first answer
+        # Scale L0 based on actual performance, blended with transfer L0
         p_L0 = float(np.clip(raw_accuracy * 0.7, EP_L0_MIN, EP_L0_MAX))
-        return {"L0": p_L0, "T": DEFAULT_T, "G": DEFAULT_G, "S": DEFAULT_S}
+        # Blend with transfer L0 if available
+        if transfer_L0 is not None:
+            p_L0 = 0.6 * p_L0 + 0.4 * transfer_L0
+            p_L0 = float(np.clip(p_L0, EP_L0_MIN, EP_L0_MAX))
+        return {"L0": p_L0, "T": prior_T, "G": prior_G, "S": prior_S}
 
     # ── Step 1: Generate all valid monotone sequences ─────────────────────────
     valid_sequences = []
@@ -228,10 +288,11 @@ def fit_bkt_ep(responses: List[int]) -> Dict[str, float]:
 
     # ── Step 6: Bayesian prior blending (Bug #1 fix) ─────────────────────────
     # Confidence factor: 0.0 at MIN_EP_FIT_THRESHOLD, 1.0 at 2x threshold
+    # Priority 2: Blends with cluster-driven priors instead of global defaults
     alpha = min(1.0, (J - MIN_EP_FIT_THRESHOLD) / MIN_EP_FIT_THRESHOLD)
-    p_G = alpha * ep_G + (1.0 - alpha) * DEFAULT_G
-    p_S = alpha * ep_S + (1.0 - alpha) * DEFAULT_S
-    p_T = alpha * ep_T + (1.0 - alpha) * DEFAULT_T
+    p_G = alpha * ep_G + (1.0 - alpha) * prior_G
+    p_S = alpha * ep_S + (1.0 - alpha) * prior_S
+    p_T = alpha * ep_T + (1.0 - alpha) * prior_T
 
     # Re-clip after blending
     p_G = float(np.clip(p_G, EP_G_MIN, EP_G_MAX))
@@ -250,23 +311,30 @@ def fit_bkt_ep(responses: List[int]) -> Dict[str, float]:
 # MONGODB STATE MANAGEMENT
 # ─────────────────────────────────────────────────────────────
 
-def get_mastery(student_id: str, skill_id: str) -> float:
-    """Retrieve current BKT mastery from DB. Returns DEFAULT_L0 if unseen."""
+def get_mastery(student_id: str, skill_id: str, subject: Optional[str] = None) -> float:
+    """Retrieve the current mastery probability for a specific skill. Returns transfer L0 if unseen."""
     record = skill_mastery_col.find_one(
         {"student_id": student_id, "skill_id": skill_id}
     )
-    return float(record["mastery"]) if record else DEFAULT_L0
+    if record:
+        return float(record["mastery"])
+    return get_subject_transfer_L0(student_id, subject) if subject else DEFAULT_L0
 
 
-def get_bkt_params(student_id: str, skill_id: str) -> Dict[str, float]:
-    """Retrieve personalized BKT params from DB. Returns defaults if unseen."""
+def get_bkt_params(student_id: str, skill_id: str, cluster_id: int = 3, subject: Optional[str] = None) -> Dict[str, float]:
+    """Retrieve personalized BKT params from DB. Returns cluster/transfer defaults if unseen."""
     record = bkt_params_col.find_one(
         {"student_id": student_id, "skill_id": skill_id}
     )
     if record:
         return {"L0": record["L0"], "T": record["T"],
                 "G":  record["G"],  "S": record["S"]}
-    return {"L0": DEFAULT_L0, "T": DEFAULT_T, "G": DEFAULT_G, "S": DEFAULT_S}
+    
+    # Fallback to cluster priors and cross-lesson transfer L0
+    cluster_priors = get_cluster_priors(cluster_id)
+    transfer_L0 = get_subject_transfer_L0(student_id, subject) if subject else DEFAULT_L0
+    
+    return {"L0": transfer_L0, "T": cluster_priors["T"], "G": cluster_priors["G"], "S": cluster_priors["S"]}
 
 
 def get_all_skill_masteries(student_id: str) -> Dict[str, float]:
@@ -285,6 +353,8 @@ def process_quiz_session(
     quiz_type:    str = "pre",
     question_ids: Optional[List[str]] = None,
     difficulties: Optional[List[int]] = None,
+    cluster_id:   int = 3,
+    subject:      Optional[str] = None,
 ) -> Dict:
     """
     Full processing pipeline for one quiz session on one skill.
@@ -318,7 +388,15 @@ def process_quiz_session(
 
     # ── 2. Fit EP parameters on combined response history ─────────────────────
     all_responses = historical_responses + quiz_answers
-    params = fit_bkt_ep(all_responses)
+
+    # Priority 3: Get cross-lesson transfer L0 if starting a new skill
+    transfer_L0 = None
+    if not historical_responses and subject:
+        transfer_L0 = get_subject_transfer_L0(student_id, subject)
+
+    # Priority 2: Pass cluster_id for cluster-driven priors
+    params = fit_bkt_ep(all_responses, cluster_id=cluster_id,
+                        transfer_L0=transfer_L0)
 
     # ── 3. Replay BKT from L0 with newly fitted params ────────────────────────
     mastery = params["L0"]
@@ -329,6 +407,13 @@ def process_quiz_session(
 
     # ── 4. Apply accuracy sanity check (Bug #4 fix) ──────────────────────────
     mastery = accuracy_sanity_check(mastery, all_responses)
+
+    # ── 4b. Priority 4: First-quiz mastery ceiling ────────────────────────────
+    # One quiz session should NOT prove mastery. If this is the student's
+    # first interaction with this skill, cap mastery at 0.80 max.
+    FIRST_QUIZ_CEILING = 0.80
+    if not historical_responses:
+        mastery = min(mastery, FIRST_QUIZ_CEILING)
 
     predicted_score = predict_correctness(mastery, params["G"], params["S"])
 
@@ -401,28 +486,17 @@ def process_single_answer(
     quiz_type:    str = "pre",
     question_id:  Optional[str] = None,
     difficulty:   int = 5,
+    cluster_id:   int = 3,
+    subject:      Optional[str] = None
 ) -> Dict:
     """
     Incremental BKT update for a single answer (online learning).
-
-    Instead of replaying the full history, this function:
-      1. Fetches the current mastery and BKT params from DB.
-      2. Runs a single bkt_update() step.
-      3. Applies accuracy sanity check using a rolling window.
-      4. Persists the single interaction log and updated mastery.
-
-    Returns:
-        {
-          "mastery":       float,
-          "level":         str,
-          "is_uncertain":  bool
-        }
     """
     now = datetime.utcnow()
 
     # ── 1. Fetch current state ────────────────────────────────────────────────
-    mastery = get_mastery(student_id, skill_id)
-    params  = get_bkt_params(student_id, skill_id)
+    mastery = get_mastery(student_id, skill_id, subject)
+    params  = get_bkt_params(student_id, skill_id, cluster_id, subject)
 
     # ── 2. Run single BKT update ─────────────────────────────────────────────
     new_mastery = bkt_update(

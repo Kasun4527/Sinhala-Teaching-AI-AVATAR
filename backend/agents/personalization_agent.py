@@ -23,7 +23,8 @@ from services.bkt_service import (
     make_skill_id,
     process_quiz_session,
     mastery_to_level,
-    get_mastery
+    get_mastery,
+    get_subject_transfer_L0
 )
 from services.difficulty_service import (
     update_difficulty_batch,
@@ -107,14 +108,19 @@ def personalize_after_quiz(
     # ── 4. Get difficulties for current questions ─────────────────────────────
     difficulties = [get_difficulty(qt) for qt in question_texts] if question_texts else None
 
-    # ── 5. Process through PC-BKT engine ──────────────────────────────────────
+    # ── 5. Process through PC-BKT engine ──────────────────────────────────
+    # Priority 2: Pass cluster_id so BKT uses cluster-driven priors
+    # Priority 3: Pass subject for cross-lesson knowledge transfer
+    current_cluster = get_student_cluster(student_id)
     bkt_result = process_quiz_session(
         student_id=student_id,
         skill_id=skill_id,
         quiz_answers=quiz_answers_binary,
         quiz_type=quiz_type,
         question_ids=question_texts,
-        difficulties=difficulties
+        difficulties=difficulties,
+        cluster_id=current_cluster,
+        subject=subject
     )
     bkt_mastery = bkt_result["mastery"]
     print(f"   BKT result: mastery={bkt_mastery:.4f}, "
@@ -185,21 +191,147 @@ def personalize_after_quiz(
 
     hybrid_level = mastery_to_level(hybrid_mastery)
 
+    # ── Priority 1 & 5: Adaptive learning signals ───────────────────────
+    # These signals tell the frontend/content system to adapt:
+    #   - hint_required: student needs help (mastery < 0.40 or LSTM predicts drop)
+    #   - adapt_difficulty: "easier" / "harder" / "maintain"
+    #   - remediation_needed: student is regressing
+    hint_required = False
+    adapt_difficulty = "maintain"
+    remediation_needed = False
+
+    if hybrid_mastery < 0.30:
+        hint_required = True
+        adapt_difficulty = "easier"
+        remediation_needed = True
+        print(f"   🎯 [Adaptive] Remediation triggered: mastery={hybrid_mastery:.3f}")
+    elif hybrid_mastery < 0.40:
+        hint_required = True
+        adapt_difficulty = "easier"
+        print(f"   🎯 [Adaptive] Hints enabled, easier questions recommended")
+    elif hybrid_mastery > 0.70:
+        adapt_difficulty = "harder"
+        print(f"   🎯 [Adaptive] Challenge mode: harder questions recommended")
+
+    # If LSTM predicts a mastery DROP (negative slope), trigger remediation
+    if lstm_prediction is not None and lstm_prediction < bkt_mastery - 0.10:
+        hint_required = True
+        remediation_needed = True
+        print(f"   ⚠️ [Adaptive] LSTM predicts mastery drop: "
+              f"current={bkt_mastery:.3f}, predicted={lstm_prediction:.3f}")
+
     result = {
-        "mastery":           bkt_mastery,
-        "hybrid_mastery":    hybrid_mastery,
-        "level":             hybrid_level,          # Now uses hybrid mastery!
-        "params":            bkt_result["params"],
-        "predicted_score":   bkt_result["predicted_score"],
-        "lstm_prediction":   lstm_prediction,
-        "cluster_id":        cluster_id,
-        "cluster_label":     CLUSTER_LABELS.get(cluster_id, "Medium"),
-        "correct_count":     bkt_result["correct_count"],
-        "total_count":       bkt_result["total_count"],
-        "is_uncertain":      bkt_result["is_uncertain"],
-        "confidence_warning": confidence_warning
+        "mastery":              bkt_mastery,
+        "hybrid_mastery":       hybrid_mastery,
+        "level":                hybrid_level,
+        "params":               bkt_result["params"],
+        "predicted_score":      bkt_result["predicted_score"],
+        "lstm_prediction":      lstm_prediction,
+        "cluster_id":           cluster_id,
+        "cluster_label":        CLUSTER_LABELS.get(cluster_id, "Medium"),
+        "correct_count":        bkt_result["correct_count"],
+        "total_count":          bkt_result["total_count"],
+        "is_uncertain":         bkt_result["is_uncertain"],
+        "confidence_warning":   confidence_warning,
+        # Priority 1 & 5: Adaptive learning signals
+        "hint_required":        hint_required,
+        "adapt_difficulty":     adapt_difficulty,
+        "remediation_needed":   remediation_needed
     }
 
     print(f"   ✅ Personalization complete: level={result['level']}, "
-          f"hybrid_mastery={result['hybrid_mastery']:.4f}")
+          f"hybrid_mastery={result['hybrid_mastery']:.4f}, "
+          f"adapt={adapt_difficulty}, hints={hint_required}")
     return result
+
+
+def personalize_single_answer(
+    student_id:   str,
+    subject:      str,
+    lesson:       str,
+    topic:        str,
+    is_correct:   int,
+    quiz_type:    str = "pre",
+    question_text: Optional[str] = None
+) -> Dict:
+    """
+    Online learning (single-answer) personalization pipeline.
+    Runs BKT update, cluster check, and LSTM prediction for real-time adaptation.
+    """
+    print(f"\n🧠 [PersonalizationAgent] Online learning update for student={student_id}")
+
+    from services.bkt_service import process_single_answer
+
+    skill_id = make_skill_id(subject, lesson, topic)
+    difficulty = get_difficulty(question_text) if question_text else 5
+
+    # 1. Cluster
+    cluster_id = get_student_cluster(student_id)
+    if cluster_id == 3:
+        cluster_id = assign_new_student_cluster(student_id)
+
+    # 2. Single BKT step
+    bkt_result = process_single_answer(
+        student_id=student_id,
+        skill_id=skill_id,
+        is_correct=is_correct,
+        quiz_type=quiz_type,
+        question_id=question_text,
+        difficulty=difficulty,
+        cluster_id=cluster_id,
+        subject=subject
+    )
+    bkt_mastery = bkt_result["mastery"]
+
+    # 3. LSTM Prediction
+    lstm_prediction = None
+    if lstm_is_available():
+        try:
+            cluster_oh = get_cluster_one_hot(cluster_id)
+            difficulty_oh = get_difficulty_one_hot(difficulty)
+            lstm_prediction = predict_next_mastery(
+                mastery=bkt_mastery,
+                cluster_one_hot=cluster_oh,
+                difficulty_one_hot=difficulty_oh
+            )
+        except Exception as e:
+            print(f"   LSTM prediction failed: {e}")
+
+    # 4. Hybrid Mastery
+    confidence_warning = False
+    if lstm_prediction is not None:
+        hybrid_mastery = BKT_WEIGHT * bkt_mastery + LSTM_WEIGHT * lstm_prediction
+        if bkt_mastery - lstm_prediction > LSTM_BKT_DIVERGENCE_THRESHOLD:
+            hybrid_mastery -= (bkt_mastery - lstm_prediction) * 0.5
+            confidence_warning = True
+        hybrid_mastery = float(np.clip(hybrid_mastery, 0.0, 0.99))
+    else:
+        hybrid_mastery = bkt_mastery
+
+    hybrid_level = mastery_to_level(hybrid_mastery)
+
+    # 5. Adaptive Signals
+    hint_required = False
+    adapt_difficulty = "maintain"
+
+    if hybrid_mastery < 0.30:
+        hint_required = True
+        adapt_difficulty = "easier"
+    elif hybrid_mastery < 0.40:
+        hint_required = True
+        adapt_difficulty = "easier"
+    elif hybrid_mastery > 0.70:
+        adapt_difficulty = "harder"
+
+    if lstm_prediction is not None and lstm_prediction < bkt_mastery - 0.10:
+        hint_required = True
+
+    return {
+        "mastery":           hybrid_mastery,  # Return hybrid as the main mastery for online
+        "level":             hybrid_level,
+        "is_uncertain":      bkt_result["is_uncertain"],
+        "hint_required":     hint_required,
+        "adapt_difficulty":  adapt_difficulty,
+        "lstm_prediction":   lstm_prediction
+    }
+

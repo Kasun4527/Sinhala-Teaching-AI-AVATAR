@@ -32,10 +32,10 @@ from db import (
 
 N_CLUSTERS          = 3      # High, Medium, Low
 COLD_START_CLUSTER  = 3      # Cluster ID for new students
-UPDATE_INTERVAL     = 30     # Re-run clustering every N new interactions (Bug #5: was 20)
 MIN_STUDENTS_TRAIN  = 3      # Minimum students needed to train K-Means
 DEFAULT_CAPABILITY  = 0.5    # Neutral capability for unseen skills
 MIN_INTERACTIONS_FOR_CLUSTER = 15  # Bug #5: Minimum interactions before hard clustering
+EMA_ALPHA           = 0.3    # Priority 7: EMA smoothing factor for cluster probabilities
 
 CLUSTER_LABELS = {0: "High", 1: "Medium", 2: "Low", 3: "New"}
 
@@ -240,25 +240,68 @@ def _set_cluster(student_id: str, cluster_id: int, label: str,
 
 def maybe_update_cluster(student_id: str) -> bool:
     """
-    Check if student has crossed 20-attempt window.
-    If so, re-assign cluster using latest model.
+    Priority 7: Always re-assign cluster on every quiz submission
+    (no more arbitrary 30-attempt intervals).
+
+    Uses EMA smoothing on the soft probability distribution to prevent
+    erratic cluster jumping from a single bad quiz.
+
     Returns True if cluster was updated.
     """
     total_attempts = interaction_logs_col.count_documents(
         {"student_id": student_id}
     )
-    existing = student_clusters_col.find_one({"student_id": student_id})
-    last_window = (existing or {}).get("attempt_window", 0)
 
-    current_window = total_attempts // UPDATE_INTERVAL
-    if current_window > last_window:
-        assign_new_student_cluster(student_id)
-        student_clusters_col.update_one(
-            {"student_id": student_id},
-            {"$set": {"attempt_window": current_window}}
-        )
-        return True
-    return False
+    # Still enforce minimum interactions threshold
+    if total_attempts < MIN_INTERACTIONS_FOR_CLUSTER:
+        return False
+
+    model_doc = kmeans_models_col.find_one({"model_version": "latest"})
+    if not model_doc:
+        # No trained model yet — try to train one
+        train_result = train_and_save_kmeans()
+        if not train_result:
+            return False
+        model_doc = kmeans_models_col.find_one({"model_version": "latest"})
+        if not model_doc:
+            return False
+
+    skill_ids  = model_doc["skill_ids"]
+    centroids  = np.array(model_doc["centroids"])
+    label_remap = model_doc.get("label_remap", {})
+
+    vec = build_capability_vector(student_id, skill_ids).reshape(1, -1)
+    distances  = np.linalg.norm(centroids - vec, axis=1)
+
+    # Compute new soft probabilities
+    neg_distances = -distances
+    exp_vals = np.exp(neg_distances - np.max(neg_distances))
+    new_soft_probs = (exp_vals / np.sum(exp_vals)).tolist()
+
+    # Priority 7: EMA smoothing — blend with previous probabilities
+    existing = student_clusters_col.find_one({"student_id": student_id})
+    if existing and "cluster_probabilities" in existing:
+        old_probs = existing["cluster_probabilities"]
+        if len(old_probs) == len(new_soft_probs):
+            smoothed_probs = [
+                EMA_ALPHA * new_p + (1 - EMA_ALPHA) * old_p
+                for new_p, old_p in zip(new_soft_probs, old_probs)
+            ]
+            # Re-normalize
+            total = sum(smoothed_probs)
+            smoothed_probs = [p / total for p in smoothed_probs]
+        else:
+            smoothed_probs = new_soft_probs
+    else:
+        smoothed_probs = new_soft_probs
+
+    # Assign to cluster with highest smoothed probability
+    raw_label = int(np.argmax(smoothed_probs))
+    mapped = int(label_remap.get(str(raw_label), 1))
+
+    _set_cluster(student_id, mapped, CLUSTER_LABELS.get(mapped, "Medium"),
+                 soft_probs=smoothed_probs)
+    return True
 
 
 def get_cluster_one_hot(cluster_id: int, n_clusters: int = 4) -> np.ndarray:
