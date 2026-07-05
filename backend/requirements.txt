@@ -16,4 +16,3 @@ chromadb
 langgraph
 google-genai
 langchain-groq
-tensorflow-cpu
