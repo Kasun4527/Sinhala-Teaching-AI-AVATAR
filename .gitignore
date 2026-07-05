@@ -23,5 +23,5 @@ implementation_plan.md
 implementation_planazure1
 personalization_report_0705.md
 # ChromaDB Vector Store
-backend/chroma_db/
+# (Removed backend/chroma_db/ so it can be deployed via GitHub Actions)
 *.sqlite3
