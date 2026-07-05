@@ -576,7 +576,8 @@ def ask_question(data: QuestionRequest):
     instruction = "ඔබ දක්ෂ ගුරුවරයෙකි. පහත context ඇසුරින් සිසුවාගේ ප්‍රශ්නයට සරල සිංහල පිළිතුරක් දෙන්න."
     input_text = f"Context:\n{context[:2000]}\n\nප්‍රශ්නය: {data.question}"
 
-    FINETUNED_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+    import os
+    FINETUNED_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
     try:
         resp = _requests.post(
             FINETUNED_URL,
