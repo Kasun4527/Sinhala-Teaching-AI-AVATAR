@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { findSubjectByGrade, findSubject } from "@/data/curriculum";
@@ -75,7 +76,7 @@ const SUBJECT_CFG = {
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" };
 
-export default function LessonsPage() {
+function LessonsPageContent() {
   const params     = useSearchParams();
   const router     = useRouter();
   const subject    = params.get("subject");
@@ -299,5 +300,13 @@ export default function LessonsPage() {
 
       <ChatBot subject={subject} accent={cfg.hue} />
     </div>
+  );
+}
+
+export default function LessonsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LessonsPageContent />
+    </Suspense>
   );
 }

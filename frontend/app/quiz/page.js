@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -111,7 +112,7 @@ function LoadingScreen({ subject, cfg, title, subtitle }) {
   );
 }
 
-export default function QuizPage() {
+function QuizPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -403,5 +404,12 @@ export default function QuizPage() {
         </div>
       </main>
     </div>
+  );
+}
+export default function QuizPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <QuizPageContent />
+    </Suspense>
   );
 }
