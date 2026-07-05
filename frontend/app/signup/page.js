@@ -35,13 +35,12 @@ export default function SignupPage() {
         justifyContent: "center", padding: "60px 48px"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 64 }}>
-          <div style={{
-            backgroundColor: "#2563eb", width: 36, height: 36,
-            borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center"
-          }}>
-            <span style={{ color: "white", fontWeight: 700, fontSize: 12 }}>IDS</span>
-          </div>
-          <span style={{ color: "white", fontWeight: 600, fontSize: 14 }}>IDS Platform</span>
+          <img 
+            src="/favicon.png" 
+            alt="SinhalaGuruAI Logo" 
+            style={{ width: 36, height: 36, borderRadius: 8 }} 
+          />
+          <span style={{ color: "white", fontWeight: 600, fontSize: 14 }}>SinhalaGuruAI</span>
         </div>
 
         <p style={{ color: "#3b82f6", fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>

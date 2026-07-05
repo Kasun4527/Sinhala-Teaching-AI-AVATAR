@@ -97,17 +97,13 @@ export default function LandingPage() {
 
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-            width: 38, height: 38, borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(37,99,235,0.4)",
-            flexShrink: 0
-          }}>
-            <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>IDS</span>
-          </div>
+          <img 
+            src="/favicon.png" 
+            alt="SinhalaGuruAI Logo" 
+            style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0 }} 
+          />
           <span style={{ color: "white", fontWeight: 600, fontSize: 14, letterSpacing: 0.3 }}>
-            Intelligent Distance System
+            SinhalaGuruAI
           </span>
         </div>
 

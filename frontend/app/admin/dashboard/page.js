@@ -118,17 +118,14 @@ export default function AdminDashboard() {
           {/* Logo */}
           <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid #1e293b" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-                width: 34, height: 34, borderRadius: 10,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: "0 4px 12px rgba(37,99,235,0.4)", flexShrink: 0
-              }}>
-                <span style={{ color: "white", fontWeight: 800, fontSize: 11 }}>IDS</span>
-              </div>
+              <img 
+                src="/favicon.png" 
+                alt="SinhalaGuruAI Logo" 
+                style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0 }} 
+              />
               <div>
                 <p style={{ color: "white", fontWeight: 700, fontSize: 13, margin: 0 }}>
-                  IDS Platform
+                  SinhalaGuruAI
                 </p>
                 <p style={{ color: "#334155", fontSize: 10, margin: 0, letterSpacing: 0.5 }}>
                   ADMIN PANEL

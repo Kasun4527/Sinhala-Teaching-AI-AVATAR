@@ -1,8 +1,11 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "IDS Platform",
+  title: "SinhalaGuruAI",
   description: "Intelligent Distance Learning System",
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 export default function RootLayout({ children }) {
