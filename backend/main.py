@@ -56,7 +56,7 @@ app.mount("/images", StaticFiles(directory="images"), name="images")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # frontend
+    allow_origins=["http://localhost:3000", "https://witty-moss-04a910200.7.azurestaticapps.net"],  # frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
