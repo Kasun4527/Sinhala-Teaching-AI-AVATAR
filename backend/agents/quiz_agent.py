@@ -114,7 +114,8 @@ def extract_json(text):
 def generate_quiz(subject, lesson, topic, level, quiz_type):
     print("\n[DEBUG] Quiz Generation Started")
 
-    URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+    import os
+    URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
 
     # ✅ Fetch vector DB context
     context = get_relevant_context(subject, lesson, topic, k=6, use_vector_ranking=True)

@@ -2,7 +2,8 @@ import json
 import re
 import requests
 
-FINETUNED_MODEL_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+import os
+FINETUNED_MODEL_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
 
 
 def generate_explanation(content: str) -> str:
