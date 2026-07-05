@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API = (typeof window !== "undefined" && window.location.hostname !== "localhost")
+  ? "https://app-sinhala-backend.azurewebsites.net"
+  : "http://127.0.0.1:8000";
 
 export const getPreQuiz = (subject, lesson, topic) =>
   axios.get(`${API}/pre-quiz/`, {
