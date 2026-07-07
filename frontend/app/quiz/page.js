@@ -30,8 +30,8 @@ function FloatingPattern({ color }) {
       x: Math.random() * W, y: Math.random() * H,
       char: chars[Math.floor(Math.random() * chars.length)],
       size: 9 + Math.random() * 8,
-      speed: 0.18 + Math.random() * 0.32,
-      opacity: 0.35 + Math.random() * 0.30,
+      speed: 0.5 + Math.random() * 0.32,
+      opacity: 0.9 + Math.random() * 0.30,
       drift: (Math.random() - 0.5) * 0.15,
     }));
     let raf;

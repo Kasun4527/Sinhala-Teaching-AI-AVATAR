@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
-import AvatarTeacher from "@/components/AvatarTeacher";
+import AvatarSelector from "@/components/AvatarSelector";
 import ChatBot from "@/components/ChatBot";
 
 const ENGAGEMENT_SERVER = "http://localhost:5000";
@@ -464,7 +464,7 @@ export default function LessonPage() {
 
           {/* Avatar column */}
           <div style={{ width: 400, flexShrink: 0, overflowY: "auto", scrollbarWidth: "none", position: "relative", zIndex: 1 }}>
-            <AvatarTeacher
+            <AvatarSelector
               content={avatarSpeech || content}
               topic={topic}
               speechReady={speechReady}
