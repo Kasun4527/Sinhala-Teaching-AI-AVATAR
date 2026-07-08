@@ -64,31 +64,43 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       const audioEl = audioRef.current;
       audioEl.src = url;
 
-      // timeupdate fires ~4× per second — find active segment and notify parent
-      audioEl.ontimeupdate = () => {
-        if (!onSentenceChange || !segmentsRef.current.length) return;
+      // Use requestAnimationFrame (~60fps) instead of timeupdate (~4fps)
+      // for near-realtime highlight tracking.
+      let rafId = null;
+      const trackSegment = () => {
+        if (!onSentenceChange || !segmentsRef.current.length) { rafId = requestAnimationFrame(trackSegment); return; }
         const t = audioEl.currentTime;
-        const total = segmentsRef.current.length;
-        const idx = segmentsRef.current.findIndex((s) => t >= s.start && t < s.end);
-        const active = idx === -1
-          ? (t >= (segmentsRef.current[total - 1]?.end ?? 0) ? total - 1 : lastSegRef.current)
-          : idx;
-        if (active !== lastSegRef.current && active >= 0) {
-          lastSegRef.current = active;
-          // Pass normalised progress (0→1) so the existing paragraph mapping still works
-          onSentenceChange(active / Math.max(total - 1, 1));
+        const segs = segmentsRef.current;
+        const total = segs.length;
+        let idx = -1;
+        for (let i = 0; i < total; i++) {
+          if (t >= segs[i].start && t < segs[i].end) { idx = i; break; }
         }
+        if (idx === -1 && t >= (segs[total - 1]?.end ?? 0)) idx = total - 1;
+        if (idx !== lastSegRef.current && idx >= 0) {
+          lastSegRef.current = idx;
+          onSentenceChange(idx / Math.max(total - 1, 1));
+        }
+        rafId = requestAnimationFrame(trackSegment);
       };
 
-      audioEl.onplay  = () => { setSpeaking(true);  setStatus("Speaking…"); };
+      audioEl.onplay = () => {
+        setSpeaking(true);
+        setStatus("Speaking…");
+        rafId = requestAnimationFrame(trackSegment);
+      };
+      const stopRaf = () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } };
+
       audioEl.onended = () => {
+        stopRaf();
         setSpeaking(false);
         setStatus("");
         lastSegRef.current = -1;
-        if (onSentenceChange) onSentenceChange(-1); // clear highlight
+        if (onSentenceChange) onSentenceChange(-1);
         if (answerContent && onAnswerSpoken) onAnswerSpoken();
       };
-      audioEl.onerror = () => { setSpeaking(false); setStatus(""); };
+      audioEl.onpause = () => stopRaf();
+      audioEl.onerror = () => { stopRaf(); setSpeaking(false); setStatus(""); };
 
       setStatus("Starting…");
       await audioEl.play();
@@ -101,7 +113,8 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
   }, [activeContent, speaking, answerContent, onAnswerSpoken]);
 
   const handleStop = useCallback(() => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+    const el = audioRef.current;
+    if (el) { el.onpause = null; el.pause(); el.src = ""; }
     avatarRef.current?.stopImmediately();
     setSpeaking(false);
     setStatus("");

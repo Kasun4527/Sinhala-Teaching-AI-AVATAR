@@ -68,36 +68,59 @@ async function getTimeline(wavBuffer) {
   }
 }
 
-/** Split text into sentence-level segments with estimated start/end times. */
-function buildSegments(text, totalDurationSec) {
+/** Read total duration in seconds from a WAV buffer header. */
+function wavDuration(wavBuffer) {
+  const sampleRate   = wavBuffer.readUInt32LE(24);
+  const numChannels  = wavBuffer.readUInt16LE(22);
+  const bitsPerSample= wavBuffer.readUInt16LE(34);
+  const dataSize     = wavBuffer.readUInt32LE(40);
+  const byteRate     = (sampleRate * numChannels * bitsPerSample) / 8;
+  return dataSize / byteRate;
+}
+
+const BACKEND = "http://localhost:8000";
+
+/**
+ * Call Python backend to run faster-whisper and get real sentence timestamps.
+ * Falls back to character-ratio on any failure.
+ */
+async function alignSegments(wavBuffer, text, duration) {
+  try {
+    const res = await fetch(`${BACKEND}/align-audio/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        audio_b64: wavBuffer.toString("base64"),
+        text,
+        duration,
+      }),
+    });
+    if (!res.ok) throw new Error(`align-audio ${res.status}`);
+    const data = await res.json();
+    console.log(`[TTS] alignment source: ${data.source}, segments: ${data.segments?.length}`);
+    return data.segments || [];
+  } catch (err) {
+    console.warn("[TTS] whisper alignment failed, using character-ratio fallback:", err.message);
+    return charRatioSegments(text, duration);
+  }
+}
+
+/** Character-ratio fallback when whisper is unavailable. */
+function charRatioSegments(text, totalDurationSec) {
   const cleaned = text.replace(/\[IMAGE:[^\]]+\]/gi, "").trim();
-  // Split on Sinhala & Latin sentence endings
   const sentences = cleaned
     .split(/(?<=[.!?।෴\n])\s+/)
     .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
+    .filter(Boolean);
   if (!sentences.length) return [];
-
   const totalChars = sentences.reduce((s, t) => s + t.length, 0);
   let t = 0;
   return sentences.map((sentence) => {
-    const duration = (sentence.length / totalChars) * totalDurationSec;
-    const seg = { text: sentence, start: t, end: t + duration };
-    t += duration;
+    const d = (sentence.length / totalChars) * totalDurationSec;
+    const seg = { text: sentence, start: +t.toFixed(3), end: +(t + d).toFixed(3) };
+    t += d;
     return seg;
   });
-}
-
-/** Read total duration in seconds from a WAV buffer header. */
-function wavDuration(wavBuffer) {
-  // bytes 24-27: sample rate, bytes 4-7: RIFF chunk size
-  const sampleRate = wavBuffer.readUInt32LE(24);
-  const numChannels = wavBuffer.readUInt16LE(22);
-  const bitsPerSample = wavBuffer.readUInt16LE(34);
-  const dataSize = wavBuffer.readUInt32LE(40);
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  return dataSize / byteRate;
 }
 
 export async function POST(request) {
@@ -129,11 +152,12 @@ export async function POST(request) {
     const base64Audio = candidate.content.parts[0].inlineData.data;
     const pcmBuffer = Buffer.from(base64Audio, "base64");
     const wavBuffer = pcmToWav(pcmBuffer, 24000, 1, 16);
-    const [timeline, duration] = await Promise.all([
+    const duration = wavDuration(wavBuffer);
+    const speechText = text.slice(0, 3000);
+    const [timeline, segments] = await Promise.all([
       getTimeline(wavBuffer),
-      Promise.resolve(wavDuration(wavBuffer)),
+      alignSegments(wavBuffer, speechText, duration),
     ]);
-    const segments = buildSegments(text.slice(0, 3000), duration);
 
     return Response.json({ audio: wavBuffer.toString("base64"), timeline, segments, duration });
   } catch (err) {
