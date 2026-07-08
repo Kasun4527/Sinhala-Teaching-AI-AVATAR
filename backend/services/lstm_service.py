@@ -160,6 +160,9 @@ def predict_next_mastery(
         float: predicted mastery probability [0, 1]
         None:  if model is not available
     """
+    if not _model_loaded:
+        load_model()
+
     if not is_available():
         return None
 

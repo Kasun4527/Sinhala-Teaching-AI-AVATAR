@@ -66,15 +66,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Startup: ensure personalization indexes + load LSTM ──────────
+# ── Startup: ensure personalization indexes ──────────
 @app.on_event("startup")
 def on_startup():
     ensure_indexes()
-    try:
-        from services.lstm_service import load_model
-        load_model()
-    except Exception as e:
-        print(f"[Startup] LSTM model load skipped: {e}")
 
 from fastapi.responses import JSONResponse
 import traceback
