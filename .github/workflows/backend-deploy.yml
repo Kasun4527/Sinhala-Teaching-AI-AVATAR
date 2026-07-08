@@ -27,5 +27,6 @@ jobs:
             echo "!backend/documents_unicode/" >> .git/info/sparse-checkout
             git fetch origin
             git reset --hard origin/production
-            docker-compose -f docker-compose.backend.yml down
-            docker-compose -f docker-compose.backend.yml up -d --build
+            if ! docker compose version >/dev/null 2>&1; then apt-get update && apt-get install -y docker-compose-plugin; fi
+            docker compose -f docker-compose.backend.yml down
+            docker compose -f docker-compose.backend.yml up -d --build
