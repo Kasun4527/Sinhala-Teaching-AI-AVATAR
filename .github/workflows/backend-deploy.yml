@@ -21,6 +21,9 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             cd /root/Sinhala-Teaching-AI-AVATAR
+            git sparse-checkout init --cone=false
+            git sparse-checkout set '/*' '!backend/documents_unicode/*'
             git fetch origin
             git reset --hard origin/production
+            docker-compose -f docker-compose.backend.yml down
             docker-compose -f docker-compose.backend.yml up -d --build
