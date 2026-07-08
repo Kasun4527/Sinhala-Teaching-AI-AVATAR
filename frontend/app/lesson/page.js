@@ -6,8 +6,8 @@ import Sidebar from "@/components/Sidebar";
 import AvatarSelector from "@/components/AvatarSelector";
 import ChatBot from "@/components/ChatBot";
 
-const ENGAGEMENT_SERVER = "http://localhost:5000";
-const BACKEND = "http://localhost:8000";
+const ENGAGEMENT_SERVER = process.env.NEXT_PUBLIC_ENGAGEMENT_URL || "http://localhost:5000";
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 function FloatingPattern({ color }) {
   const canvasRef = useRef(null);
