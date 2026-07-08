@@ -54,7 +54,6 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       }
       const { audio, timeline, segments } = await res.json();
       timelineRef.current = timeline || [];
-      segmentsRef.current = segments || [];
       lastSegRef.current  = -1;
 
       const bytes = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
@@ -64,8 +63,25 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       const audioEl = audioRef.current;
       audioEl.src = url;
 
-      // Use requestAnimationFrame (~60fps) instead of timeupdate (~4fps)
-      // for near-realtime highlight tracking.
+      // Scale segment timestamps to actual audio duration once metadata is ready.
+      // Whisper timestamps end before the audio (pauses & trailing silence are trimmed),
+      // causing highlights to run ahead of speech.
+      audioEl.onloadedmetadata = () => {
+        const rawSegs = segments || [];
+        if (!rawSegs.length) { segmentsRef.current = []; return; }
+        const audioDur  = audioEl.duration;
+        const whisperEnd = rawSegs[rawSegs.length - 1].end;
+        const scale = (whisperEnd > 0 && audioDur > whisperEnd)
+          ? audioDur / whisperEnd
+          : 1;
+        segmentsRef.current = rawSegs.map((s) => ({
+          ...s,
+          start: +(s.start * scale).toFixed(3),
+          end:   +(s.end   * scale).toFixed(3),
+        }));
+      };
+
+      // Use requestAnimationFrame (~60fps) for near-realtime highlight tracking.
       let rafId = null;
       const trackSegment = () => {
         if (!onSentenceChange || !segmentsRef.current.length) { rafId = requestAnimationFrame(trackSegment); return; }
