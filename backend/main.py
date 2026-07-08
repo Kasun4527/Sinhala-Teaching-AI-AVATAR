@@ -490,6 +490,25 @@ def get_enrollments(student_id: str):
 # PERSONALIZATION ENDPOINTS (PC-BKT + BKT-LSTM)
 # ═══════════════════════════════════════════════════════════════
 
+@app.get("/sleep/")
+import time
+def sleep_test():
+    time.sleep(10)
+    return {"status": "awake"}
+
+@app.get("/test-crash/")
+def test_crash():
+    from langchain_huggingface import HuggingFaceEmbeddings
+    try:
+        emb = HuggingFaceEmbeddings(
+            model_name="intfloat/multilingual-e5-base",
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True}
+        )
+        return {"status": "success", "type": str(type(emb))}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/personalization/mastery")
 def get_mastery_endpoint(student_id: str, subject: str, lesson: str, topic: str):
     """Get the BKT mastery state for a student on a specific skill."""
