@@ -1,26 +1,25 @@
-name: Deploy Backend to Azure
+name: Deploy Backend to DigitalOcean
 
 on:
   push:
     branches:
-      - sachinthana/azure
+      - production
     paths:
       - 'backend/**'
+      - 'docker-compose.backend.yml'
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Zip backend directory
-        working-directory: ./backend
-        run: zip -r ../backend.zip . -x "__pycache__/*" "*.pyc" ".env" "temp/*"
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
+      - name: SSH and Deploy to DigitalOcean
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          app-name: app-sinhala-backend
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: backend.zip
+          host: ${{ secrets.DO_DROPLET_IP }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            cd /root/Sinhala-Teaching-AI-AVATAR
+            git pull origin production
+            docker-compose -f docker-compose.backend.yml up -d --build
