@@ -11,12 +11,17 @@ CHROMA_PATH = "./chroma_db"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
 
 
+_cached_embeddings = None
+
 def get_embeddings():
-    return HuggingFaceEmbeddings(
-        model_name=EMBEDDING_MODEL,
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True}
-    )
+    global _cached_embeddings
+    if _cached_embeddings is None:
+        _cached_embeddings = HuggingFaceEmbeddings(
+            model_name=EMBEDDING_MODEL,
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True}
+        )
+    return _cached_embeddings
 
 
 def get_vector_store():
