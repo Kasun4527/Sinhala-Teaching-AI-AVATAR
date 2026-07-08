@@ -19,6 +19,7 @@ jobs:
           host: ${{ secrets.DO_DROPLET_IP }}
           username: root
           key: ${{ secrets.DO_SSH_KEY }}
+          command_timeout: 30m
           script: |
             cd /root/Sinhala-Teaching-AI-AVATAR
             git config core.sparseCheckout true
