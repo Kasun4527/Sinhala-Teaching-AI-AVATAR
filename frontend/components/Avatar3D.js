@@ -63,47 +63,28 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       const audioEl = audioRef.current;
       audioEl.src = url;
 
-      // Scale segment timestamps to actual audio duration once metadata is ready.
-      // Whisper timestamps end before the audio (pauses & trailing silence are trimmed),
-      // causing highlights to run ahead of speech.
-      audioEl.onloadedmetadata = () => {
-        const rawSegs = segments || [];
-        if (!rawSegs.length) { segmentsRef.current = []; return; }
-        const audioDur  = audioEl.duration;
-        const whisperEnd = rawSegs[rawSegs.length - 1].end;
-        const scale = (whisperEnd > 0 && audioDur > whisperEnd)
-          ? audioDur / whisperEnd
-          : 1;
-        segmentsRef.current = rawSegs.map((s) => ({
-          ...s,
-          start: +(s.start * scale).toFixed(3),
-          end:   +(s.end   * scale).toFixed(3),
-        }));
-      };
-
-      // Use requestAnimationFrame (~60fps) for near-realtime highlight tracking.
+      // Use requestAnimationFrame at ~60fps to push currentTime/duration (0→1)
+      // directly as progress. Linear time → paragraph is more reliable than
+      // trying to map Whisper sentence indices to display paragraphs.
       let rafId = null;
-      const trackSegment = () => {
-        if (!onSentenceChange || !segmentsRef.current.length) { rafId = requestAnimationFrame(trackSegment); return; }
-        const t = audioEl.currentTime;
-        const segs = segmentsRef.current;
-        const total = segs.length;
-        let idx = -1;
-        for (let i = 0; i < total; i++) {
-          if (t >= segs[i].start && t < segs[i].end) { idx = i; break; }
+      let lastProgress = -1;
+      const trackProgress = () => {
+        if (onSentenceChange && audioEl.duration > 0) {
+          const progress = audioEl.currentTime / audioEl.duration;
+          // Only fire when progress changes by at least 0.5% to avoid jitter
+          if (Math.abs(progress - lastProgress) >= 0.005) {
+            lastProgress = progress;
+            onSentenceChange(progress);
+          }
         }
-        if (idx === -1 && t >= (segs[total - 1]?.end ?? 0)) idx = total - 1;
-        if (idx !== lastSegRef.current && idx >= 0) {
-          lastSegRef.current = idx;
-          onSentenceChange(idx / Math.max(total - 1, 1));
-        }
-        rafId = requestAnimationFrame(trackSegment);
+        rafId = requestAnimationFrame(trackProgress);
       };
 
       audioEl.onplay = () => {
         setSpeaking(true);
         setStatus("Speaking…");
-        rafId = requestAnimationFrame(trackSegment);
+        lastProgress = -1;
+        rafId = requestAnimationFrame(trackProgress);
       };
       const stopRaf = () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } };
 
