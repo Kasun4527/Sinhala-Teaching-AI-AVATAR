@@ -30,7 +30,7 @@ def get_vector_store():
     if os.getenv("ENVIRONMENT") == "production":
         client = chromadb.HttpClient(
             host=os.getenv("CHROMA_HOST", "localhost"),
-            port=os.getenv("CHROMA_PORT", "8000")
+            port=os.getenv("CHROMA_PORT", "8001")
         )
         return Chroma(
             client=client,
