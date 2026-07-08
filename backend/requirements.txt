@@ -18,3 +18,4 @@ google-genai
 tensorflow-cpu
 gunicorn
 python-multipart
+langchain-groq
