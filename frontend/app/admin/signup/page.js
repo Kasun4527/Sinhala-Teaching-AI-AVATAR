@@ -4,20 +4,37 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signupUser } from "@/services/api";
 
+const PASSWORD_RULES = [
+  { id: "len",     label: "At least 8 characters",        test: (p) => p.length >= 8 },
+  { id: "upper",   label: "One uppercase letter (A-Z)",    test: (p) => /[A-Z]/.test(p) },
+  { id: "lower",   label: "One lowercase letter (a-z)",    test: (p) => /[a-z]/.test(p) },
+  { id: "number",  label: "One number (0-9)",               test: (p) => /[0-9]/.test(p) },
+  { id: "special", label: "One special character (!@#...)", test: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function validatePassword(password) {
+  const failed = PASSWORD_RULES.filter((r) => !r.test(password));
+  return failed.length === 0 ? null : failed[0].label;
+}
+
 export default function AdminSignupPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pwFocused, setPwFocused] = useState(false);
+  const [done, setDone] = useState(false);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async () => {
     setError("");
+    const pwError = validatePassword(form.password);
+    if (pwError) { setError("Password must include: " + pwError); return; }
     setLoading(true);
     try {
       await signupUser({ ...form, role: "admin" });
-      router.push("/admin/login");
+      setDone(true);
     } catch (err) {
       setError(err?.response?.data?.detail || "Signup failed");
     } finally {
@@ -67,6 +84,34 @@ export default function AdminSignupPage() {
       }}>
         <div style={{ width: "100%", maxWidth: 400 }}>
 
+          {done ? (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 52, marginBottom: 20 }}>📧</div>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: "#0f172a", marginBottom: 10 }}>
+                Check your email
+              </h2>
+              <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
+                We sent a verification link to <strong style={{ color: "#0f172a" }}>{form.email}</strong>.<br />
+                Click the link in the email to activate your admin account.
+              </p>
+              <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 12, padding: "14px 20px", marginBottom: 24 }}>
+                <p style={{ margin: 0, color: "#92400e", fontSize: 13, lineHeight: 1.6 }}>
+                  Didn't receive it? Check your spam folder or wait a minute and try again.
+                </p>
+              </div>
+              <button
+                onClick={() => router.push("/admin/login")}
+                style={{
+                  width: "100%", padding: "13px", backgroundColor: "#0f172a",
+                  color: "white", border: "none", borderRadius: 10,
+                  fontSize: 14, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                Go to Admin Login →
+              </button>
+            </div>
+          ) : (<>
+
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             backgroundColor: "#fef3c7", color: "#92400e",
@@ -99,7 +144,7 @@ export default function AdminSignupPage() {
           {[
             { label: "Full Name", name: "name", type: "text", placeholder: "Your full name" },
             { label: "Email Address", name: "email", type: "email", placeholder: "admin@example.com" },
-            { label: "Password", name: "password", type: "password", placeholder: "Create a password" },
+            { label: "Password", name: "password", type: "password", placeholder: "Create a strong password" },
           ].map((field) => (
             <div key={field.name} style={{ marginBottom: 20 }}>
               <label style={{ color: "#475569", fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>
@@ -111,13 +156,46 @@ export default function AdminSignupPage() {
                 value={form[field.name]}
                 onChange={handleChange}
                 placeholder={field.placeholder}
+                onFocus={() => field.name === "password" && setPwFocused(true)}
+                onBlur={() => field.name === "password" && setPwFocused(false)}
                 style={{
                   width: "100%", padding: "12px 16px",
-                  border: "1.5px solid #e2e8f0", borderRadius: 10,
-                  fontSize: 14, outline: "none", backgroundColor: "white",
-                  color: "#0f172a", boxSizing: "border-box"
+                  border: `1.5px solid ${field.name === "password" && form.password && validatePassword(form.password) ? "#fca5a5" : "#e2e8f0"}`,
+                  borderRadius: 10, fontSize: 14, outline: "none",
+                  backgroundColor: "white", color: "#0f172a", boxSizing: "border-box"
                 }}
               />
+              {field.name === "password" && (pwFocused || form.password) && (
+                <div style={{
+                  marginTop: 10, padding: "12px 14px",
+                  backgroundColor: "#f8fafc", border: "1px solid #e2e8f0",
+                  borderRadius: 10,
+                }}>
+                  <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Password requirements
+                  </p>
+                  {PASSWORD_RULES.map((rule) => {
+                    const passed = rule.test(form.password);
+                    return (
+                      <div key={rule.id} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                        <div style={{
+                          width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                          backgroundColor: passed ? "#dcfce7" : "#f1f5f9",
+                          border: `1.5px solid ${passed ? "#22c55e" : "#cbd5e1"}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 9, color: passed ? "#16a34a" : "#94a3b8",
+                          transition: "all 0.2s",
+                        }}>
+                          {passed ? "✓" : ""}
+                        </div>
+                        <span style={{ fontSize: 12, color: passed ? "#16a34a" : "#94a3b8", transition: "color 0.2s" }}>
+                          {rule.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
 
@@ -155,6 +233,7 @@ export default function AdminSignupPage() {
             </span>
           </p>
 
+          </>)}
         </div>
       </div>
     </div>

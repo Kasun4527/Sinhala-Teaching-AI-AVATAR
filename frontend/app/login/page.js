@@ -68,16 +68,20 @@ function ParticleNetwork({ color }) {
 }
 
 
+const BACKEND = "http://localhost:8000";
+
 export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [unverified, setUnverified] = useState(false);
+  const [resendStatus, setResendStatus] = useState(""); // "" | "sending" | "sent" | "error"
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setUnverified(false); setError(""); };
 
   const handleSubmit = async () => {
-    setError("");
+    setError(""); setUnverified(false);
     setLoading(true);
     try {
       const res = await loginUser(form);
@@ -92,10 +96,24 @@ export default function LoginPage() {
       localStorage.setItem("student_id", data.student_id);
       router.push("/dashboard");
     } catch (err) {
-      setError(err?.response?.data?.detail || "Login failed");
+      const detail = err?.response?.data?.detail || "Login failed";
+      if (err?.response?.status === 403) { setUnverified(true); }
+      else { setError(detail); }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResend = async () => {
+    setResendStatus("sending");
+    try {
+      const res = await fetch(`${BACKEND}/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+      setResendStatus(res.ok ? "sent" : "error");
+    } catch { setResendStatus("error"); }
   };
 
   return (
@@ -155,12 +173,28 @@ export default function LoginPage() {
           </p>
 
           {error && (
-            <div style={{
-              backgroundColor: "#fef2f2", border: "1px solid #fecaca",
-              color: "#dc2626", fontSize: 13, padding: "12px 16px",
-              borderRadius: 10, marginBottom: 20
-            }}>
+            <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: 13, padding: "12px 16px", borderRadius: 10, marginBottom: 20 }}>
               {error}
+            </div>
+          )}
+
+          {unverified && (
+            <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: "0 0 8px", color: "#92400e", fontSize: 13, fontWeight: 600 }}>Email not verified</p>
+              <p style={{ margin: "0 0 12px", color: "#78350f", fontSize: 13, lineHeight: 1.6 }}>
+                Please check your inbox and click the verification link before logging in.
+              </p>
+              {resendStatus === "sent" ? (
+                <p style={{ margin: 0, color: "#16a34a", fontSize: 13, fontWeight: 500 }}>✓ Verification email resent — check your inbox.</p>
+              ) : (
+                <button
+                  onClick={handleResend}
+                  disabled={resendStatus === "sending"}
+                  style={{ background: "none", border: "none", padding: 0, color: "#b45309", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+                >
+                  {resendStatus === "sending" ? "Sending…" : resendStatus === "error" ? "Failed — try again" : "Resend verification email"}
+                </button>
+              )}
             </div>
           )}
 

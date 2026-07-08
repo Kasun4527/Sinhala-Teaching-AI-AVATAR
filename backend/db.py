@@ -21,6 +21,7 @@ delivered_content_collection = db["delivered_content"]
 enrollments_collection = db["enrollments"]
 engagement_collection = db["engagement_sessions"]
 qa_collection = db["student_qa"]
+email_tokens_collection = db["email_verification_tokens"]
 
 # ── Personalization Collections (PC-BKT + BKT-LSTM) ─────────────────────────
 

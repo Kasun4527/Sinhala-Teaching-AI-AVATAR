@@ -22,6 +22,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection
+from services.email_service import send_verification_email, verify_token
 from models.User import User
 from auth.security import hash_password
 from jose import jwt
@@ -315,17 +316,54 @@ def generate_tts(data: dict):
 
 @app.post("/auth/signup")
 def signup(user: User):
-
     existing_user = users_collection.find_one({"email": user.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="User already exists")
 
     user_dict = user.dict()
     user_dict["password"] = hash_password(user.password)
+    user_dict["is_verified"] = False
 
     users_collection.insert_one(user_dict)
 
-    return {"message": "User created successfully"}
+    try:
+        send_verification_email(user.email, user.name)
+    except Exception as e:
+        print(f"[Signup] Email send failed: {e}")
+        # Don't block signup if email fails — user can request resend later
+
+    return {"message": "Account created. Please check your email to verify your account."}
+
+
+@app.get("/auth/verify-email")
+def verify_email(token: str):
+    email = verify_token(token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+
+    result = users_collection.update_one(
+        {"email": email},
+        {"$set": {"is_verified": True}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"message": "Email verified successfully. You can now log in."}
+
+
+@app.post("/auth/resend-verification")
+def resend_verification(data: dict):
+    email = data.get("email", "").strip()
+    user = users_collection.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with that email")
+    if user.get("is_verified"):
+        raise HTTPException(status_code=400, detail="This account is already verified")
+    try:
+        send_verification_email(email, user.get("name", ""))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")
+    return {"message": "Verification email resent. Please check your inbox."}
 
 
 # Ensure SECRET_KEY is loaded from environment; fallback for local dev
@@ -347,6 +385,9 @@ def login(data: dict):
 
     if not verify_password(data["password"], user["password"]):
         raise HTTPException(status_code=401, detail="Invalid password")
+
+    if not user.get("is_verified", False):
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in. Check your inbox for the verification link.")
 
     token = jwt.encode(
         {"email": user["email"], "role": user["role"]},
