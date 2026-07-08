@@ -32,6 +32,8 @@ from agents.supervisor import learning_graph
 
 from agents.tts_agent import generate_teacher_speech
 from fastapi.responses import Response as FastAPIResponse
+from fastapi import UploadFile, File
+from agents.align_agent import get_word_timestamps, words_to_sentence_segments
 
 from agents.progress_agent import (
     save_pre_quiz_result,
@@ -165,6 +167,32 @@ def normalize_enrolled_subject(subject):
 @app.get("/")
 def home():
     return {"message": "Adaptive Learning AI Running 🚀"}
+
+
+class AlignRequest(BaseModel):
+    audio_b64: str        # base64-encoded WAV
+    text:      str        # original speech text for sentence mapping
+    duration:  float = 0  # WAV duration in seconds (used as fallback)
+
+@app.post("/align-audio/")
+async def align_audio(data: AlignRequest):
+    """
+    Run faster-whisper on the provided WAV and return sentence-level segments
+    with real timestamps.  Falls back to character-ratio if whisper fails.
+    """
+    import base64
+    try:
+        wav_bytes = base64.b64decode(data.audio_b64)
+        words     = get_word_timestamps(wav_bytes)
+        segments  = words_to_sentence_segments(data.text, words, data.duration)
+        return {"segments": segments, "words": words, "source": "whisper"}
+    except Exception as exc:
+        import traceback; traceback.print_exc()
+        # Graceful fallback — character ratio
+        from agents.align_agent import words_to_sentence_segments as wts
+        segments = wts(data.text, [], data.duration)
+        return {"segments": segments, "words": [], "source": "fallback", "error": str(exc)}
+
 
 @app.get("/pre-quiz/")
 def pre_quiz(subject: str, lesson: str, topic: str):
