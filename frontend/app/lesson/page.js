@@ -1,5 +1,5 @@
 "use client";
-
+import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
@@ -47,7 +47,7 @@ function FloatingPattern({ color }) {
   return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
 }
 
-export default function LessonPage() {
+function LessonPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -789,5 +789,13 @@ export default function LessonPage() {
 
       <ChatBot subject={subject} lesson={lesson} topic={topic} accent={accent} />
     </div>
+  );
+}
+
+export default function LessonPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "50px", textAlign: "center", fontFamily: "sans-serif" }}>Loading lesson...</div>}>
+      <LessonPageContent />
+    </Suspense>
   );
 }

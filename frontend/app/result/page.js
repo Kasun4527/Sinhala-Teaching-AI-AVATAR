@@ -1,5 +1,5 @@
 "use client";
-
+import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
@@ -108,7 +108,7 @@ function ScoreRing({ score, color, dark }) {
   );
 }
 
-export default function ResultPage() {
+function ResultPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -350,5 +350,13 @@ export default function ResultPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "50px", textAlign: "center", fontFamily: "sans-serif" }}>Loading results...</div>}>
+      <ResultPageContent />
+    </Suspense>
   );
 }
