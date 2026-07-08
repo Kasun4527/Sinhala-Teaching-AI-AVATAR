@@ -101,9 +101,21 @@ export default function LessonPage() {
 
   // Pre-count paragraphs in displayContent so we can map progress → index
   const paraCountRef = useRef(0);
+  const paraRefsMap  = useRef({});   // {paraIdx: domElement}
+  const contentScrollRef = useRef(null);
+
   const highlightedParaIdx = speechProgress >= 0 && paraCountRef.current > 0
     ? Math.min(Math.floor(speechProgress * paraCountRef.current), paraCountRef.current - 1)
     : -1;
+
+  // Auto-scroll to the highlighted paragraph
+  useEffect(() => {
+    if (highlightedParaIdx < 0) return;
+    const el = paraRefsMap.current[highlightedParaIdx];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedParaIdx]);
 
   const renderContentWithImages = (text) => {
     const lines = text.split("\n");
@@ -134,19 +146,24 @@ export default function LessonPage() {
         );
       } else {
         const isHighlighted = thisParaIdx === highlightedParaIdx;
+        const capturedIdx = thisParaIdx;
         elements.push(
-          <p key={`p-${keyIdx++}`} style={{
-            marginBottom: 20, lineHeight: 2,
-            color: isHighlighted ? "#0f172a" : "#374151", fontSize: 15.5,
-            textAlign: "justify",
-            borderLeft: isHighlighted ? `4px solid ${accent}` : sectionCount === 0 && thisParaIdx === 0 ? `3px solid ${accent}` : "none",
-            paddingLeft: isHighlighted || (sectionCount === 0 && thisParaIdx === 0) ? 16 : 0,
-            backgroundColor: isHighlighted ? `${accent}12` : "transparent",
-            borderRadius: isHighlighted ? 8 : 0,
-            padding: isHighlighted ? "10px 16px" : undefined,
-            transition: "all 0.5s ease",
-            boxShadow: isHighlighted ? `0 0 0 2px ${accent}30` : "none",
-          }}>
+          <p
+            key={`p-${keyIdx++}`}
+            ref={(el) => { paraRefsMap.current[capturedIdx] = el; }}
+            style={{
+              marginBottom: 20, lineHeight: 2,
+              color: isHighlighted ? "#0f172a" : "#374151", fontSize: 15.5,
+              textAlign: "justify",
+              borderLeft: isHighlighted ? `4px solid ${accent}` : sectionCount === 0 && thisParaIdx === 0 ? `3px solid ${accent}` : "none",
+              paddingLeft: isHighlighted || (sectionCount === 0 && thisParaIdx === 0) ? 16 : 0,
+              backgroundColor: isHighlighted ? `${accent}12` : "transparent",
+              borderRadius: isHighlighted ? 8 : 0,
+              padding: isHighlighted ? "10px 16px" : undefined,
+              transition: "background-color 0.4s ease, border-left 0.4s ease, box-shadow 0.4s ease",
+              boxShadow: isHighlighted ? `0 0 0 2px ${accent}30` : "none",
+            }}
+          >
             {joined}
           </p>
         );

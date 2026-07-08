@@ -12,9 +12,11 @@ const Avatar3DCanvas = dynamic(() => import("./Avatar3DCanvas"), { ssr: false })
  * Accepts the same key props: content, topic, speechReady, answerContent, onAnswerSpoken.
  */
 export default function Avatar3D({ content, topic, speechReady = true, answerContent, onAnswerSpoken, onSentenceChange }) {
-  const audioRef   = useRef(null);
+  const audioRef    = useRef(null);
   const timelineRef = useRef([]);
-  const avatarRef  = useRef(null);
+  const avatarRef   = useRef(null);
+  const segmentsRef = useRef([]);   // [{text, start, end}, ...]
+  const lastSegRef  = useRef(-1);   // last segment index fired
 
   const [speaking, setSpeaking]   = useState(false);
   const [status,   setStatus]     = useState("");
@@ -50,8 +52,10 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
         const msg = await res.json().catch(() => ({}));
         throw new Error(msg.detail || `TTS failed (${res.status})`);
       }
-      const { audio, timeline } = await res.json();
+      const { audio, timeline, segments } = await res.json();
       timelineRef.current = timeline || [];
+      segmentsRef.current = segments || [];
+      lastSegRef.current  = -1;
 
       const bytes = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
       const blob  = new Blob([bytes], { type: "audio/wav" });
@@ -60,10 +64,28 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       const audioEl = audioRef.current;
       audioEl.src = url;
 
+      // timeupdate fires ~4× per second — find active segment and notify parent
+      audioEl.ontimeupdate = () => {
+        if (!onSentenceChange || !segmentsRef.current.length) return;
+        const t = audioEl.currentTime;
+        const total = segmentsRef.current.length;
+        const idx = segmentsRef.current.findIndex((s) => t >= s.start && t < s.end);
+        const active = idx === -1
+          ? (t >= (segmentsRef.current[total - 1]?.end ?? 0) ? total - 1 : lastSegRef.current)
+          : idx;
+        if (active !== lastSegRef.current && active >= 0) {
+          lastSegRef.current = active;
+          // Pass normalised progress (0→1) so the existing paragraph mapping still works
+          onSentenceChange(active / Math.max(total - 1, 1));
+        }
+      };
+
       audioEl.onplay  = () => { setSpeaking(true);  setStatus("Speaking…"); };
       audioEl.onended = () => {
         setSpeaking(false);
         setStatus("");
+        lastSegRef.current = -1;
+        if (onSentenceChange) onSentenceChange(-1); // clear highlight
         if (answerContent && onAnswerSpoken) onAnswerSpoken();
       };
       audioEl.onerror = () => { setSpeaking(false); setStatus(""); };
@@ -83,7 +105,9 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
     avatarRef.current?.stopImmediately();
     setSpeaking(false);
     setStatus("");
-  }, []);
+    lastSegRef.current = -1;
+    if (onSentenceChange) onSentenceChange(-1);
+  }, [onSentenceChange]);
 
   const canSpeak = speechReady && !!activeContent && !speaking;
 

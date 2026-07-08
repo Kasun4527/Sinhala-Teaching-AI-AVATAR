@@ -68,6 +68,38 @@ async function getTimeline(wavBuffer) {
   }
 }
 
+/** Split text into sentence-level segments with estimated start/end times. */
+function buildSegments(text, totalDurationSec) {
+  const cleaned = text.replace(/\[IMAGE:[^\]]+\]/gi, "").trim();
+  // Split on Sinhala & Latin sentence endings
+  const sentences = cleaned
+    .split(/(?<=[.!?।෴\n])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  if (!sentences.length) return [];
+
+  const totalChars = sentences.reduce((s, t) => s + t.length, 0);
+  let t = 0;
+  return sentences.map((sentence) => {
+    const duration = (sentence.length / totalChars) * totalDurationSec;
+    const seg = { text: sentence, start: t, end: t + duration };
+    t += duration;
+    return seg;
+  });
+}
+
+/** Read total duration in seconds from a WAV buffer header. */
+function wavDuration(wavBuffer) {
+  // bytes 24-27: sample rate, bytes 4-7: RIFF chunk size
+  const sampleRate = wavBuffer.readUInt32LE(24);
+  const numChannels = wavBuffer.readUInt16LE(22);
+  const bitsPerSample = wavBuffer.readUInt16LE(34);
+  const dataSize = wavBuffer.readUInt32LE(40);
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  return dataSize / byteRate;
+}
+
 export async function POST(request) {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) return Response.json({ detail: "GOOGLE_API_KEY not set" }, { status: 500 });
@@ -97,9 +129,13 @@ export async function POST(request) {
     const base64Audio = candidate.content.parts[0].inlineData.data;
     const pcmBuffer = Buffer.from(base64Audio, "base64");
     const wavBuffer = pcmToWav(pcmBuffer, 24000, 1, 16);
-    const timeline = await getTimeline(wavBuffer);
+    const [timeline, duration] = await Promise.all([
+      getTimeline(wavBuffer),
+      Promise.resolve(wavDuration(wavBuffer)),
+    ]);
+    const segments = buildSegments(text.slice(0, 3000), duration);
 
-    return Response.json({ audio: wavBuffer.toString("base64"), timeline });
+    return Response.json({ audio: wavBuffer.toString("base64"), timeline, segments, duration });
   } catch (err) {
     console.error("generate-tts:", err);
     return Response.json({ detail: String(err?.message || err) }, { status: 500 });
