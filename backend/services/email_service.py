@@ -6,10 +6,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from db import email_tokens_collection
 
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 GMAIL_USER     = os.getenv("GMAIL_USER")
 GMAIL_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 FRONTEND_URL   = os.getenv("FRONTEND_URL", "http://localhost:3000")
 TOKEN_EXPIRY_HOURS = 24
+
+print(f"[EmailService] GMAIL_USER={GMAIL_USER!r}  PASSWORD_LEN={len(GMAIL_PASSWORD.replace(' ','')) if GMAIL_PASSWORD else 0}")
 
 
 def _send_email(to_email: str, subject: str, html_body: str):
@@ -19,8 +24,14 @@ def _send_email(to_email: str, subject: str, html_body: str):
     msg["To"]      = to_email
     msg.attach(MIMEText(html_body, "html"))
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(GMAIL_USER, GMAIL_PASSWORD)
+    # Strip spaces from App Password in case it was copied with spaces (xxxx xxxx xxxx xxxx)
+    password = (GMAIL_PASSWORD or "").replace(" ", "")
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(GMAIL_USER, password)
         server.sendmail(GMAIL_USER, to_email, msg.as_string())
 
 
@@ -41,6 +52,7 @@ def create_verification_token(email: str) -> str:
 def send_verification_email(email: str, name: str):
     token = create_verification_token(email)
     verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
+    print(f"[EmailService] Sending verification email TO: {email}  URL: {verify_url}")
 
     html = f"""
     <!DOCTYPE html>

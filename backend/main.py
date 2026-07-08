@@ -329,7 +329,9 @@ def signup(user: User):
     try:
         send_verification_email(user.email, user.name)
     except Exception as e:
+        import traceback
         print(f"[Signup] Email send failed: {e}")
+        traceback.print_exc()
         # Don't block signup if email fails — user can request resend later
 
     return {"message": "Account created. Please check your email to verify your account."}
@@ -401,6 +403,22 @@ def login(data: dict):
         "name": user["name"],
         "student_id": str(user["_id"])  
     }
+
+@app.get("/auth/test-email")
+def test_email_connection():
+    import smtplib, os
+    user = os.getenv("GMAIL_USER", "")
+    pwd  = (os.getenv("GMAIL_APP_PASSWORD") or "").replace(" ", "")
+    result = {"user": user, "password_len": len(pwd)}
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as s:
+            s.ehlo(); s.starttls(); s.ehlo()
+            s.login(user, pwd)
+            result["status"] = "SUCCESS — credentials are correct"
+    except Exception as e:
+        result["status"] = f"FAILED: {e}"
+    return result
+
 
 @app.get("/admin/students")
 def admin_get_students():

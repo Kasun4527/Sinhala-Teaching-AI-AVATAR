@@ -96,7 +96,8 @@ export default function AdminSignupPage() {
               </p>
               <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 12, padding: "14px 20px", marginBottom: 24 }}>
                 <p style={{ margin: 0, color: "#92400e", fontSize: 13, lineHeight: 1.6 }}>
-                  Didn't receive it? Check your spam folder or wait a minute and try again.
+                  📬 <strong>Check your Spam / Junk folder</strong> — the email may be filtered there.<br />
+                  Mark it as <em>"Not spam"</em> so future emails arrive in your inbox.
                 </p>
               </div>
               <button

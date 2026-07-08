@@ -96,13 +96,8 @@ export default function SignupPage() {
               </p>
               <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "14px 20px", marginBottom: 24 }}>
                 <p style={{ margin: 0, color: "#1d4ed8", fontSize: 13, lineHeight: 1.6 }}>
-                  Didn't receive it? Check your spam folder or{" "}
-                  <span
-                    style={{ fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
-                    onClick={() => router.push("/login")}
-                  >
-                    go to login
-                  </span>.
+                  📬 <strong>Check your Spam / Junk folder</strong> — the email may be filtered there.<br />
+                  Mark it as <em>"Not spam"</em> so future emails arrive in your inbox.
                 </p>
               </div>
               <button
