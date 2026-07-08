@@ -31,4 +31,4 @@ jobs:
           api_location: ""
           output_location: "" 
         env:
-          NEXT_PUBLIC_BACKEND_URL: "YOUR_DIGITALOCEAN_DROPLET_URL"
+          NEXT_PUBLIC_BACKEND_URL: "http://178.128.213.48:8000"
