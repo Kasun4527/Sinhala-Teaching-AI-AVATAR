@@ -1,83 +1,53 @@
-from langchain_core.prompts import PromptTemplate
-from services.llm import get_llm
-from knowledge_base.retriever import get_retriever
+import json
+import requests
+from services.retriever import get_relevant_context
+
+FINETUNED_MODEL_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+
 
 def generate_content(subject, lesson, topic, level):
 
-    llm = get_llm()
-    retriever = get_retriever()
+    context = get_relevant_context(subject, lesson, topic, k=4, max_length=None)
 
-    docs = retriever.invoke(topic)
-    context = "\n".join([doc.page_content for doc in docs])
+    if not context:
+        context = f"{topic} යන මාතෘකාව {subject} විෂය {lesson} පාඩමෙහි ඇතුළත් වේ."
 
-    # 🎯 Adaptive instruction engine
-    adaptive_instruction = ""
+    print(f"[DEBUG] Level={level}, context={len(context)} chars")
+
+    if level == "Advanced":
+        print("[DEBUG] Advanced — returning full context directly")
+        return context
 
     if level == "Beginner":
-        adaptive_instruction = """
-        Explain in VERY SIMPLE language.
-        Use real-life examples.
-        Break into small steps.
-        Assume student knows nothing.
-        """
+        instruction = (
+            f"මෙම '{topic}' පාඩම ඉතා සරල ව තේරුම් ගත හැකි වන සේ "
+            f"කෙටි හැදින්වීමක් (ඡේදය 2-3ක් පමණ) සිංහලෙන් ලියන්න. "
+            f"දෛනික ජීවිත නිදසුන් යොදා ගන්න."
+        )
+    else:
+        instruction = (
+            f"මෙම '{topic}' පාඩමේ ප්‍රධාන කරුණු සංක්ෂිප්ත ව "
+            f"(ඡේදය 2-3ක් පමණ) සිංහලෙන් හඳුන්වා දෙන්න."
+        )
 
-    elif level == "Intermediate":
-        adaptive_instruction = """
-        Explain clearly with moderate detail.
-        Include examples and key points.
-        Avoid too much complexity.
-        """
+    payload = {
+        "instruction": instruction,
+        "input": context[:2500],
+        "max_new_tokens": 500,
+    }
 
-    else:  # Advanced
-        adaptive_instruction = """
-        Give concise explanation.
-        Focus on deep understanding.
-        Include technical details and concepts.
-        """
-
-    prompt = PromptTemplate(
-    input_variables=["subject", "lesson", "topic", "level", "context"],
-    template="""
-You are an expert {subject} teacher.
-
-Lesson: {lesson}
-Topic: {topic}
-Student Level: {level}
-
-Context:
-{context}
-
-INSTRUCTIONS:
-
-If level = Beginner:
-- Explain step by step
-- Use simple language
-- Add examples
-
-If level = Intermediate:
-- Give structured explanation
-- Include some theory + examples
-
-If level = Advanced:
-- Focus on concepts, formulas, and deeper understanding
-
-Make the lesson clear and engaging.
-
-DO NOT generate quiz.
-
-Return only lesson content.
-"""
-)
-
-    chain = prompt | llm
-
-    response = chain.invoke({
-        "subject": subject,
-        "lesson": lesson,
-        "topic": topic,
-        "level": level,
-        "context": context,
-        "instruction": adaptive_instruction
-    })
-
-    return response.content
+    try:
+        response = requests.post(
+            FINETUNED_MODEL_URL,
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            timeout=120,
+        )
+        response.raise_for_status()
+        data = response.json()
+        intro = (data.get("answer") or data.get("response") or "").strip()
+        print(f"[DEBUG] Fine-tuned model intro generated: {len(intro)} chars")
+        return f"{intro}\n\n---\n\n{context}" if intro else context
+    except Exception as e:
+        print(f"[WARNING] Fine-tuned model intro failed: {e} — returning full context")
+        return context

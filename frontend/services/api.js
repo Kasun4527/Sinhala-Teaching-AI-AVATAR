@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://127.0.0.1:8000";
+const API = "http://localhost:8000";
 
 export const getPreQuiz = (subject, lesson, topic) =>
   axios.get(`${API}/pre-quiz/`, {
@@ -31,3 +31,15 @@ export const signupUser = (data) =>
 
 export const loginUser = (data) =>
   axios.post(`${API}/auth/login`, data);
+
+export const enrollSubject = (data) =>
+  axios.post(`${API}/enroll/`, data);
+
+export const getEnrollments = (studentId) =>
+  axios.get(`${API}/enrollments`, {
+    params: { student_id: studentId },
+  });
+
+// Bug #10: Per-answer online learning submission
+export const submitSingleAnswer = (data) =>
+  axios.post(`${API}/submit-answer/`, data);

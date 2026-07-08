@@ -1,19 +1,87 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { loginUser } from "@/services/api";
+
+function ParticleNetwork({ color }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let W = canvas.width  = canvas.offsetWidth;
+    let H = canvas.height = canvas.offsetHeight;
+
+    const CONNECT_DIST = 120;
+    const particles = Array.from({ length: 55 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: (Math.random() - 0.5) * 0.5,
+      r: 2.5 + Math.random() * 2.5,
+    }));
+
+    let raf;
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+
+      // Draw connecting lines
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < CONNECT_DIST) {
+            const alpha = (1 - dist / CONNECT_DIST) * 0.45;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.strokeStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0");
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Draw dots
+      for (const p of particles) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = color + "99";
+        ctx.fill();
+
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0 || p.x > W) p.vx *= -1;
+        if (p.y < 0 || p.y > H) p.vy *= -1;
+      }
+
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+
+    const onResize = () => { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; };
+    window.addEventListener("resize", onResize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
+  }, [color]);
+
+  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
+}
+
+
+const BACKEND = "http://localhost:8000";
 
 export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [unverified, setUnverified] = useState(false);
+  const [resendStatus, setResendStatus] = useState(""); // "" | "sending" | "sent" | "error"
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setUnverified(false); setError(""); };
 
   const handleSubmit = async () => {
-    setError("");
+    setError(""); setUnverified(false);
     setLoading(true);
     try {
       const res = await loginUser(form);
@@ -28,10 +96,24 @@ export default function LoginPage() {
       localStorage.setItem("student_id", data.student_id);
       router.push("/dashboard");
     } catch (err) {
-      setError(err?.response?.data?.detail || "Login failed");
+      const detail = err?.response?.data?.detail || "Login failed";
+      if (err?.response?.status === 403) { setUnverified(true); }
+      else { setError(detail); }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResend = async () => {
+    setResendStatus("sending");
+    try {
+      const res = await fetch(`${BACKEND}/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+      setResendStatus(res.ok ? "sent" : "error");
+    } catch { setResendStatus("error"); }
   };
 
   return (
@@ -74,9 +156,11 @@ export default function LoginPage() {
       <div style={{
         flex: 1, backgroundColor: "#f8fafc",
         display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "48px"
+        padding: "48px", position: "relative", overflow: "hidden"
       }}>
-        <div style={{ width: "100%", maxWidth: 400 }}>
+        <ParticleNetwork color="#2563eb" />
+
+        <div style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
 
           <h2 style={{
             fontFamily: "'Playfair Display', serif",
@@ -89,12 +173,28 @@ export default function LoginPage() {
           </p>
 
           {error && (
-            <div style={{
-              backgroundColor: "#fef2f2", border: "1px solid #fecaca",
-              color: "#dc2626", fontSize: 13, padding: "12px 16px",
-              borderRadius: 10, marginBottom: 20
-            }}>
+            <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: 13, padding: "12px 16px", borderRadius: 10, marginBottom: 20 }}>
               {error}
+            </div>
+          )}
+
+          {unverified && (
+            <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: "0 0 8px", color: "#92400e", fontSize: 13, fontWeight: 600 }}>Email not verified</p>
+              <p style={{ margin: "0 0 12px", color: "#78350f", fontSize: 13, lineHeight: 1.6 }}>
+                Please check your inbox and click the verification link before logging in.
+              </p>
+              {resendStatus === "sent" ? (
+                <p style={{ margin: 0, color: "#16a34a", fontSize: 13, fontWeight: 500 }}>✓ Verification email resent — check your inbox.</p>
+              ) : (
+                <button
+                  onClick={handleResend}
+                  disabled={resendStatus === "sending"}
+                  style={{ background: "none", border: "none", padding: 0, color: "#b45309", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+                >
+                  {resendStatus === "sending" ? "Sending…" : resendStatus === "error" ? "Failed — try again" : "Resend verification email"}
+                </button>
+              )}
             </div>
           )}
 
