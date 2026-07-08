@@ -133,11 +133,11 @@ def train_and_save_kmeans() -> Optional[Dict]:
     kmeans_models_col.update_one(
         {"model_version": "latest"},
         {"$set": {
-            "n_clusters":    actual_k,
+            "n_clusters":    int(actual_k),
             "centroids":     centroids_list,
-            "label_remap":   {str(k): v for k, v in label_remap.items()},
+            "label_remap":   {str(k): int(v) for k, v in label_remap.items()},
             "skill_ids":     skill_ids,
-            "cluster_labels": CLUSTER_LABELS,
+            "cluster_labels": {str(k): v for k, v in CLUSTER_LABELS.items()},
             "trained_at":    now,
             "student_count": len(all_student_ids)
         }},
@@ -147,7 +147,7 @@ def train_and_save_kmeans() -> Optional[Dict]:
     # Update all student cluster assignments
     for i, sid in enumerate(all_student_ids):
         raw_label = int(labels[i])
-        mapped_label = label_remap.get(raw_label, 1)
+        mapped_label = int(label_remap.get(raw_label, 1))
         student_clusters_col.update_one(
             {"student_id": sid},
             {"$set": {

@@ -121,9 +121,13 @@ export default function TopicsPage() {
           background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark} 55%, ${cfg.hue} 100%)`,
           padding: "52px 60px 48px",
         }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.3,
-            backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
-            backgroundSize: "26px 26px" }} />
+          {/* Blueprint grid — matches dashboard */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+            backgroundSize: "48px 48px" }} />
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
+            backgroundSize: "12px 12px" }} />
           <div style={{ position: "absolute", top: -80, right: -60, width: 360, height: 360, borderRadius: "50%",
             background: "radial-gradient(circle, rgba(147,197,253,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
 

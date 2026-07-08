@@ -17,6 +17,20 @@ from datetime import datetime
 from db import problem_difficulty_col
 
 
+def _to_py(obj):
+    if isinstance(obj, dict):
+        return {str(k): _to_py(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_py(x) for x in obj]
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
+
+
 # ─────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────
@@ -107,14 +121,14 @@ def update_difficulty_batch(
 
         problem_difficulty_col.update_one(
             {"question_hash": q_hash},
-            {"$set": {
+            {"$set": _to_py({
                 "question_text":         q_text,
                 "skill_id":              skill_id,
                 "difficulty":            new_difficulty,
                 "attempt_count":         new_attempts,
                 "correct_first_attempts": new_correct,
                 "updated_at":            now
-            }},
+            })},
             upsert=True
         )
 

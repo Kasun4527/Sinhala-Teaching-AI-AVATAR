@@ -23,6 +23,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection
+from services.email_service import send_verification_email, verify_token
 from models.User import User
 from auth.security import hash_password
 from jose import jwt
@@ -57,11 +58,25 @@ app.mount("/images", StaticFiles(directory="images"), name="images")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # frontend
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ensure CORS headers are present even on unhandled 500 errors
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+        headers={"Access-Control-Allow-Origin": request.headers.get("origin", "*")},
+    )
 
 # ── Startup: ensure personalization indexes + load LSTM ──────────
 @app.on_event("startup")
@@ -325,17 +340,56 @@ async def generate_tts(data: dict):
 
 @app.post("/auth/signup")
 def signup(user: User):
-
     existing_user = users_collection.find_one({"email": user.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="User already exists")
 
     user_dict = user.dict()
     user_dict["password"] = hash_password(user.password)
+    user_dict["is_verified"] = False
 
     users_collection.insert_one(user_dict)
 
-    return {"message": "User created successfully"}
+    try:
+        send_verification_email(user.email, user.name)
+    except Exception as e:
+        import traceback
+        print(f"[Signup] Email send failed: {e}")
+        traceback.print_exc()
+        # Don't block signup if email fails — user can request resend later
+
+    return {"message": "Account created. Please check your email to verify your account."}
+
+
+@app.get("/auth/verify-email")
+def verify_email(token: str):
+    email = verify_token(token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+
+    result = users_collection.update_one(
+        {"email": email},
+        {"$set": {"is_verified": True}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"message": "Email verified successfully. You can now log in."}
+
+
+@app.post("/auth/resend-verification")
+def resend_verification(data: dict):
+    email = data.get("email", "").strip()
+    user = users_collection.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with that email")
+    if user.get("is_verified"):
+        raise HTTPException(status_code=400, detail="This account is already verified")
+    try:
+        send_verification_email(email, user.get("name", ""))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")
+    return {"message": "Verification email resent. Please check your inbox."}
 
 
 # Ensure SECRET_KEY is loaded from environment; fallback for local dev
@@ -358,6 +412,9 @@ def login(data: dict):
     if not verify_password(data["password"], user["password"]):
         raise HTTPException(status_code=401, detail="Invalid password")
 
+    if not user.get("is_verified", False):
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in. Check your inbox for the verification link.")
+
     token = jwt.encode(
         {"email": user["email"], "role": user["role"]},
         SECRET_KEY,
@@ -370,6 +427,22 @@ def login(data: dict):
         "name": user["name"],
         "student_id": str(user["_id"])  
     }
+
+@app.get("/auth/test-email")
+def test_email_connection():
+    import smtplib, os
+    user = os.getenv("GMAIL_USER", "")
+    pwd  = (os.getenv("GMAIL_APP_PASSWORD") or "").replace(" ", "")
+    result = {"user": user, "password_len": len(pwd)}
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as s:
+            s.ehlo(); s.starttls(); s.ehlo()
+            s.login(user, pwd)
+            result["status"] = "SUCCESS — credentials are correct"
+    except Exception as e:
+        result["status"] = f"FAILED: {e}"
+    return result
+
 
 @app.get("/admin/students")
 def admin_get_students():

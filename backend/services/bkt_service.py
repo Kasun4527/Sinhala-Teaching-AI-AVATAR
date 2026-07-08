@@ -22,6 +22,21 @@ from db import (
     interaction_logs_col
 )
 
+
+def _to_py(obj):
+    """Recursively convert numpy scalars/arrays to native Python types for MongoDB."""
+    if isinstance(obj, dict):
+        return {str(k): _to_py(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_py(x) for x in obj]
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
+
 # ─────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────
@@ -425,7 +440,7 @@ def process_quiz_session(
     diffs  = difficulties  or ([5]    * len(quiz_answers))
 
     for i, ans in enumerate(quiz_answers):
-        interaction_logs_col.insert_one({
+        interaction_logs_col.insert_one(_to_py({
             "student_id":  student_id,
             "skill_id":    skill_id,
             "question_id": q_ids[i],
@@ -433,17 +448,17 @@ def process_quiz_session(
             "quiz_type":   quiz_type,
             "difficulty":  int(diffs[i]),
             "created_at":  now
-        })
+        }))
 
     # ── 7. Upsert personalized BKT parameters ─────────────────────────────────
     bkt_params_col.update_one(
         {"student_id": student_id, "skill_id": skill_id},
-        {"$set": {
+        {"$set": _to_py({
             "L0": params["L0"], "T": params["T"],
             "G":  params["G"],  "S": params["S"],
             "response_count": len(all_responses),
             "fitted_at": now
-        }},
+        })},
         upsert=True
     )
 
@@ -451,13 +466,13 @@ def process_quiz_session(
     correct_count = sum(all_responses)
     skill_mastery_col.update_one(
         {"student_id": student_id, "skill_id": skill_id},
-        {"$set": {
+        {"$set": _to_py({
             "mastery":          mastery,
             "total_attempts":   len(all_responses),
             "correct_attempts": correct_count,
             "is_uncertain":     is_uncertain,
             "updated_at":       now
-        },
+        }),
         "$setOnInsert": {
             "created_at": now
         }},
@@ -514,7 +529,7 @@ def process_single_answer(
     new_mastery = accuracy_sanity_check(new_mastery, recent_responses)
 
     # ── 4. Persist the single interaction log ────────────────────────────────
-    interaction_logs_col.insert_one({
+    interaction_logs_col.insert_one(_to_py({
         "student_id":  student_id,
         "skill_id":    skill_id,
         "question_id": question_id,
@@ -522,7 +537,7 @@ def process_single_answer(
         "quiz_type":   quiz_type,
         "difficulty":  difficulty,
         "created_at":  now
-    })
+    }))
 
     # ── 5. Count total attempts ──────────────────────────────────────────────
     total_attempts = interaction_logs_col.count_documents(
@@ -533,12 +548,12 @@ def process_single_answer(
     # ── 6. Update mastery in DB ──────────────────────────────────────────────
     skill_mastery_col.update_one(
         {"student_id": student_id, "skill_id": skill_id},
-        {"$set": {
+        {"$set": _to_py({
             "mastery":        new_mastery,
             "total_attempts": total_attempts,
             "is_uncertain":   is_uncertain,
             "updated_at":     now
-        },
+        }),
         "$setOnInsert": {
             "created_at": now
         },
