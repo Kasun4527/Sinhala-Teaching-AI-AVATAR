@@ -57,7 +57,7 @@ app.mount("/images", StaticFiles(directory="images"), name="images")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # frontend
+    allow_origins=["https://your-azure-frontend-url.azurestaticapps.net", "https://learnsinhala.lk"],  # strict production CORS
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

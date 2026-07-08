@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  fastapi_backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    depends_on:
+      - chromadb
+    restart: always
+    networks:
+      - ai_network
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./chroma_data:/chroma/chroma
+    restart: always
+    networks:
+      - ai_network
+
+networks:
+  ai_network:
+    driver: bridge
