@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://127.0.0.1:8000";
+const API = "http://localhost:8000";
 
 export const getPreQuiz = (subject, lesson, topic) =>
   axios.get(`${API}/pre-quiz/`, {

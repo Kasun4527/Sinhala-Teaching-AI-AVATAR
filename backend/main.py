@@ -57,11 +57,25 @@ app.mount("/images", StaticFiles(directory="images"), name="images")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # frontend
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ensure CORS headers are present even on unhandled 500 errors
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+        headers={"Access-Control-Allow-Origin": request.headers.get("origin", "*")},
+    )
 
 # ── Startup: ensure personalization indexes + load LSTM ──────────
 @app.on_event("startup")
@@ -163,35 +177,39 @@ def pre_quiz(subject: str, lesson: str, topic: str):
 
 @app.post("/submit-pre-quiz/")
 def submit_pre_quiz(data: QuizSubmission):
+    try:
+        final_state = learning_graph.invoke({
+            "student_id": data.student_id,
+            "subject": data.subject,
+            "lesson": data.lesson,
+            "topic": data.topic,
+            "student_answers": data.student_answers,
+            "correct_answers": data.correct_answers,
+            "quiz_type": "pre",
+            "quiz": None,
+            "score": None,
+            "level": None,
+            "content": None,
+            "decision": None,
+            # ── Personalization fields ──
+            "mastery": None,
+            "hybrid_mastery": None,
+            "bkt_level": None,
+            "quiz_questions": data.quiz_questions
+        })
 
-    final_state = learning_graph.invoke({
-        "student_id": data.student_id,
-        "subject": data.subject,
-        "lesson": data.lesson,
-        "topic": data.topic,
-        "student_answers": data.student_answers,
-        "correct_answers": data.correct_answers,
-        "quiz_type": "pre",
-        "quiz": None,
-        "score": None,
-        "level": None,
-        "content": None,
-        "decision": None,
-        # ── Personalization fields ──
-        "mastery": None,
-        "hybrid_mastery": None,
-        "bkt_level": None,
-        "quiz_questions": data.quiz_questions
-    })
-
-    return {
-        "score": final_state["score"],
-        "level": final_state["level"],
-        "content": final_state["content"],
-        "mastery": final_state.get("mastery"),
-        "hybrid_mastery": final_state.get("hybrid_mastery"),
-        "bkt_level": final_state.get("bkt_level")
-    }
+        return {
+            "score": final_state["score"],
+            "level": final_state["level"],
+            "content": final_state["content"],
+            "mastery": final_state.get("mastery"),
+            "hybrid_mastery": final_state.get("hybrid_mastery"),
+            "bkt_level": final_state.get("bkt_level")
+        }
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/post-quiz/")

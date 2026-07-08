@@ -1,7 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+
+function ParticleNetwork({ color }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let W = canvas.width  = canvas.offsetWidth;
+    let H = canvas.height = canvas.offsetHeight;
+    const CONNECT_DIST = 120;
+    const particles = Array.from({ length: 55 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.5, vy: (Math.random() - 0.5) * 0.5,
+      r: 2.5 + Math.random() * 2.5,
+    }));
+    let raf;
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < CONNECT_DIST) {
+            const alpha = (1 - dist / CONNECT_DIST) * 0.45;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.strokeStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0");
+            ctx.lineWidth = 1; ctx.stroke();
+          }
+        }
+      }
+      for (const p of particles) {
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = color + "99"; ctx.fill();
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0 || p.x > W) p.vx *= -1;
+        if (p.y < 0 || p.y > H) p.vy *= -1;
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    const onResize = () => { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; };
+    window.addEventListener("resize", onResize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
+  }, [color]);
+  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
+}
 import { signupUser } from "@/services/api";
 
 const PASSWORD_RULES = [
@@ -80,9 +129,10 @@ export default function SignupPage() {
       <div style={{
         flex: 1, backgroundColor: "#f8fafc",
         display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "48px"
+        padding: "48px", position: "relative", overflow: "hidden"
       }}>
-        <div style={{ width: "100%", maxWidth: 400 }}>
+        <ParticleNetwork color="#2563eb" />
+        <div style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
 
           {done ? (
             <div style={{ textAlign: "center" }}>

@@ -81,7 +81,7 @@ export default function Sidebar({ subject: activeSub = null }) {
             </div>
             <div>
               <p style={{ color: "white", fontWeight: 700, fontSize: 13, margin: 0 }}>IDS Platform</p>
-              <p style={{ color: "#334155", fontSize: 10, margin: 0, letterSpacing: 0.5 }}>LEARNING SYSTEM</p>
+              <p style={{ color: "#64748b", fontSize: 10, margin: 0, letterSpacing: 0.5 }}>LEARNING SYSTEM</p>
             </div>
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function Sidebar({ subject: activeSub = null }) {
                 marginBottom: 6,
               }}>
                 <p style={{
-                  color: "#94a3b8", fontSize: 9, fontWeight: 700,
+                  color: "#64748b", fontSize: 9, fontWeight: 700,
                   letterSpacing: "0.12em", textTransform: "uppercase", margin: "0 0 4px",
                 }}>Current Subject</p>
                 <p style={{
@@ -146,7 +146,7 @@ export default function Sidebar({ subject: activeSub = null }) {
                       borderRadius: 4, transition: "width 0.4s ease",
                     }} />
                   </div>
-                  <span style={{ color: "#475569", fontSize: 9, flexShrink: 0 }}>
+                  <span style={{ color: "#94a3b8", fontSize: 9, flexShrink: 0 }}>
                     {done}/{total}
                   </span>
                 </div>
@@ -157,7 +157,7 @@ export default function Sidebar({ subject: activeSub = null }) {
                 const lessonDone = lesson.topics.length > 0 && lesson.topics.every(t => t.done);
                 const lessonAny  = lesson.topics.some(t => t.done);
                 const isOpen     = expanded[`lesson-${li}`] !== false; // default open
-                const lessonAccent = lessonDone ? "#22c55e" : lessonAny ? "#60a5fa" : "#475569";
+                const lessonAccent = lessonDone ? "#22c55e" : lessonAny ? "#60a5fa" : "#cbd5e1";
 
                 return (
                   <div key={li} style={{ marginBottom: 2 }}>
@@ -184,7 +184,7 @@ export default function Sidebar({ subject: activeSub = null }) {
                         {lesson.name}
                       </p>
                       <span style={{
-                        color: "#334155", fontSize: 8,
+                        color: "#64748b", fontSize: 8,
                         transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
                         transition: "transform 0.2s", flexShrink: 0,
                       }}>▶</span>
@@ -206,14 +206,12 @@ export default function Sidebar({ subject: activeSub = null }) {
                         <div style={{
                           width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
                           backgroundColor: topic.done ? "#22c55e" : "transparent",
-                          border: `1.5px solid ${topic.done ? "#22c55e" : "#334155"}`,
+                          border: `1.5px solid ${topic.done ? "#22c55e" : "#475569"}`,
                         }} />
                         <p style={{
-                          color: topic.done ? "#86efac" : "#475569",
+                          color: topic.done ? "#22c55e" : "#cbd5e1",
                           fontSize: 10, margin: 0,
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          textDecoration: topic.done ? "line-through" : "none",
-                          opacity: topic.done ? 0.6 : 1,
                         }}>
                           {topic.name}
                         </p>
@@ -230,7 +228,7 @@ export default function Sidebar({ subject: activeSub = null }) {
         {!activeSub && subjects.length > 0 && (
           <div style={{ padding: "0 10px 8px" }}>
             <p style={{
-              color: "#334155", fontSize: 9, fontWeight: 700,
+              color: "#64748b", fontSize: 9, fontWeight: 700,
               letterSpacing: "0.12em", textTransform: "uppercase",
               margin: "0 0 6px 4px",
             }}>My Subjects</p>
@@ -256,7 +254,7 @@ export default function Sidebar({ subject: activeSub = null }) {
                         backgroundColor: accent, borderRadius: 2,
                       }} />
                     </div>
-                    <span style={{ color: "#475569", fontSize: 9 }}>{done}/{total}</span>
+                    <span style={{ color: "#94a3b8", fontSize: 9 }}>{done}/{total}</span>
                   </div>
                 </div>
               );
@@ -296,7 +294,7 @@ export default function Sidebar({ subject: activeSub = null }) {
                 color: "#e2e8f0", fontSize: 12, fontWeight: 600, margin: 0,
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
               }}>{name}</p>
-              <p style={{ color: "#334155", fontSize: 10, margin: 0 }}>Student</p>
+              <p style={{ color: "#64748b", fontSize: 10, margin: 0 }}>Student</p>
             </div>
           </div>
         </div>

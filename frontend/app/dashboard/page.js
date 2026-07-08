@@ -119,9 +119,12 @@ export default function StudentDashboard() {
           background: `linear-gradient(145deg, ${NAVY} 0%, ${BLUE_XD} 55%, ${BLUE_D} 100%)`,
           padding: "60px 60px 56px",
         }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.35,
-            backgroundImage: "radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)",
-            backgroundSize: "28px 28px" }} />
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+            backgroundSize: "48px 48px" }} />
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
+            backgroundSize: "12px 12px" }} />
           <div style={{ position: "absolute", top: -100, right: -60, width: 420, height: 420, borderRadius: "50%",
             background: "radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)", pointerEvents: "none" }} />
           <div style={{ position: "absolute", bottom: -80, left: "40%", width: 300, height: 300, borderRadius: "50%",
