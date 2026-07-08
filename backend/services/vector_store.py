@@ -28,13 +28,12 @@ def get_vector_store():
     embeddings = get_embeddings()
     
     if os.getenv("ENVIRONMENT") == "production":
-        client_settings = Settings(
-            chroma_api_impl="rest",
-            chroma_server_host=os.getenv("CHROMA_HOST", "localhost"),
-            chroma_server_http_port=os.getenv("CHROMA_PORT", "8000")
+        client = chromadb.HttpClient(
+            host=os.getenv("CHROMA_HOST", "localhost"),
+            port=os.getenv("CHROMA_PORT", "8000")
         )
         return Chroma(
-            client_settings=client_settings,
+            client=client,
             embedding_function=embeddings,
             collection_name="sinhala_education"
         )
