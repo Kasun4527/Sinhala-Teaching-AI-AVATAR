@@ -1,8 +1,8 @@
 import json
 import requests
 from services.retriever import get_relevant_context
-
-FINETUNED_MODEL_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+from services.llm import get_llm
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 def generate_content(subject, lesson, topic, level):
@@ -30,22 +30,14 @@ def generate_content(subject, lesson, topic, level):
             f"(ඡේදය 2-3ක් පමණ) සිංහලෙන් හඳුන්වා දෙන්න."
         )
 
-    payload = {
-        "instruction": instruction,
-        "input": context[:2500],
-        "max_new_tokens": 500,
-    }
-
     try:
-        response = requests.post(
-            FINETUNED_MODEL_URL,
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            timeout=120,
-        )
-        response.raise_for_status()
-        data = response.json()
-        intro = (data.get("answer") or data.get("response") or "").strip()
+        llm = get_llm()
+        messages = [
+            SystemMessage(content="You are an expert Sinhala teacher."),
+            HumanMessage(content=f"{instruction}\n\nContext:\n{context[:2500]}")
+        ]
+        response = llm.invoke(messages)
+        intro = response.content.strip()
         print(f"[DEBUG] Fine-tuned model intro generated: {len(intro)} chars")
         return f"{intro}\n\n---\n\n{context}" if intro else context
     except Exception as e:

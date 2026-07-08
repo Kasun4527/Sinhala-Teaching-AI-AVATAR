@@ -1,8 +1,13 @@
 import json
 import re
 import random
+import json
+import re
+import random
 import requests
 from services.retriever import get_relevant_context
+from services.llm import get_llm
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 def normalize_quiz_questions(result):
@@ -114,8 +119,6 @@ def extract_json(text):
 def generate_quiz(subject, lesson, topic, level, quiz_type):
     print("\n[DEBUG] Quiz Generation Started")
 
-    URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
-
     # ✅ Fetch vector DB context
     context = get_relevant_context(subject, lesson, topic, k=6, use_vector_ranking=True)
 
@@ -124,11 +127,10 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
         print("[WARNING] Empty context from vector DB — using fallback")
         context = "No context available."
     else:
-        # Truncate to avoid overloading the model (keep shorter to prevent CUDA OOM)
+        # Truncate to avoid overloading the model
         context = context[:1500]
 
     print(f"[DEBUG] Context length sent to model: {len(context)} chars")
-    print(f"[DEBUG] Context preview: {context[:150]}")
 
     # STEP 1: Set instruction based on quiz type
     if quiz_type == "pre":
@@ -156,58 +158,32 @@ Format:
   ]
 }}"""
 
-    # STEP 3: Call your pre-trained model with up to 3 retries
-    payload = {
-        "instruction": instruction,
-        "input": input_text,
-        "max_new_tokens": 800,
-    }
+    try:
+        llm = get_llm()
+        messages = [
+            SystemMessage(content=instruction),
+            HumanMessage(content=input_text)
+        ]
+        
+        response = llm.invoke(messages)
+        raw_content = response.content.strip()
+        print(f"\nRAW RESPONSE:\n", raw_content)
 
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
-        print(f"\n[DEBUG] Quiz generation attempt {attempt}/{max_retries}...")
-        try:
-            response = requests.post(
-                URL,
-                headers={"Content-Type": "application/json"},
-                data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                timeout=120,
-            )
-            response.raise_for_status()
+        result = extract_json(raw_content)
 
-            try:
-                response_json = response.json()
-            except Exception as parse_error:
-                print(f"Model response was not valid JSON (Attempt {attempt}): {parse_error}")
-                if attempt == max_retries:
-                    return {
-                        "questions": [],
-                        "error": "Model response was not valid JSON."
-                    }
-                continue
+        if not result.get("questions"):
+            print(f"Invalid quiz format.")
+            return {
+                "questions": [],
+                "error": result.get("error", "Quiz generator returned no questions.")
+            }
 
-            raw_content = response_json.get("answer", "") or response_json.get("response", "")
-            print(f"\nRAW RESPONSE (Attempt {attempt}):\n", raw_content)
+        print("Quiz generated successfully", result)
+        return result
 
-            result = extract_json(raw_content)
-
-            if not result.get("questions"):
-                print(f"Invalid quiz format on attempt {attempt}.")
-                if attempt == max_retries:
-                    return {
-                        "questions": [],
-                        "error": result.get("error", "Quiz generator returned no questions.")
-                    }
-                continue
-
-            print("Quiz generated successfully", result)
-            return result
-
-        except Exception as e:
-            print(f"Error calling model on attempt {attempt}: {e}")
-            if attempt == max_retries:
-                return {"questions": [], "error": f"Error calling model: {e}"}
-            continue
+    except Exception as e:
+        print(f"Error calling model: {e}")
+        return {"questions": [], "error": f"Error calling model: {e}"}
 
 
 

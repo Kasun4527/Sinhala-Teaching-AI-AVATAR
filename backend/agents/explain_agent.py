@@ -1,8 +1,7 @@
 import json
 import re
-import requests
-
-FINETUNED_MODEL_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+from services.llm import get_llm
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 def generate_explanation(content: str) -> str:
@@ -11,24 +10,16 @@ def generate_explanation(content: str) -> str:
     clean_content = re.sub(r'\[IMAGE:[^\]]+\]', '', content, flags=re.IGNORECASE).strip()
     clean_content = clean_content[:2000]
 
-    payload = {
-        "instruction": "පහත ඡේදය පැහැදිලි කරන්න.",
-        "input": clean_content,
-        "max_new_tokens": 5000,
-    }
-
     try:
-        response = requests.post(
-            FINETUNED_MODEL_URL,
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            timeout=120,
-        )
-        response.raise_for_status()
-        data = response.json()
-        explanation = data.get("answer", "") or data.get("response", "")
+        llm = get_llm()
+        messages = [
+            SystemMessage(content="You are an expert Sinhala teacher. Explain the following content clearly in Sinhala."),
+            HumanMessage(content=f"පහත ඡේදය පැහැදිලි කරන්න:\n\n{clean_content}")
+        ]
+        response = llm.invoke(messages)
+        explanation = response.content.strip()
         print(f"[ExplainAgent] explanation length: {len(explanation)} chars")
-        return explanation.strip() if explanation.strip() else clean_content
+        return explanation if explanation else clean_content
     except Exception as e:
         print(f"[ExplainAgent] model call failed: {e} — returning original content")
         return clean_content
