@@ -2,7 +2,7 @@ import os
 import re
 import shutil
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 import chromadb
 from chromadb.config import Settings
