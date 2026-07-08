@@ -75,6 +75,17 @@ def on_startup():
         load_model()
     except Exception as e:
         print(f"[Startup] LSTM model load skipped: {e}")
+
+from fastapi.responses import JSONResponse
+import traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "traceback": traceback.format_exc()}
+    )
+
 # -------- Request Models --------
 
 class QuizSubmission(BaseModel):
