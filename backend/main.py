@@ -55,9 +55,12 @@ app = FastAPI()
 # Serve images statically
 app.mount("/images", StaticFiles(directory="images"), name="images")
 
+# Use an environment variable for CORS so you don't have to commit code when Azure gives you a URL
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://your-azure-frontend-url.azurestaticapps.net", "https://learnsinhala.lk"],  # strict production CORS
+    allow_origins=[FRONTEND_URL],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
