@@ -10,7 +10,6 @@ from chromadb.config import Settings
 CHROMA_PATH = "./chroma_db"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
 
-
 _cached_embeddings = None
 
 def get_embeddings():
