@@ -52,6 +52,20 @@ print("GROQ KEY LOADED:", os.getenv("GROQ_API_KEY"))
 
 app = FastAPI()
 
+origins = [
+    "https://witty-moss-04a910200.7.azurestaticapps.net",
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Serve images statically
 app.mount("/images", StaticFiles(directory="images"), name="images")
 
