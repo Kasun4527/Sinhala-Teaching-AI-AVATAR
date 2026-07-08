@@ -15,4 +15,6 @@ requests
 chromadb
 langgraph
 google-genai
-tensorflow-cpu
+tensorflow-cpu
+gunicorn
+python-multipart

@@ -7,6 +7,7 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
+import asyncio
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -161,27 +162,30 @@ def pre_quiz(subject: str, lesson: str, topic: str):
 
 
 @app.post("/submit-pre-quiz/")
-def submit_pre_quiz(data: QuizSubmission):
+async def submit_pre_quiz(data: QuizSubmission):
 
-    final_state = learning_graph.invoke({
-        "student_id": data.student_id,
-        "subject": data.subject,
-        "lesson": data.lesson,
-        "topic": data.topic,
-        "student_answers": data.student_answers,
-        "correct_answers": data.correct_answers,
-        "quiz_type": "pre",
-        "quiz": None,
-        "score": None,
-        "level": None,
-        "content": None,
-        "decision": None,
-        # ── Personalization fields ──
-        "mastery": None,
-        "hybrid_mastery": None,
-        "bkt_level": None,
-        "quiz_questions": data.quiz_questions
-    })
+    final_state = await asyncio.to_thread(
+        learning_graph.invoke,
+        {
+            "student_id": data.student_id,
+            "subject": data.subject,
+            "lesson": data.lesson,
+            "topic": data.topic,
+            "student_answers": data.student_answers,
+            "correct_answers": data.correct_answers,
+            "quiz_type": "pre",
+            "quiz": None,
+            "score": None,
+            "level": None,
+            "content": None,
+            "decision": None,
+            # ── Personalization fields ──
+            "mastery": None,
+            "hybrid_mastery": None,
+            "bkt_level": None,
+            "quiz_questions": data.quiz_questions
+        }
+    )
 
     return {
         "score": final_state["score"],
@@ -204,27 +208,30 @@ def post_quiz(subject: str, lesson: str, topic: str, level: str):
 
 
 @app.post("/submit-post-quiz/")
-def submit_post_quiz(data: QuizSubmission):
+async def submit_post_quiz(data: QuizSubmission):
 
-    final_state = learning_graph.invoke({
-        "student_id": data.student_id,
-        "subject": data.subject,
-        "lesson": data.lesson,
-        "topic": data.topic,
-        "student_answers": data.student_answers,
-        "correct_answers": data.correct_answers,
-        "quiz_type": "post",
-        "quiz": None,
-        "score": None,
-        "level": data.level,
-        "content": None,
-        "decision": None,
-        # ── Personalization fields ──
-        "mastery": None,
-        "hybrid_mastery": None,
-        "bkt_level": None,
-        "quiz_questions": data.quiz_questions
-    })
+    final_state = await asyncio.to_thread(
+        learning_graph.invoke,
+        {
+            "student_id": data.student_id,
+            "subject": data.subject,
+            "lesson": data.lesson,
+            "topic": data.topic,
+            "student_answers": data.student_answers,
+            "correct_answers": data.correct_answers,
+            "quiz_type": "post",
+            "quiz": None,
+            "score": None,
+            "level": data.level,
+            "content": None,
+            "decision": None,
+            # ── Personalization fields ──
+            "mastery": None,
+            "hybrid_mastery": None,
+            "bkt_level": None,
+            "quiz_questions": data.quiz_questions
+        }
+    )
 
     return {
         "score": final_state["score"],
@@ -239,7 +246,7 @@ def submit_post_quiz(data: QuizSubmission):
 
 # ── Bug #10: Per-answer online learning endpoint ─────────────────────────────
 @app.post("/submit-answer/")
-def submit_single_answer(data: SingleAnswerSubmission):
+async def submit_single_answer(data: SingleAnswerSubmission):
     """
     Incremental BKT update for a single answer (online learning).
     Called per-answer during quiz for real-time mastery updates.
@@ -251,26 +258,29 @@ def submit_single_answer(data: SingleAnswerSubmission):
     skill_id = make_skill_id(data.subject, data.lesson, data.topic)
     is_correct = 1 if str(data.student_answer).strip() == str(data.correct_answer).strip() else 0
 
-    result = personalize_single_answer(
-        student_id=data.student_id,
-        subject=data.subject,
-        lesson=data.lesson,
-        topic=data.topic,
-        is_correct=is_correct,
-        quiz_type=data.quiz_type,
-        question_text=data.question_text
-    )
+    def _process_answer():
+        res = personalize_single_answer(
+            student_id=data.student_id,
+            subject=data.subject,
+            lesson=data.lesson,
+            topic=data.topic,
+            is_correct=is_correct,
+            quiz_type=data.quiz_type,
+            question_text=data.question_text
+        )
+        # Update difficulty for this question
+        if data.question_text:
+            try:
+                update_difficulty_single(
+                    question_text=data.question_text,
+                    is_correct=is_correct,
+                    skill_id=skill_id
+                )
+            except Exception as e:
+                print(f"[submit-answer] Difficulty update failed: {e}")
+        return res
 
-    # Update difficulty for this question
-    if data.question_text:
-        try:
-            update_difficulty_single(
-                question_text=data.question_text,
-                is_correct=is_correct,
-                skill_id=skill_id
-            )
-        except Exception as e:
-            print(f"[submit-answer] Difficulty update failed: {e}")
+    result = await asyncio.to_thread(_process_answer)
 
     return {
         "mastery": result["mastery"],
@@ -299,13 +309,13 @@ def explain_content_route(data: dict):
 
 
 @app.post("/generate-tts/")
-def generate_tts(data: dict):
+async def generate_tts(data: dict):
     """Convert text to WAV audio using Gemini TTS for avatar teacher."""
     text = data.get("text", "")
     if not text:
         raise HTTPException(status_code=400, detail="text is required")
     try:
-        wav_bytes = generate_teacher_speech(text)
+        wav_bytes = await asyncio.to_thread(generate_teacher_speech, text)
         return FastAPIResponse(content=wav_bytes, media_type="audio/wav")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -566,24 +576,28 @@ class QuestionRequest(BaseModel):
     student_id: Optional[str] = None
 
 @app.post("/ask-question")
-def ask_question(data: QuestionRequest):
+async def ask_question(data: QuestionRequest):
     from services.retriever import get_relevant_context
     import datetime
-    context = get_relevant_context(data.subject, data.lesson, data.topic, k=5)
+    
+    # Run context retrieval in thread
+    context = await asyncio.to_thread(get_relevant_context, data.subject, data.lesson, data.topic, 5)
     if not context:
         context = f"{data.topic} relating to {data.subject} - {data.lesson}"
 
     instruction = "ඔබ දක්ෂ ගුරුවරයෙකි. පහත context ඇසුරින් සිසුවාගේ ප්‍රශ්නයට සරල සිංහල පිළිතුරක් දෙන්න."
     input_text = f"Context:\n{context[:2000]}\n\nප්‍රශ්නය: {data.question}"
 
-    FINETUNED_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+    FINETUNED_URL = os.getenv("FINETUNED_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
     try:
-        resp = _requests.post(
-            FINETUNED_URL,
-            headers={"Content-Type": "application/json"},
-            data=_json.dumps({"instruction": instruction, "input": input_text, "max_new_tokens": 400}, ensure_ascii=False).encode("utf-8"),
-            timeout=120,
-        )
+        def _fetch():
+            return _requests.post(
+                FINETUNED_URL,
+                headers={"Content-Type": "application/json"},
+                data=_json.dumps({"instruction": instruction, "input": input_text, "max_new_tokens": 400}, ensure_ascii=False).encode("utf-8"),
+                timeout=120,
+            )
+        resp = await asyncio.to_thread(_fetch)
         resp.raise_for_status()
         result = resp.json()
         answer = result.get("answer") or result.get("response") or "පිළිතුර ලබා ගත නොහැකි විය."
