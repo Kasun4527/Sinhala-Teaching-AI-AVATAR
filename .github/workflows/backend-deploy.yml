@@ -1,0 +1,26 @@
+name: Deploy Backend to Azure
+
+on:
+  push:
+    branches:
+      - sachinthana/azure
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zip backend directory
+        working-directory: ./backend
+        run: zip -r ../backend.zip . -x "__pycache__/*" "*.pyc" ".env" "temp/*"
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: app-sinhala-backend
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: backend.zip
