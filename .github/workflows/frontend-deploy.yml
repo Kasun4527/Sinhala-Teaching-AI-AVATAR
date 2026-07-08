@@ -17,6 +17,8 @@ jobs:
         with:
           submodules: true
           lfs: false
+          sparse-checkout: |
+            frontend
 
       - name: Build And Deploy
         id: builddeploy
