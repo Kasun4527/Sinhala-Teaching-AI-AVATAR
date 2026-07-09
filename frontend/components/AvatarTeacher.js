@@ -52,12 +52,11 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
       .catch(() => {});
   }, []);
 
-  // Notify parent of speech progress (0..1)
+  // Notify parent of speech progress (0→1) or -1 when stopped
   useEffect(() => {
-    if (onSentenceChange && activeSentence >= 0 && sentences.length > 0) {
-      const progress = activeSentence / sentences.length;
-      onSentenceChange(progress);
-    }
+    if (!onSentenceChange) return;
+    if (activeSentence < 0) { onSentenceChange(-1); return; }
+    if (sentences.length > 0) onSentenceChange(activeSentence / sentences.length);
   }, [activeSentence]);
 
   async function waitForIceComplete(pc, ms = 8000) {
