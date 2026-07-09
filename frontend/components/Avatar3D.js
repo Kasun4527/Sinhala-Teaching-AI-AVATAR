@@ -15,8 +15,6 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
   const audioRef    = useRef(null);
   const timelineRef = useRef([]);
   const avatarRef   = useRef(null);
-  const segmentsRef = useRef([]);   // [{text, start, end}, ...]
-  const lastSegRef  = useRef(-1);   // last segment index fired
 
   const [speaking, setSpeaking]   = useState(false);
   const [status,   setStatus]     = useState("");
@@ -54,7 +52,6 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       }
       const { audio, timeline, segments } = await res.json();
       timelineRef.current = timeline || [];
-      lastSegRef.current  = -1;
 
       const bytes = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
       const blob  = new Blob([bytes], { type: "audio/wav" });
@@ -63,19 +60,11 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       const audioEl = audioRef.current;
       audioEl.src = url;
 
-      // Use requestAnimationFrame at ~60fps to push currentTime/duration (0→1)
-      // directly as progress. Linear time → paragraph is more reliable than
-      // trying to map Whisper sentence indices to display paragraphs.
+      // RAF at ~60fps: send scroll progress ratio (0→1) while audio plays
       let rafId = null;
-      let lastProgress = -1;
       const trackProgress = () => {
         if (onSentenceChange && audioEl.duration > 0) {
-          const progress = audioEl.currentTime / audioEl.duration;
-          // Only fire when progress changes by at least 0.5% to avoid jitter
-          if (Math.abs(progress - lastProgress) >= 0.005) {
-            lastProgress = progress;
-            onSentenceChange(progress);
-          }
+          onSentenceChange(audioEl.currentTime / audioEl.duration);
         }
         rafId = requestAnimationFrame(trackProgress);
       };
@@ -83,7 +72,6 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       audioEl.onplay = () => {
         setSpeaking(true);
         setStatus("Speaking…");
-        lastProgress = -1;
         rafId = requestAnimationFrame(trackProgress);
       };
       const stopRaf = () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } };
@@ -92,7 +80,6 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
         stopRaf();
         setSpeaking(false);
         setStatus("");
-        lastSegRef.current = -1;
         if (onSentenceChange) onSentenceChange(-1);
         if (answerContent && onAnswerSpoken) onAnswerSpoken();
       };
@@ -107,7 +94,7 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
       setStatus("");
       setSpeaking(false);
     }
-  }, [activeContent, speaking, answerContent, onAnswerSpoken]);
+  }, [activeContent, speaking, answerContent, onAnswerSpoken, onSentenceChange]);
 
   const handleStop = useCallback(() => {
     const el = audioRef.current;
@@ -115,7 +102,6 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
     avatarRef.current?.stopImmediately();
     setSpeaking(false);
     setStatus("");
-    lastSegRef.current = -1;
     if (onSentenceChange) onSentenceChange(-1);
   }, [onSentenceChange]);
 

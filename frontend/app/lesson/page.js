@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarSelector from "@/components/AvatarSelector";
 import ChatBot from "@/components/ChatBot";
@@ -99,23 +99,16 @@ export default function LessonPage() {
     return false;
   };
 
-  // Pre-count paragraphs in displayContent so we can map progress → index
-  const paraCountRef = useRef(0);
-  const paraRefsMap  = useRef({});   // {paraIdx: domElement}
   const contentScrollRef = useRef(null);
 
-  const highlightedParaIdx = speechProgress >= 0 && paraCountRef.current > 0
-    ? Math.min(Math.floor(speechProgress * paraCountRef.current), paraCountRef.current - 1)
-    : -1;
-
-  // Auto-scroll to the highlighted paragraph
+  // speechProgress: 0→1 ratio sent by Avatar while speaking, -1 when stopped
   useEffect(() => {
-    if (highlightedParaIdx < 0) return;
-    const el = paraRefsMap.current[highlightedParaIdx];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [highlightedParaIdx]);
+    const el = contentScrollRef.current;
+    if (!el || speechProgress < 0) return;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll <= 0) return;
+    el.scrollTop = speechProgress * maxScroll;
+  }, [speechProgress]);
 
   const renderContentWithImages = (text) => {
     const lines = text.split("\n");
@@ -145,23 +138,13 @@ export default function LessonPage() {
           </ul>
         );
       } else {
-        const isHighlighted = thisParaIdx === highlightedParaIdx;
-        const capturedIdx = thisParaIdx;
         elements.push(
           <p
             key={`p-${keyIdx++}`}
-            ref={(el) => { paraRefsMap.current[capturedIdx] = el; }}
             style={{
               marginBottom: 20, lineHeight: 2,
-              color: isHighlighted ? "#0f172a" : "#374151", fontSize: 15.5,
+              color: "#374151", fontSize: 15.5,
               textAlign: "justify",
-              borderLeft: isHighlighted ? `4px solid ${accent}` : sectionCount === 0 && thisParaIdx === 0 ? `3px solid ${accent}` : "none",
-              paddingLeft: isHighlighted || (sectionCount === 0 && thisParaIdx === 0) ? 16 : 0,
-              backgroundColor: isHighlighted ? `${accent}12` : "transparent",
-              borderRadius: isHighlighted ? 8 : 0,
-              padding: isHighlighted ? "10px 16px" : undefined,
-              transition: "background-color 0.4s ease, border-left 0.4s ease, box-shadow 0.4s ease",
-              boxShadow: isHighlighted ? `0 0 0 2px ${accent}30` : "none",
             }}
           >
             {joined}
@@ -220,8 +203,6 @@ export default function LessonPage() {
           <div key={`h-${keyIdx++}`} style={{ margin: "32px 0 12px" }}>
             <h3 style={{
               fontSize: 17, fontWeight: 700, color: "#0f172a",
-              borderBottom: `2px solid ${accent}`,
-              paddingBottom: 6, display: "inline-block",
             }}>
               {line.trim().replace(/:$/, "")}
             </h3>
@@ -233,7 +214,6 @@ export default function LessonPage() {
     });
 
     flushPara();
-    paraCountRef.current = localParaCount;
     return elements;
   };
 
@@ -495,7 +475,7 @@ export default function LessonPage() {
           </div>
 
           {/* Content column */}
-          <div style={{ flex: 1, minWidth: 0, overflowY: "auto", scrollbarWidth: "thin", position: "relative", zIndex: 1 }}>
+          <div ref={contentScrollRef} style={{ flex: 1, minWidth: 0, overflowY: "auto", scrollbarWidth: "thin", position: "relative", zIndex: 1 }}>
 
             {/* Content card */}
             <div style={{
