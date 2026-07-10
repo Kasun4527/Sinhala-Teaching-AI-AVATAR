@@ -5,6 +5,7 @@
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
+      "cwd": "D:\\UOR\\7th sem\\FYP\\AI AVATAR\\adaptive-learning-ai\\frontend",
       "port": 3000,
       "autoPort": false
     }

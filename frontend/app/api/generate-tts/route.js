@@ -6,29 +6,47 @@ import { writeFile, unlink, readFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
+// Rotate through multiple API keys — add GOOGLE_API_KEY_2, _3 etc in .env.local
+const API_KEYS = [
+  process.env.GOOGLE_API_KEY,
+  process.env.GOOGLE_API_KEY_2,
+  process.env.GOOGLE_API_KEY_3,
+  process.env.GOOGLE_API_KEY_4,
+].filter(Boolean);
+
+let _keyIdx = 0;
+function getAI() {
+  if (API_KEYS.length === 0) return null;
+  const key = API_KEYS[_keyIdx % API_KEYS.length];
+  return new GoogleGenAI({ apiKey: key });
+}
+function rotateKey() { _keyIdx = (_keyIdx + 1) % API_KEYS.length; }
+
 const RHUBARB_EXE =
   "D:\\UOR\\7th sem\\FYP\\AI AVATAR\\avatar-3d-standalone\\server\\rhubarb\\Rhubarb-Lip-Sync-1.14.0-Windows\\rhubarb.exe";
 
-function pcmToWav(pcmBuffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const dataSize = pcmBuffer.length;
-  const buffer = Buffer.alloc(44 + dataSize);
-  buffer.write("RIFF", 0);
-  buffer.writeUInt32LE(36 + dataSize, 4);
-  buffer.write("WAVE", 8);
-  buffer.write("fmt ", 12);
-  buffer.writeUInt32LE(16, 16);
-  buffer.writeUInt16LE(1, 20);
-  buffer.writeUInt16LE(numChannels, 22);
-  buffer.writeUInt32LE(sampleRate, 24);
-  buffer.writeUInt32LE(byteRate, 28);
-  buffer.writeUInt16LE(blockAlign, 32);
-  buffer.writeUInt16LE(bitsPerSample, 34);
-  buffer.write("data", 36);
-  buffer.writeUInt32LE(dataSize, 40);
-  pcmBuffer.copy(buffer, 44);
-  return buffer;
+const SAMPLE_RATE = 24000, CHANNELS = 1, BITS = 16;
+
+function pcmToWav(pcmBuffer) {
+  const byteRate   = (SAMPLE_RATE * CHANNELS * BITS) / 8;
+  const blockAlign = (CHANNELS * BITS) / 8;
+  const dataSize   = pcmBuffer.length;
+  const buf = Buffer.alloc(44 + dataSize);
+  buf.write("RIFF", 0);
+  buf.writeUInt32LE(36 + dataSize, 4);
+  buf.write("WAVE", 8);
+  buf.write("fmt ", 12);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(CHANNELS, 22);
+  buf.writeUInt32LE(SAMPLE_RATE, 24);
+  buf.writeUInt32LE(byteRate, 28);
+  buf.writeUInt16LE(blockAlign, 32);
+  buf.writeUInt16LE(BITS, 34);
+  buf.write("data", 36);
+  buf.writeUInt32LE(dataSize, 40);
+  pcmBuffer.copy(buf, 44);
+  return buf;
 }
 
 function mergeShortSegments(timeline, minDuration = 0.07) {
@@ -44,122 +62,119 @@ function mergeShortSegments(timeline, minDuration = 0.07) {
 }
 
 async function getTimeline(wavBuffer) {
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const wavPath = join(tmpdir(), `rhubarb-in-${id}.wav`);
+  const id       = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const wavPath  = join(tmpdir(), `rhubarb-in-${id}.wav`);
   const jsonPath = join(tmpdir(), `rhubarb-out-${id}.json`);
   await writeFile(wavPath, wavBuffer);
   try {
     await new Promise((resolve, reject) => {
       const proc = spawn(RHUBARB_EXE, ["-r", "phonetic", "-f", "json", "-o", jsonPath, wavPath]);
       let stderr = "";
-      proc.stderr.on("data", (d) => { stderr += d.toString(); });
+      proc.stderr.on("data", d => { stderr += d.toString(); });
       proc.on("error", reject);
-      proc.on("close", (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`rhubarb.exe exited ${code}: ${stderr}`));
-      });
+      proc.on("close", code => code === 0 ? resolve() : reject(new Error(`rhubarb exited ${code}: ${stderr}`)));
     });
     const raw = JSON.parse(await readFile(jsonPath, "utf-8"));
-    const timeline = raw.mouthCues.map((c) => ({ start: c.start, end: c.end, viseme: c.value }));
-    return mergeShortSegments(timeline);
+    return mergeShortSegments(raw.mouthCues.map(c => ({ start: c.start, end: c.end, viseme: c.value })));
   } finally {
     unlink(wavPath).catch(() => {});
     unlink(jsonPath).catch(() => {});
   }
 }
 
-/** Read total duration in seconds from a WAV buffer header. */
-function wavDuration(wavBuffer) {
-  const sampleRate   = wavBuffer.readUInt32LE(24);
-  const numChannels  = wavBuffer.readUInt16LE(22);
-  const bitsPerSample= wavBuffer.readUInt16LE(34);
-  const dataSize     = wavBuffer.readUInt32LE(40);
-  const byteRate     = (sampleRate * numChannels * bitsPerSample) / 8;
-  return dataSize / byteRate;
+/**
+ * Split text into speakable paragraphs.
+ * Works for both English and Sinhala — splits on blank lines or sentence
+ * boundaries, keeping chunks large enough to sound natural.
+ */
+function splitParagraphs(text) {
+  // First try blank-line splitting (most reliable)
+  const byBlankLine = text.split(/\n\s*\n/).map(s => s.replace(/\n/g, " ").trim()).filter(s => s.length > 10);
+  if (byBlankLine.length > 1) return byBlankLine;
+
+  // Fall back: split on single newlines
+  const byLine = text.split(/\n/).map(s => s.trim()).filter(s => s.length > 10);
+  if (byLine.length > 1) return byLine;
+
+  // Last resort: split long text on sentence boundaries every ~300 chars
+  const chunks = [];
+  let cur = "";
+  for (const sentence of text.split(/(?<=[.!?।෴])\s+/)) {
+    cur += (cur ? " " : "") + sentence;
+    if (cur.length >= 300) { chunks.push(cur.trim()); cur = ""; }
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.length ? chunks : [text.trim()];
 }
 
-const BACKEND = "http://localhost:8000";
-
-/**
- * Call Python backend to run faster-whisper and get real sentence timestamps.
- * Falls back to character-ratio on any failure.
- */
-async function alignSegments(wavBuffer, text, duration) {
+/** Call Gemini TTS for one piece of text — returns raw PCM Buffer. Rotates keys on 429. */
+async function ttsChunk(text, attempt = 0) {
+  const ai = getAI();
+  if (!ai) throw new Error("No API keys configured");
   try {
-    const res = await fetch(`${BACKEND}/align-audio/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        audio_b64: wavBuffer.toString("base64"),
-        text,
-        duration,
-      }),
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: text,
+      config: {
+        responseModalities: ["AUDIO"],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } },
+      },
     });
-    if (!res.ok) throw new Error(`align-audio ${res.status}`);
-    const data = await res.json();
-    console.log(`[TTS] alignment source: ${data.source}, segments: ${data.segments?.length}`);
-    return data.segments || [];
+    const candidate = response.candidates?.[0];
+    if (!candidate?.content) {
+      throw new Error(`No audio returned (reason: ${candidate?.finishReason || "unknown"})`);
+    }
+    return Buffer.from(candidate.content.parts[0].inlineData.data, "base64");
   } catch (err) {
-    console.warn("[TTS] whisper alignment failed, using character-ratio fallback:", err.message);
-    return charRatioSegments(text, duration);
+    if (err.status === 429 && attempt < API_KEYS.length - 1) {
+      console.warn(`[TTS] key quota exceeded, rotating to next key (attempt ${attempt + 1})`);
+      rotateKey();
+      return ttsChunk(text, attempt + 1);
+    }
+    throw err;
   }
 }
 
-/** Character-ratio fallback when whisper is unavailable. */
-function charRatioSegments(text, totalDurationSec) {
-  const cleaned = text.replace(/\[IMAGE:[^\]]+\]/gi, "").trim();
-  const sentences = cleaned
-    .split(/(?<=[.!?।෴\n])\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (!sentences.length) return [];
-  const totalChars = sentences.reduce((s, t) => s + t.length, 0);
-  let t = 0;
-  return sentences.map((sentence) => {
-    const d = (sentence.length / totalChars) * totalDurationSec;
-    const seg = { text: sentence, start: +t.toFixed(3), end: +(t + d).toFixed(3) };
-    t += d;
-    return seg;
-  });
-}
-
 export async function POST(request) {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) return Response.json({ detail: "GOOGLE_API_KEY not set" }, { status: 500 });
+  if (API_KEYS.length === 0) return Response.json({ detail: "GOOGLE_API_KEY not set" }, { status: 500 });
 
   const { text } = await request.json();
   if (!text) return Response.json({ detail: "text is required" }, { status: 400 });
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: text.slice(0, 3000),
-      config: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
-        },
-      },
-    });
+    const cleanText = text.replace(/\[IMAGE:[^\]]+\]/gi, "").trim().slice(0, 4000);
 
-    const candidate = response.candidates?.[0];
-    if (!candidate?.content) {
-      const reason = candidate?.finishReason || response.promptFeedback?.blockReason || "unknown";
-      throw new Error(`No audio content returned (reason: ${reason})`);
+    // Split the speech text into natural paragraphs.
+    // Works for Sinhala and English — no client-side paragraph list needed.
+    const paragraphs = splitParagraphs(cleanText);
+
+    console.log(`[TTS] generating ${paragraphs.length} paragraph chunk(s) with ${API_KEYS.length} key(s)`);
+
+    // Generate TTS for each paragraph sequentially to respect per-key quota
+    const BATCH = 5;
+    const pcmChunks = [];
+    for (let i = 0; i < paragraphs.length; i += BATCH) {
+      const batch = paragraphs.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(p => ttsChunk(p)));
+      pcmChunks.push(...results);
     }
 
-    const base64Audio = candidate.content.parts[0].inlineData.data;
-    const pcmBuffer = Buffer.from(base64Audio, "base64");
-    const wavBuffer = pcmToWav(pcmBuffer, 24000, 1, 16);
-    const duration = wavDuration(wavBuffer);
-    const speechText = text.slice(0, 3000);
-    const [timeline, segments] = await Promise.all([
-      getTimeline(wavBuffer),
-      alignSegments(wavBuffer, speechText, duration),
-    ]);
+    // Build per-paragraph WAV buffers (returned individually to the client)
+    const audioChunks = pcmChunks.map(pcm => pcmToWav(pcm).toString("base64"));
 
-    return Response.json({ audio: wavBuffer.toString("base64"), timeline, segments, duration });
+    // Concatenate all PCM for the full WAV (used by Rhubarb for lip-sync)
+    const fullWav = pcmToWav(Buffer.concat(pcmChunks));
+    const timeline = await getTimeline(fullWav);
+
+    console.log(`[TTS] done — ${audioChunks.length} chunks, timeline: ${timeline.length} cues`);
+
+    return Response.json({
+      // Full audio for lip-sync (Avatar3D canvas uses this for mouth animation)
+      audio: fullWav.toString("base64"),
+      timeline,
+      // Individual paragraph audio chunks — played sequentially for highlighting
+      audioChunks,
+    });
   } catch (err) {
     console.error("generate-tts:", err);
     return Response.json({ detail: String(err?.message || err) }, { status: 500 });
