@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from typing import Optional, List
 from agents.content_agent import generate_content
-from agents.explain_agent import generate_explanation
+from agents.explain_agent import generate_explanation, generate_paragraph_explanations
 from agents.quiz_agent import generate_quiz, evaluate_answers
 from agents.adaptation_agent import decide_next_step
 from agents.student_agent import get_level
@@ -345,8 +345,13 @@ def get_lesson(subject: str, lesson: str, topic: str, level: str):
 @app.post("/explain-content/")
 def explain_content_route(data: dict):
     content = data.get("content", "")
+    paragraphs = data.get("paragraphs", [])
     if not content:
         raise HTTPException(status_code=400, detail="content is required")
+    if paragraphs:
+        explanation_parts = generate_paragraph_explanations(paragraphs)
+        explanation = "\n\n".join(explanation_parts)
+        return {"explanation": explanation, "explanationParts": explanation_parts}
     explanation = generate_explanation(content)
     return {"explanation": explanation}
 
