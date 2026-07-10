@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarSelector from "@/components/AvatarSelector";
 import ChatBot from "@/components/ChatBot";
@@ -60,6 +60,10 @@ export default function LessonPage() {
   const [avatarSpeech, setAvatarSpeech] = useState("");
   const [speechReady, setSpeechReady] = useState(false);
   const [speechProgress, setSpeechProgress] = useState(-1);
+  const handleSentenceChange = (idx) => {
+    console.log("[HIGHLIGHT] onSentenceChange called with idx:", idx);
+    setSpeechProgress(idx);
+  };
 
   // Q&A state
   const [qaOpen, setQaOpen] = useState(false);
@@ -87,23 +91,58 @@ export default function LessonPage() {
   const maxScoreRef = useRef(0);
   const audioCtxRef = useRef(null);
 
-  // Detect if a line looks like a heading (short, no ending punctuation mid-sentence)
+  // Detect if a line looks like a heading.
+  // Works for both English and Sinhala — relies on structure, not character set.
   const isHeading = (line) => {
     const t = line.trim();
-    if (!t || t.length > 120) return false;
-    if (/^\d+[\.\)]\s/.test(t)) return false; // numbered list items — not headings
-    // Short line ending with ":" or no punctuation → likely a heading
-    if (t.endsWith(":") || t.endsWith("：")) return true;
-    // Short standalone line (likely a section title)
-    if (t.length < 60 && !/[,;]/.test(t) && !/[a-z]{4,}/.test(t)) return true;
+    if (!t || t.length > 160) return false;
+    if (/^\d+[\.\)]\s/.test(t)) return false;   // numbered list items — not headings
+    if (t.endsWith(":") || t.endsWith("：")) return true;  // ends with colon
+    // English headings: short line with no lowercase words longer than 3 chars
+    if (/[a-zA-Z]/.test(t) && t.length < 60 && !/[,;]/.test(t) && !/[a-z]{4,}/.test(t)) return true;
+    // For Sinhala/non-Latin: only treat as heading if it ends with ":" or is extremely short (< 20 chars)
+    // to avoid swallowing real Sinhala paragraph text
+    if (!/[a-zA-Z]/.test(t) && t.length < 20) return true;
     return false;
   };
 
-  // Pre-count paragraphs in displayContent so we can map progress → index
-  const paraCountRef = useRef(0);
-  const highlightedParaIdx = speechProgress >= 0 && paraCountRef.current > 0
-    ? Math.min(Math.floor(speechProgress * paraCountRef.current), paraCountRef.current - 1)
-    : -1;
+  const paraRefsMap = useRef({});
+
+  // Extract only the highlightable plain paragraphs (no headings, no lists, no images).
+  // This array is passed to Avatar → TTS route so both sides use identical indices.
+  const contentParas = useMemo(() => {
+    if (!displayContent) return [];
+    const lines = displayContent.split("\n");
+    const paras = [];
+    let buf = [];
+    const flush = () => {
+      const j = buf.join(" ").trim();
+      buf = [];
+      if (!j) return;
+      if (/^(\d+[\.\)]|•|●|-)\s/.test(j)) return; // skip lists
+      if (/\[IMAGE:/i.test(j)) return;              // skip images
+      paras.push(j);
+    };
+    lines.forEach((line) => {
+      const l = line.trim();
+      if (!l || /\[IMAGE:/i.test(l) || l === "---") { flush(); return; }
+      if (isHeading(l)) { flush(); return; }
+      buf.push(l);
+    });
+    flush();
+    return paras;
+  }, [displayContent]);
+
+  // speechProgress = chunk index (each chunk covers 2 content paragraphs)
+  // para i is highlighted when Math.floor(i/2) === speechProgress
+  const highlightedParaIdx = speechProgress;
+
+  // Auto-scroll to first paragraph of the highlighted pair
+  useEffect(() => {
+    if (highlightedParaIdx < 0) return;
+    const el = paraRefsMap.current[highlightedParaIdx * 2];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightedParaIdx]);
 
   const renderContentWithImages = (text) => {
     const lines = text.split("\n");
@@ -111,14 +150,13 @@ export default function LessonPage() {
     let paraLines = [];
     let keyIdx = 0;
     let sectionCount = 0;
-    let localParaCount = 0;
+    let plainParaCount = 0; // counts only highlightable <p> elements, matches contentParas indices
 
     const flushPara = () => {
       const joined = paraLines.join(" ").trim();
       if (!joined) { paraLines = []; return; }
-      const thisParaIdx = localParaCount++;
 
-      // Detect bullet / numbered list
+      // Detect bullet / numbered list — render but don't count as highlightable
       if (/^(\d+[\.\)]|•|●|-)\s/.test(joined)) {
         const items = joined.split(/\n/).filter(Boolean);
         elements.push(
@@ -133,20 +171,23 @@ export default function LessonPage() {
           </ul>
         );
       } else {
-        const isHighlighted = thisParaIdx === highlightedParaIdx;
+        const capturedIdx = plainParaCount++;
+        const isHighlighted = highlightedParaIdx >= 0 && Math.floor(capturedIdx / 2) === highlightedParaIdx;
         elements.push(
-          <p key={`p-${keyIdx++}`} style={{
-            marginBottom: 20, lineHeight: 2,
-            color: isHighlighted ? "#0f172a" : "#374151", fontSize: 15.5,
-            textAlign: "justify",
-            borderLeft: isHighlighted ? `4px solid ${accent}` : sectionCount === 0 && thisParaIdx === 0 ? `3px solid ${accent}` : "none",
-            paddingLeft: isHighlighted || (sectionCount === 0 && thisParaIdx === 0) ? 16 : 0,
-            backgroundColor: isHighlighted ? `${accent}12` : "transparent",
-            borderRadius: isHighlighted ? 8 : 0,
-            padding: isHighlighted ? "10px 16px" : undefined,
-            transition: "all 0.5s ease",
-            boxShadow: isHighlighted ? `0 0 0 2px ${accent}30` : "none",
-          }}>
+          <p
+            key={`p-${keyIdx++}`}
+            ref={(el) => { paraRefsMap.current[capturedIdx] = el; }}
+            style={{
+              marginBottom: 20, lineHeight: 2,
+              color: isHighlighted ? "#0f172a" : "#374151",
+              fontSize: 15.5, textAlign: "justify",
+              backgroundColor: isHighlighted ? `${accent}14` : "transparent",
+              borderLeft: isHighlighted ? `4px solid ${accent}` : "none",
+              paddingLeft: isHighlighted ? 14 : 0,
+              borderRadius: isHighlighted ? 6 : 0,
+              transition: "background-color 0.3s ease, border-left 0.3s ease",
+            }}
+          >
             {joined}
           </p>
         );
@@ -203,8 +244,6 @@ export default function LessonPage() {
           <div key={`h-${keyIdx++}`} style={{ margin: "32px 0 12px" }}>
             <h3 style={{
               fontSize: 17, fontWeight: 700, color: "#0f172a",
-              borderBottom: `2px solid ${accent}`,
-              paddingBottom: 6, display: "inline-block",
             }}>
               {line.trim().replace(/:$/, "")}
             </h3>
@@ -216,7 +255,6 @@ export default function LessonPage() {
     });
 
     flushPara();
-    paraCountRef.current = localParaCount;
     return elements;
   };
 
@@ -352,10 +390,43 @@ export default function LessonPage() {
       setContent(savedContent);
       localStorage.removeItem("lesson_content");
 
+      // Extract plain paragraphs (same logic as contentParas useMemo)
+      // so backend can generate one explanation per paragraph
+      const disp = savedContent.includes("\n---\n")
+        ? savedContent.split("\n---\n").slice(1).join("\n---\n").trim()
+        : savedContent;
+      const isHdg = (t) => {
+        if (!t || t.length > 160) return false;
+        if (/^\d+[\.\)]\s/.test(t)) return false;
+        if (t.endsWith(":") || t.endsWith("：")) return true;
+        if (/[a-zA-Z]/.test(t) && t.length < 60 && !/[,;]/.test(t) && !/[a-z]{4,}/.test(t)) return true;
+        if (!/[a-zA-Z]/.test(t) && t.length < 20) return true;
+        return false;
+      };
+      const lines = disp.split("\n");
+      const paras = [];
+      let buf = [];
+      lines.forEach((line) => {
+        const l = line.trim();
+        if (!l || /\[IMAGE:/i.test(l) || l === "---") {
+          const j = buf.join(" ").trim(); buf = [];
+          if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j) && !/\[IMAGE:/i.test(j)) paras.push(j);
+          return;
+        }
+        if (isHdg(l)) {
+          const j = buf.join(" ").trim(); buf = [];
+          if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j)) paras.push(j);
+          return;
+        }
+        buf.push(l);
+      });
+      const j = buf.join(" ").trim();
+      if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j)) paras.push(j);
+
       fetch(`${BACKEND}/explain-content/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: savedContent }),
+        body: JSON.stringify({ content: savedContent, paragraphs: paras }),
       })
         .then(r => r.json())
         .then(data => {
@@ -471,7 +542,8 @@ export default function LessonPage() {
               content={avatarSpeech || content}
               topic={topic}
               speechReady={speechReady}
-              onSentenceChange={setSpeechProgress}
+              onSentenceChange={handleSentenceChange}
+              paragraphCount={contentParas.length}
               answerContent={avatarAnswer || undefined}
               onAnswerSpoken={() => setAvatarAnswer("")}
             />
