@@ -1,0 +1,13 @@
+Currently, TensorFlow does not support Python 3.14. TensorFlow CPU packages are not available for Python 3.14, so pip cannot install them.
+
+Your project stack:
+
+FastAPI ✅
+LangChain ✅
+LangGraph ✅
+Sentence Transformers ✅
+TensorFlow ❌ (needs older Python)
+
+For your Sinhala Teaching AI Avatar project, use Python 3.11 (recommended).
+
+----------------------------------
