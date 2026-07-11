@@ -17,6 +17,17 @@ def generate_paragraph_explanations(paragraphs: list) -> list:
     return results
 
 
+def generate_paragraph_explanations(paragraphs: list) -> list:
+    """Generate one explanation per pair of content paragraphs."""
+    results = []
+    capped = paragraphs[:8]
+    for i in range(0, len(capped), 2):
+        pair = capped[i:i + 2]
+        combined = "\n\n".join(pair)
+        results.append(generate_explanation(combined))
+    return results
+
+
 def generate_explanation(content: str) -> str:
     """Call the fine-tuned model to explain lesson content for avatar speech."""
     # Strip [IMAGE: ...] tags — can't be spoken
