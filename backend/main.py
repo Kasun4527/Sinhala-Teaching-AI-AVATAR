@@ -58,9 +58,13 @@ app = FastAPI()
 # Serve images statically
 app.mount("/images", StaticFiles(directory="images"), name="images")
 
+_default_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+_frontend_url = os.getenv("FRONTEND_URL")
+allow_origins = _default_origins + [_frontend_url] if _frontend_url else _default_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # frontend
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -694,7 +698,7 @@ async def ask_question(data: QuestionRequest):
     instruction = "ඔබ දක්ෂ ගුරුවරයෙකි. පහත context ඇසුරින් සිසුවාගේ ප්‍රශ්නයට සරල සිංහල පිළිතුරක් දෙන්න."
     input_text = f"Context:\n{context[:2000]}\n\nප්‍රශ්නය: {data.question}"
 
-    FINETUNED_URL = os.getenv("FINETUNED_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
+    FINETUNED_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
     try:
         def _fetch():
             return _requests.post(
