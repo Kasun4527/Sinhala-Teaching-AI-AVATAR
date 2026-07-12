@@ -9,8 +9,7 @@ scikit-learn
 pymongo
 python-dotenv
 python-jose[cryptography]
-passlib[bcrypt]
-bcrypt==4.0.1
+bcrypt
 pydantic[email]
 requests
 chromadb
