@@ -10,6 +10,7 @@ client = MongoClient(mongo_uri)
 
 db = client["ai_avatar"]
 
+
 # existing
 users_collection = db["users"]
 
