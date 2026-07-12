@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const AVTR_HOST = "https://stifle-implement-feminist.ngrok-free.dev";
+const AVTR_HOST = process.env.NEXT_PUBLIC_AVTR_HOST || "https://stifle-implement-feminist.ngrok-free.dev";
 const NGROK_HDR = { "ngrok-skip-browser-warning": "1" };
 
 const WPM = 130;
