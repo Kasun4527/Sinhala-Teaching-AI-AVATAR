@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import { getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer } from "@/services/api";
 
@@ -111,7 +111,7 @@ function LoadingScreen({ subject, cfg, title, subtitle }) {
   );
 }
 
-export default function QuizPage() {
+function QuizPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -403,5 +403,13 @@ export default function QuizPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function QuizPage() {
+  return (
+    <Suspense fallback={null}>
+      <QuizPageContent />
+    </Suspense>
   );
 }
