@@ -2,7 +2,6 @@
 const nextConfig = {
   /* config options here */
   reactCompiler: true,
-  output: "standalone",
 };
 
 export default nextConfig;
