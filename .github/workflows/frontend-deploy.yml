@@ -30,4 +30,4 @@ jobs:
           api_location: ""
           output_location: "" 
         env:
-          NEXT_PUBLIC_BACKEND_URL: "http://${{ secrets.BACKEND_DO_HOST }}:8000"
+          NEXT_PUBLIC_BACKEND_URL: "https://avatar-backend.duckdns.org"
