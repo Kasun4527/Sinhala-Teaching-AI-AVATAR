@@ -14,6 +14,9 @@ mongodb_data/
 backend/mongodb_data/
 backend/.venv/
 
+# Engagement engine local venv (model weights under engagement_engine/models/ ARE tracked)
+engagement_engine/venv/
+
 # Personalization / BKT Services ignore
 backend/services/bkt/
 backend/services/bkt
