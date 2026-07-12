@@ -8,6 +8,14 @@
       "cwd": "D:\\UOR\\7th sem\\FYP\\AI AVATAR\\adaptive-learning-ai\\frontend",
       "port": 3000,
       "autoPort": false
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--reload", "--port", "8000"],
+      "cwd": "D:\\UOR\\7th sem\\FYP\\AI AVATAR\\adaptive-learning-ai\\backend",
+      "port": 8000,
+      "autoPort": false
     }
   ]
 }
