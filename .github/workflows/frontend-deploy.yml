@@ -29,3 +29,9 @@ jobs:
           app_location: "/frontend" # Path to your Next.js code
           api_location: ""
           output_location: "" # Leave empty for Next.js hybrid apps
+        env:
+          # NEXT_PUBLIC_* vars are baked into the client bundle at build time,
+          # so they must be set here (not as a Portal Application Setting,
+          # which only applies at runtime).
+          NEXT_PUBLIC_BACKEND_URL: http://178.128.97.27:8000
+          NEXT_PUBLIC_ENGAGEMENT_URL: http://159.223.91.232:5000
