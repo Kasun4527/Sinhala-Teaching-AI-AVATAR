@@ -59,7 +59,11 @@ app = FastAPI()
 # Serve images statically
 app.mount("/images", StaticFiles(directory="images"), name="images")
 
-_default_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+_default_origins = [
+    "http://localhost:3000", 
+    "http://127.0.0.1:3000",
+    "https://witty-moss-04a910200.7.azurestaticapps.net"
+]
 _frontend_url = os.getenv("FRONTEND_URL")
 allow_origins = _default_origins + [_frontend_url] if _frontend_url else _default_origins
 
