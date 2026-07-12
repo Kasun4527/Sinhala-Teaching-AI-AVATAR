@@ -31,7 +31,8 @@ jobs:
             sudo docker stop avatar-engagement || true
             sudo docker rm avatar-engagement || true
             
-            sudo docker run -d --name avatar-engagement -p 5001:5000 --restart always ai-engagement-engine
+            # Note: Make sure your .env file is present on the server in the engagement_engine folder!
+            sudo docker run -d --name avatar-engagement -p 5000:5000 --restart always --env-file .env ai-engagement-engine
             
             # Clean up old unused images to save disk space
             sudo docker image prune -f
