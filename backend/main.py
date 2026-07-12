@@ -20,6 +20,7 @@ from agents.adaptation_agent import decide_next_step
 from agents.student_agent import get_level
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection
@@ -646,6 +647,9 @@ def lstm_status():
 
 
 # ── Engagement endpoints ──────────────────────────────────────────────────────
+# The engagement engine is its own hosted service (browser captures webcam
+# frames and POSTs them directly to it) — the backend only stores/reads the
+# session summaries it logs afterward.
 
 class EngagementSession(BaseModel):
     student_id: str
@@ -672,6 +676,7 @@ def get_engagement_history(student_id: str, subject: str, topic: str):
         {"_id": 0}
     ).sort("started_at", -1).limit(10))
     return {"sessions": sessions}
+
 
 
 # ── Student Q&A endpoint ──────────────────────────────────────────────────────
