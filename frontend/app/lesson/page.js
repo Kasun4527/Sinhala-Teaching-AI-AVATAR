@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarSelector from "@/components/AvatarSelector";
 import ChatBot from "@/components/ChatBot";
@@ -47,7 +47,7 @@ function FloatingPattern({ color }) {
   return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
 }
 
-export default function LessonPage() {
+function LessonPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -928,5 +928,13 @@ export default function LessonPage() {
 
       <ChatBot subject={subject} lesson={lesson} topic={topic} accent={accent} />
     </div>
+  );
+}
+
+export default function LessonPage() {
+  return (
+    <Suspense fallback={null}>
+      <LessonPageContent />
+    </Suspense>
   );
 }

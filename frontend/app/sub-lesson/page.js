@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { findSubjectByGrade, findSubject } from "@/data/curriculum";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
 
@@ -75,7 +75,7 @@ const SUBJECT_CFG = {
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" };
 
-export default function LessonsPage() {
+function LessonsPageContent() {
   const params     = useSearchParams();
   const router     = useRouter();
   const subject    = params.get("subject");
@@ -303,5 +303,13 @@ export default function LessonsPage() {
 
       <ChatBot subject={subject} accent={cfg.hue} />
     </div>
+  );
+}
+
+export default function LessonsPage() {
+  return (
+    <Suspense fallback={null}>
+      <LessonsPageContent />
+    </Suspense>
   );
 }

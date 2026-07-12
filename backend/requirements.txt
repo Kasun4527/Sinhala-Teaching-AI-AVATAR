@@ -1,4 +1,4 @@
-1fastapi
+fastapi
 uvicorn[standard]
 langchain
 langchain-community

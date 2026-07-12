@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 
 function FloatingPattern({ color }) {
@@ -108,7 +108,7 @@ function ScoreRing({ score, color, dark }) {
   );
 }
 
-export default function ResultPage() {
+function ResultPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -350,5 +350,13 @@ export default function ResultPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResultPageContent />
+    </Suspense>
   );
 }
