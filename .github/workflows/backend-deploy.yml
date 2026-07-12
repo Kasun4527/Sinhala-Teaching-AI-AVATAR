@@ -1,0 +1,38 @@
+name: Deploy Backend to DigitalOcean
+
+on:
+  push:
+    branches:
+      - new_production
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-deploy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into DigitalOcean and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.BACKEND_DO_HOST }}
+          username: ${{ secrets.BACKEND_DO_USERNAME }}
+          key: ${{ secrets.BACKEND_DO_SSH_KEY }}
+          script: |
+            # Update this path to where your project is located on the DigitalOcean server!
+            cd ~/Sinhala-Teaching-AI-AVATAR
+            
+            # Pull latest code
+            git pull origin new_production
+            
+            # Rebuild and restart the backend container
+            cd backend
+            sudo docker build -t ai-avatar-backend .
+            sudo docker stop avatar-backend || true
+            sudo docker rm avatar-backend || true
+            
+            # Note: Make sure your .env file is present on the server in the backend folder!
+            sudo docker run -d --name avatar-backend -p 8000:8000 --restart always --env-file .env ai-avatar-backend
+            
+            # Clean up old unused images to save disk space
+            sudo docker image prune -f

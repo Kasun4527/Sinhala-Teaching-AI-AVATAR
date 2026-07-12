@@ -1,0 +1,37 @@
+name: Deploy Engagement Engine to DigitalOcean
+
+on:
+  push:
+    branches:
+      - new_production
+    paths:
+      - 'engagement_engine/**'
+      - '.github/workflows/engagement-deploy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into DigitalOcean and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ENGAGEMENT_DO_HOST }}
+          username: ${{ secrets.ENGAGEMENT_DO_USERNAME }}
+          key: ${{ secrets.ENGAGEMENT_DO_SSH_KEY }}
+          script: |
+            # Update this path to where your project is located on the DigitalOcean server!
+            cd ~/Sinhala-Teaching-AI-AVATAR
+            
+            # Pull latest code
+            git pull origin new_production
+            
+            # Rebuild and restart the engagement engine container
+            cd engagement_engine
+            sudo docker build -t ai-engagement-engine .
+            sudo docker stop avatar-engagement || true
+            sudo docker rm avatar-engagement || true
+            
+            sudo docker run -d --name avatar-engagement -p 5001:5000 --restart always ai-engagement-engine
+            
+            # Clean up old unused images to save disk space
+            sudo docker image prune -f
