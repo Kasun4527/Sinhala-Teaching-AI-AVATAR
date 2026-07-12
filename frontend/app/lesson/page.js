@@ -84,6 +84,7 @@ export default function LessonPage() {
   const [engEmotion, setEngEmotion] = useState("");
   const [engAlert, setEngAlert] = useState(false);
   const [engConnected, setEngConnected] = useState(false);
+  const [engPhoneDetected, setEngPhoneDetected] = useState(false);
   const engTimelineRef = useRef([]);
   const sessionStartRef = useRef(new Date().toISOString());
   const alertCooldownRef = useRef(false);
@@ -291,66 +292,118 @@ export default function LessonPage() {
   }, []);
 
   // ── Engagement tracking ──────────────────────────────────────────────────
+  // The engagement engine has no access to the student's webcam itself (it's a
+  // hosted service) — the browser captures frames here and POSTs each one for
+  // scoring, instead of the old model of asking a local server process to open
+  // the camera and stream results back over SSE.
+  const engStreamRef = useRef(null);
+  const engVideoRef = useRef(null);
+  const engIntervalRef = useRef(null);
+  const engSessionIdRef = useRef(null);
+
   useEffect(() => {
     if (!topic) return;
     sessionStartRef.current = new Date().toISOString();
-    let es;
-    try {
-      es = new EventSource(`${ENGAGEMENT_SERVER}/api/stats/stream`);
-      es.onopen = () => setEngConnected(true);
-      es.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data.stopped) { setEngConnected(false); return; }
-          const score = data.current?.score ?? 0;
-          const state = data.current?.state ?? "";
-          const emotion = data.current?.emotion ?? "";
-          setEngScore(Math.round(score));
-          setEngState(state);
-          setEngEmotion(emotion);
-          setEngConnected(true);
-          minScoreRef.current = Math.min(minScoreRef.current, score);
-          maxScoreRef.current = Math.max(maxScoreRef.current, score);
-          engTimelineRef.current.push({
-            time: new Date().toLocaleTimeString("en-GB"),
-            score: Math.round(score),
-            emotion,
-          });
-          // Keep last 300 points (~60s at 5/s)
-          if (engTimelineRef.current.length > 300) engTimelineRef.current.shift();
+    engSessionIdRef.current = crypto.randomUUID();
 
-          // Alert if below 50
-          if (score < 50 && !alertCooldownRef.current) {
-            setEngAlert(true);
-            alertCooldownRef.current = true;
-            try {
-              if (!audioCtxRef.current) {
-                audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-              }
-              const ctx = audioCtxRef.current;
-              if (ctx.state === "suspended") ctx.resume();
-              // Play two beeps
-              [0, 0.4].forEach((delay) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain); gain.connect(ctx.destination);
-                osc.frequency.value = 880;
-                gain.gain.setValueAtTime(0, ctx.currentTime + delay);
-                gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.5);
-                osc.start(ctx.currentTime + delay);
-                osc.stop(ctx.currentTime + delay + 0.5);
-              });
-            } catch (_) {}
-            setTimeout(() => {
-              setEngAlert(false);
-              alertCooldownRef.current = false;
-            }, 30000); // 30s cooldown
+    const FRAME_INTERVAL_MS = 700;
+    const MAX_TIMELINE_POINTS = 90; // ~60s of history at one frame per 700ms
+
+    const applyStats = (current) => {
+      if (!current) return;
+      const score = current.score ?? 0;
+      const state = current.state ?? "";
+      const emotion = current.emotion ?? "";
+      const phoneDetected = current.phone_detected ?? false;
+      setEngScore(Math.round(score));
+      setEngState(state);
+      setEngEmotion(emotion);
+      setEngPhoneDetected(phoneDetected);
+      setEngConnected(true);
+      minScoreRef.current = Math.min(minScoreRef.current, score);
+      maxScoreRef.current = Math.max(maxScoreRef.current, score);
+      engTimelineRef.current.push({
+        time: new Date().toLocaleTimeString("en-GB"),
+        score: Math.round(score),
+        emotion,
+      });
+      if (engTimelineRef.current.length > MAX_TIMELINE_POINTS) engTimelineRef.current.shift();
+
+      // Low-engagement badge tracks the live score directly, so it clears
+      // as soon as the score recovers instead of waiting on the beep cooldown.
+      setEngAlert(score < 50);
+
+      // Beep is still throttled so it doesn't fire on every frame while score stays low.
+      if (score < 50 && !alertCooldownRef.current) {
+        alertCooldownRef.current = true;
+        try {
+          if (!audioCtxRef.current) {
+            audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
           }
+          const ctx = audioCtxRef.current;
+          if (ctx.state === "suspended") ctx.resume();
+          // Play two beeps
+          [0, 0.4].forEach((delay) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+            gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.5);
+            osc.start(ctx.currentTime + delay);
+            osc.stop(ctx.currentTime + delay + 0.5);
+          });
         } catch (_) {}
-      };
-      es.onerror = () => setEngConnected(false);
-    } catch (_) {}
+        setTimeout(() => {
+          alertCooldownRef.current = false;
+        }, 30000); // 30s cooldown
+      }
+    };
+
+    let cancelled = false;
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    const canvasCtx = canvas.getContext("2d");
+
+    const captureAndSend = async () => {
+      const video = engVideoRef.current;
+      if (!video || video.readyState < 2) return;
+      canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame_b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+      try {
+        const res = await fetch(`${ENGAGEMENT_SERVER}/api/frame`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: engSessionIdRef.current, frame_b64 }),
+        });
+        if (!res.ok) throw new Error("bad response");
+        const data = await res.json();
+        applyStats(data.current);
+      } catch (_) {
+        setEngConnected(false);
+      }
+    };
+
+    navigator.mediaDevices?.getUserMedia?.({ video: { width: 640, height: 480 } })
+      .then((stream) => {
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        engStreamRef.current = stream;
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+        video.play().catch(() => {});
+        engVideoRef.current = video;
+        engIntervalRef.current = setInterval(captureAndSend, FRAME_INTERVAL_MS);
+      })
+      .catch(() => {
+        // No camera, or the student denied permission — degrade gracefully
+        // instead of leaving the pill stuck on "Connecting...".
+        setEngConnected(false);
+        setEngState("Camera unavailable");
+      });
 
     // Save session on unmount
     const saveSession = () => {
@@ -364,7 +417,7 @@ export default function LessonPage() {
         avg_score: Math.round(avg * 10) / 10,
         min_score: minScoreRef.current,
         max_score: maxScoreRef.current,
-        duration_seconds: Math.round(timeline.length * 0.2),
+        duration_seconds: Math.round(timeline.length * (FRAME_INTERVAL_MS / 1000)),
         timeline: timeline.filter((_, i) => i % 5 === 0), // sample every 5
         started_at: sessionStartRef.current,
       };
@@ -374,7 +427,13 @@ export default function LessonPage() {
 
     window.addEventListener("beforeunload", saveSession);
     return () => {
-      es?.close();
+      cancelled = true;
+      if (engIntervalRef.current) clearInterval(engIntervalRef.current);
+      // Release the webcam the moment the student leaves the lesson page
+      // (tab close, navigation away, etc.) instead of leaving it running.
+      engStreamRef.current?.getTracks().forEach((t) => t.stop());
+      engStreamRef.current = null;
+      engVideoRef.current = null;
       saveSession();
       window.removeEventListener("beforeunload", saveSession);
     };
@@ -505,8 +564,8 @@ export default function LessonPage() {
                   return (
                     <div style={{
                       display: "flex", alignItems: "center", gap: 8,
-                      background: engAlert ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.08)",
-                      border: `1px solid ${engAlert ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.14)"}`,
+                      background: (engAlert || engPhoneDetected) ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.08)",
+                      border: `1px solid ${(engAlert || engPhoneDetected) ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.14)"}`,
                       borderRadius: 100, padding: "5px 14px",
                       transition: "all 0.3s",
                     }}>
@@ -517,6 +576,11 @@ export default function LessonPage() {
                       </span>
                       {engEmotion && (
                         <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{engEmotion}</span>
+                      )}
+                      {engPhoneDetected && (
+                        <span style={{ color: "#f87171", fontSize: 11, fontWeight: 700, animation: "pulse 1s infinite" }}>
+                          📱 Phone Detected
+                        </span>
                       )}
                       {engAlert && (
                         <span style={{ color: "#f87171", fontSize: 11, fontWeight: 700, animation: "pulse 1s infinite" }}>
