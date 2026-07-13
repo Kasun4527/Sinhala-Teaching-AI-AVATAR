@@ -6,11 +6,38 @@ import requests
 from services.retriever import get_relevant_context
 
 
+# Sinhala Unicode block — used to tell genuine Sinhala content apart from
+# the fine-tuned model occasionally code-switching into English mid-answer.
+_SINHALA_CHAR = re.compile(r'[඀-෿]')
+_LATIN_CHAR = re.compile(r'[A-Za-z]')
+_ENGLISH_CONTAMINATION_THRESHOLD = 0.15
+
+
+def _is_english_contaminated(question):
+    """True if a question/options/answer blob has enough Latin-alphabet
+    content to indicate the model code-switched into English rather than
+    staying in Sinhala. Quiz content here is expected to be entirely
+    Sinhala, so any real English is a model defect, not a legitimate
+    loanword (Sinhala loanwords are written in Sinhala script)."""
+    parts = [question.get("question", "")]
+    parts.extend(question.get("options") or [])
+    parts.append(question.get("answer", ""))
+    combined = " ".join(p for p in parts if isinstance(p, str))
+
+    sinhala_count = len(_SINHALA_CHAR.findall(combined))
+    latin_count = len(_LATIN_CHAR.findall(combined))
+    total = sinhala_count + latin_count
+    if total == 0:
+        return False
+    return (latin_count / total) > _ENGLISH_CONTAMINATION_THRESHOLD
+
+
 def normalize_quiz_questions(result):
     questions = result.get("questions")
     if not isinstance(questions, list):
         return result
 
+    clean_questions = []
     for question in questions:
         if not isinstance(question, dict):
             continue
@@ -20,14 +47,86 @@ def normalize_quiz_questions(result):
         if not isinstance(options, list) or not answer:
             continue
 
+        if _is_english_contaminated(question):
+            print(f"[WARNING] Dropping English-contaminated question: {question.get('question', '')[:60]}")
+            continue
+
         shuffled_options = [option for option in options if option]
         if answer not in shuffled_options:
             shuffled_options.insert(0, answer)
 
         random.shuffle(shuffled_options)
         question["options"] = shuffled_options
+        clean_questions.append(question)
 
+    result["questions"] = clean_questions
     return result
+
+
+# A "value" in the model's near-JSON output is either a properly quoted
+# string or, failing that, bare text up to the next comma/brace/bracket.
+# The quoted alternatives also accept a stray "]"/"}" as a terminator
+# (in addition to the matching quote) because the model sometimes drops
+# the closing quote and writes a bracket instead — without this, a single
+# missing quote shifts every subsequent quote-pairing in the blob and
+# produces garbage fragments (e.g. a lone ",") as bogus values.
+_VALUE = r'(?:"([^"\]}]*)["\]}]|\'([^\'\]}]*)[\'\]}]|([^,}\]]*))'
+
+# Same reasoning applied to individual option items inside an options list.
+_OPTION_ITEM = re.compile(r'"([^"\]]*)["\]]|\'([^\'\]]*)[\'\]]')
+
+
+def _first_group(match, *indices):
+    for i in indices:
+        if match.group(i) is not None and match.group(i).strip():
+            return match.group(i).strip().strip('"\'').strip()
+    return ""
+
+
+def _has_word_char(text):
+    return bool(re.search(r'\w', text, re.UNICODE))
+
+
+def _extract_questions_loose(text):
+    """Best-effort extraction of question/options/answer triples from
+    near-JSON model output that fails strict json.loads — the fine-tuned
+    model frequently produces unquoted keys, single quotes, mismatched or
+    extra list nesting, dropped closing quotes, or a misplaced "answer" key.
+    Rather than requiring the whole blob to be valid JSON, this scans for
+    recognizable question/options/answer triples wherever they appear.
+    """
+    questions = []
+    pattern = re.compile(
+        r'["\']?question["\']?\s*:\s*' + _VALUE + r'\s*,\s*'
+        r'["\']?options["\']?\s*:\s*\[(.*?)\]\s*,\s*'
+        r'["\']?answer["\']?\s*:\s*' + _VALUE,
+        re.DOTALL,
+    )
+    for m in pattern.finditer(text):
+        q_text = _first_group(m, 1, 2, 3)
+        raw_options = m.group(4)
+        answer = _first_group(m, 5, 6, 7)
+
+        # options may be quoted ("a", 'b') or bare (a, b) — split accordingly
+        opt_matches = _OPTION_ITEM.findall(raw_options)
+        if opt_matches:
+            opts = [(a or b).strip() for a, b in opt_matches]
+        else:
+            opts = [o.strip() for o in raw_options.split(",")]
+        # drop empty fragments and pure-punctuation noise (e.g. a lone ",")
+        opts = [o for o in opts if o and _has_word_char(o)]
+        opts = [o for o in opts if o != "answer" and o != answer]
+
+        if answer and answer not in opts:
+            opts.insert(0, answer)
+
+        if q_text and answer and _has_word_char(answer) and len(opts) >= 2:
+            questions.append({
+                "question": q_text,
+                "options": opts[:4],
+                "answer": answer,
+            })
+    return questions
 
 
 def extract_json(text):
@@ -52,7 +151,12 @@ def extract_json(text):
         except Exception:
             continue
 
-    print("Standard JSON failed. Attempting to parse text format...")
+    print("Standard JSON failed. Attempting loose extraction...")
+    loose_questions = _extract_questions_loose(cleaned_text)
+    if loose_questions:
+        return normalize_quiz_questions({"questions": loose_questions})
+
+    print("Loose extraction failed. Attempting to parse text format...")
     questions = []
 
     blocks = re.split(r"\n\s*\n", cleaned_text)
@@ -132,10 +236,13 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
     print(f"[DEBUG] Context preview: {context[:150]}")
 
     # STEP 1: Set instruction based on quiz type
+    # Explicitly forbids English — the fine-tuned model occasionally
+    # code-switches mid-answer without this reminder.
+    language_rule = "ප්‍රශ්නය, විකල්ප සහ පිළිතුර සම්පූර්ණයෙන්ම සිංහල භාෂාවෙන් පමණක් ලියන්න. ඉංග්‍රීසි වචන හෝ අකුරු කිසිසේත් භාවිත නොකරන්න."
     if quiz_type == "pre":
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න."
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න. {language_rule}"
     else:
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න."
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න. {language_rule}"
 
     # STEP 2: Build input prompt with context
     input_text = f"""Context:
@@ -145,6 +252,7 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
 මාතෘකාව: {topic}
 
 JSON ආකෘතියට ප්‍රශ්න 5ක් සකසන්න. සෑම ප්‍රශ්නයකටම පිළිතුරු 4ක් සහ නිවැරදි පිළිතුරක් තිබිය යුතුය.
+සම්පූර්ණයෙන්ම සිංහල භාෂාවෙන් පමණක් ලියන්න — ඉංග්‍රීසි වචනයක්වත් භාවිත නොකරන්න.
 
 Format:
 {{
@@ -161,7 +269,7 @@ Format:
     payload = {
         "instruction": instruction,
         "input": input_text,
-        "max_new_tokens": 800,
+        "max_new_tokens": 2000,
     }
 
     max_retries = 3

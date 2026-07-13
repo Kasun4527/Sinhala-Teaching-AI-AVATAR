@@ -7,7 +7,6 @@ load_dotenv(override=True)
 
 mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 client = MongoClient(mongo_uri)
-
 db = client["ai_avatar"]
 
 # existing
