@@ -161,7 +161,7 @@ Format:
     payload = {
         "instruction": instruction,
         "input": input_text,
-        "max_new_tokens": 800,
+        "max_new_tokens": 2000,
     }
 
     max_retries = 3
