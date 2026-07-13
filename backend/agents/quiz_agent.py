@@ -30,6 +30,58 @@ def normalize_quiz_questions(result):
     return result
 
 
+# A "value" in the model's near-JSON output is either a properly quoted
+# string (commas inside are fine — Sinhala answers often contain them) or,
+# failing that, bare text up to the next comma/brace/bracket.
+_VALUE = r'(?:"([^"]*)"|\'([^\']*)\'|([^,}\]]*))'
+
+
+def _first_group(match, *indices):
+    for i in indices:
+        if match.group(i) is not None and match.group(i).strip():
+            return match.group(i).strip().strip('"\'').strip()
+    return ""
+
+
+def _extract_questions_loose(text):
+    """Best-effort extraction of question/options/answer triples from
+    near-JSON model output that fails strict json.loads — the fine-tuned
+    model frequently produces unquoted keys, single quotes, mismatched or
+    extra list nesting, or a misplaced "answer" key. Rather than requiring
+    the whole blob to be valid JSON, this scans for recognizable
+    question/options/answer triples wherever they appear.
+    """
+    questions = []
+    pattern = re.compile(
+        r'["\']?question["\']?\s*:\s*' + _VALUE + r'\s*,\s*'
+        r'["\']?options["\']?\s*:\s*\[(.*?)\]\s*,\s*'
+        r'["\']?answer["\']?\s*:\s*' + _VALUE,
+        re.DOTALL,
+    )
+    for m in pattern.finditer(text):
+        q_text = _first_group(m, 1, 2, 3)
+        raw_options = m.group(4)
+        answer = _first_group(m, 5, 6, 7)
+
+        # options may be quoted ("a", 'b') or bare (a, b) — split accordingly
+        quoted = re.findall(r'["\']([^"\']+?)["\']', raw_options)
+        opts = [o.strip() for o in quoted] if quoted else [
+            o.strip() for o in raw_options.split(",")
+        ]
+        opts = [o for o in opts if o and o != "answer" and o != answer]
+
+        if answer and answer not in opts:
+            opts.insert(0, answer)
+
+        if q_text and answer and len(opts) >= 2:
+            questions.append({
+                "question": q_text,
+                "options": opts[:4],
+                "answer": answer,
+            })
+    return questions
+
+
 def extract_json(text):
     """Safely extract quiz JSON even if the model adds extra text or truncates."""
     if not text:
@@ -52,7 +104,12 @@ def extract_json(text):
         except Exception:
             continue
 
-    print("Standard JSON failed. Attempting to parse text format...")
+    print("Standard JSON failed. Attempting loose extraction...")
+    loose_questions = _extract_questions_loose(cleaned_text)
+    if loose_questions:
+        return normalize_quiz_questions({"questions": loose_questions})
+
+    print("Loose extraction failed. Attempting to parse text format...")
     questions = []
 
     blocks = re.split(r"\n\s*\n", cleaned_text)
