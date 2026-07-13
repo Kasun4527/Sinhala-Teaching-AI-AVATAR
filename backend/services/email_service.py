@@ -1,5 +1,6 @@
 import os
 import smtplib
+import socket
 import secrets
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
@@ -17,6 +18,20 @@ TOKEN_EXPIRY_HOURS = 24
 print(f"[EmailService] GMAIL_USER={GMAIL_USER!r}  PASSWORD_LEN={len(GMAIL_PASSWORD.replace(' ','')) if GMAIL_PASSWORD else 0}")
 
 
+class _SMTP_IPv4(smtplib.SMTP):
+    """Some cloud hosts (e.g. DigitalOcean droplets) have an IPv6 address
+    assigned but no working IPv6 route. smtp.gmail.com resolves to both
+    A and AAAA records, and the default dual-stack lookup can pick the
+    AAAA record first and fail with "Network is unreachable". Forcing
+    IPv4 here sidesteps that regardless of the host's network config.
+    """
+    def _get_socket(self, host, port, timeout):
+        if self.debuglevel > 0:
+            self._print_debug('connect:', (host, port))
+        ipv4_addr = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0][4]
+        return socket.create_connection(ipv4_addr, timeout, self.source_address)
+
+
 def _send_email(to_email: str, subject: str, html_body: str):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -27,7 +42,7 @@ def _send_email(to_email: str, subject: str, html_body: str):
     # Strip spaces from App Password in case it was copied with spaces (xxxx xxxx xxxx xxxx)
     password = (GMAIL_PASSWORD or "").replace(" ", "")
 
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+    with _SMTP_IPv4("smtp.gmail.com", 587) as server:
         server.ehlo()
         server.starttls()
         server.ehlo()
