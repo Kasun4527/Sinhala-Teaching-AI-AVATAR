@@ -7,6 +7,7 @@ import numpy as np
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from modules.face_detector import FaceDetector
