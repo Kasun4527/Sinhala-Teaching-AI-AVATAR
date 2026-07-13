@@ -31,3 +31,4 @@ jobs:
           output_location: "" 
         env:
           NEXT_PUBLIC_BACKEND_URL: "https://avatar-backend.duckdns.org"
+          NEXT_PUBLIC_ENGAGEMENT_URL: "https://avatar-engagement.duckdns.org"
