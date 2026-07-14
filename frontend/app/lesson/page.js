@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useMemo, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarSelector from "@/components/AvatarSelector";
 import ChatBot from "@/components/ChatBot";
+import YouTubePanel from "@/components/YouTubePanel";
 
 const ENGAGEMENT_SERVER = process.env.NEXT_PUBLIC_ENGAGEMENT_URL || "http://localhost:5000";
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
@@ -67,6 +68,7 @@ function LessonPageContent() {
 
   // Q&A state
   const [qaOpen, setQaOpen] = useState(false);
+  const [youtubeOpen, setYoutubeOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [question, setQuestion] = useState("");
   const [qaLoading, setQaLoading] = useState(false);
@@ -555,6 +557,21 @@ function LessonPageContent() {
                   {level}
                 </span>
 
+                {/* YouTube video button */}
+                <button
+                  onClick={() => setYoutubeOpen(true)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    borderRadius: 100, padding: "5px 14px",
+                    color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  📺 Watch a Video
+                </button>
+
                 {/* Engagement inline pill */}
                 {(() => {
                   const scoreColor = engScore === null ? "#94a3b8"
@@ -927,6 +944,16 @@ function LessonPageContent() {
       })()}
 
       <ChatBot subject={subject} lesson={lesson} topic={topic} accent={accent} />
+
+      {youtubeOpen && (
+        <YouTubePanel
+          subject={subject}
+          lesson={lesson}
+          topic={topic}
+          accent={accent}
+          onClose={() => setYoutubeOpen(false)}
+        />
+      )}
     </div>
   );
 }
