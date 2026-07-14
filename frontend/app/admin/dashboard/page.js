@@ -66,6 +66,7 @@ export default function AdminDashboard() {
   const [expandedTopic, setExpandedTopic] = useState(null);
   const [engagementData, setEngagementData] = useState({});
   const [qaData, setQaData] = useState({});
+  const [youtubeData, setYoutubeData] = useState({});
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -506,12 +507,14 @@ export default function AdminDashboard() {
                             if (next !== null) {
                               try {
                                 const params = { student_id: selectedStudent.student_id, subject: selectedSubject, topic: t.topic };
-                                const [engRes, qaRes] = await Promise.all([
+                                const [engRes, qaRes, ytRes] = await Promise.all([
                                   !engagementData[i] ? axios.get(`${API}/engagement-history`, { params }) : null,
                                   !qaData[i] ? axios.get(`${API}/admin/student-qa`, { params }) : null,
+                                  !youtubeData[i] ? axios.get(`${API}/admin/youtube-history`, { params }) : null,
                                 ]);
                                 if (engRes) setEngagementData(prev => ({ ...prev, [i]: engRes.data.sessions }));
                                 if (qaRes) setQaData(prev => ({ ...prev, [i]: qaRes.data.qa }));
+                                if (ytRes) setYoutubeData(prev => ({ ...prev, [i]: ytRes.data.sessions }));
                               } catch (_) {}
                             }
                           }}
@@ -642,6 +645,43 @@ export default function AdminDashboard() {
                                     </div>
                                   );
                                 })}
+                              </div>
+                            )}
+
+                            {/* YouTube watch history */}
+                            {(youtubeData[i] || []).length > 0 && (
+                              <div style={{ marginBottom: 20 }}>
+                                <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
+                                  YouTube Watch History
+                                </p>
+                                {(youtubeData[i] || []).map((session, yi) => (
+                                  <div key={yi} style={{
+                                    background: CARD, border: `1px solid ${BORDER}`,
+                                    borderRadius: 12, padding: "14px 18px", marginBottom: 10,
+                                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                                  }}>
+                                    <div style={{ minWidth: 0 }}>
+                                      <a
+                                        href={session.video_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ color: ACCENT, fontWeight: 600, fontSize: 13, textDecoration: "none" }}
+                                      >
+                                        📺 {session.video_title}
+                                      </a>
+                                      <p style={{ color: MUTED, fontSize: 11, margin: "4px 0 0" }}>
+                                        {new Date(session.started_at).toLocaleString()}
+                                      </p>
+                                    </div>
+                                    <span style={{
+                                      background: "rgba(255,255,255,0.04)", borderRadius: 8,
+                                      padding: "4px 10px", fontSize: 11, color: TEXT, fontWeight: 700,
+                                      border: `1px solid rgba(255,255,255,0.06)`, flexShrink: 0,
+                                    }}>
+                                      {Math.floor(session.watched_seconds / 60)}:{String(session.watched_seconds % 60).padStart(2, "0")}
+                                    </span>
+                                  </div>
+                                ))}
                               </div>
                             )}
 
