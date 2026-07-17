@@ -19,6 +19,7 @@ import sys
 import json
 import numpy as np
 from datetime import datetime
+from tensorflow import keras
 
 # Ensure backend root is on path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

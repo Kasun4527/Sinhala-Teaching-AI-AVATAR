@@ -58,6 +58,7 @@ const SUBJECT = {
   Maths:                { abbr: "MA", hue: "#7c3aed", bg: "#f5f3ff", ring: "#c4b5fd", dark: "#3b0764" },
   "ආර්ථික විද්‍යාව":   { abbr: "₨", hue: "#b45309", bg: "#fffbeb", ring: "#fde68a", dark: "#78350f" },
   "බුද්ධ ධර්මය":       { abbr: "☸", hue: "#c026d3", bg: "#fdf4ff", ring: "#e879f9", dark: "#701a75" },
+  "විද්‍යාව":           { abbr: "🔬", hue: "#0d9488", bg: "#f0fdfa", ring: "#99f6e4", dark: "#134e4a" },
 };
 const DEFAULT_S = { abbr: "SU", hue: "#475569", bg: "#f8fafc", ring: "#cbd5e1", dark: "#1e293b" };
 
