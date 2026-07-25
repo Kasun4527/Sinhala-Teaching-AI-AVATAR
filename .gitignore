@@ -24,3 +24,16 @@ personalization_report_0705.md
 # ChromaDB Vector Store
 backend/chroma_db/
 *.sqlite3
+
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
