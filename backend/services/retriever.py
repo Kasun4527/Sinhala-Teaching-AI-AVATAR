@@ -174,6 +174,36 @@ def get_relevant_context(subject: str, lesson: str, topic: str, k: int = 6, use_
     return context[:8000]
 
 
+def search_by_question(question: str, subject: str = None, lesson: str = None, k: int = 5) -> str:
+    """
+    Similarity search using the student's actual question as the query text,
+    scoped by whatever subject/lesson metadata is available. Used by the
+    chatbot on pages that don't have a specific topic to pin down an exact
+    source file (e.g. the subject-level or top-level dashboard chat) — falls
+    back to an unfiltered search only if no subject/lesson is available at all.
+    """
+    conditions = []
+    if subject:
+        conditions.append({"subject": subject})
+    if lesson:
+        conditions.append({"lesson": lesson})
+
+    if len(conditions) > 1:
+        where = {"$and": conditions}
+    elif len(conditions) == 1:
+        where = conditions[0]
+    else:
+        where = None
+
+    vector_store = get_vector_store()
+    query = f"query: {question}"
+    docs = vector_store.similarity_search(query=query, k=k, filter=where)
+    clean_docs = [doc for doc in docs if not is_garbled(doc.page_content)]
+    context = "\n\n".join([clean_chunk(doc.page_content) for doc in clean_docs])
+    print(f"[DEBUG] search_by_question: where={where} chunks={len(clean_docs)} context_len={len(context)}")
+    return context[:8000]
+
+
 def _load_from_file(filename: str) -> str:
     """Load and return all valid paragraphs from a txt file."""
     filepath = os.path.join(DOCS_PATH, filename)

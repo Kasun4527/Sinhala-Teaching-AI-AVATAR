@@ -118,6 +118,7 @@ function ResultPageContent() {
   const level   = searchParams.get("level");
   const topic   = searchParams.get("topic");
   const type    = searchParams.get("type");
+  const grade   = searchParams.get("grade") || "";
   const isPost  = type === "post";
 
   useEffect(() => {
@@ -314,7 +315,7 @@ function ResultPageContent() {
 
               {isPost && score >= 6 && (
                 <button
-                  onClick={() => router.push(`/topics?subject=${subject}&lesson=${lesson}`)}
+                  onClick={() => router.push(`/topics?subject=${subject}&lesson=${encodeURIComponent(lesson)}&grade=${encodeURIComponent(grade)}`)}
                   style={{
                     width: "100%", padding: "15px",
                     background: "linear-gradient(135deg, #064e3b, #059669)",

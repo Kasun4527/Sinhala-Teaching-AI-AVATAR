@@ -114,3 +114,45 @@ def get_topic_details(student_id, subject):
         })
 
     return result
+
+
+# =========================
+# GET PRE/POST QUIZ IMPROVEMENT FOR A STUDENT (optionally scoped to a subject)
+# =========================
+def get_improvement_summary(student_id, subject=None):
+
+    query = {"student_id": student_id}
+    if subject:
+        query["subject"] = subject
+
+    # Only topics where both quiz marks exist can show an improvement delta
+    query["initial_quiz_marks"] = {"$ne": None}
+    query["final_quiz_marks"] = {"$ne": None}
+
+    records = student_progress_collection.find(query).sort("created_at", 1)
+
+    topics = []
+    total_improvement = 0
+
+    for r in records:
+        improvement = r["final_quiz_marks"] - r["initial_quiz_marks"]
+        total_improvement += improvement
+        topics.append({
+            "subject": r["subject"],
+            "lesson": r["lesson"],
+            "topic": r["topic"],
+            "level": r.get("level"),
+            "initial_quiz_marks": r["initial_quiz_marks"],
+            "final_quiz_marks": r["final_quiz_marks"],
+            "improvement": improvement,
+            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+        })
+
+    count = len(topics)
+    average_improvement = round(total_improvement / count, 2) if count > 0 else 0
+
+    return {
+        "topics": topics,
+        "count": count,
+        "average_improvement": average_improvement,
+    }
