@@ -4,10 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
-// Per-video watch cap. Lower this temporarily (e.g. 10) to test the
-// auto-stop path quickly, then revert to 300 before shipping.
-const CAP_SECONDS = 300;
-
 // Shared across all mounts of this component so the IFrame API script is
 // only ever injected once, even if the modal is opened/closed repeatedly.
 let ytApiPromise = null;
@@ -105,13 +101,7 @@ export default function YouTubePanel({ subject = "", lesson = "", topic = "", ac
       intervalRef.current = setInterval(() => {
         const player = playerRef.current;
         if (!player || typeof player.getCurrentTime !== "function") return;
-        const current = player.getCurrentTime();
-        setElapsed(current);
-        if (current >= CAP_SECONDS) {
-          clearWatchInterval();
-          player.stopVideo();
-          logCurrentSession(CAP_SECONDS);
-        }
+        setElapsed(player.getCurrentTime());
       }, 1000);
     } else {
       clearWatchInterval();
@@ -252,7 +242,7 @@ export default function YouTubePanel({ subject = "", lesson = "", topic = "", ac
                 marginTop: 8, fontSize: 13, color: "#64748b",
               }}>
                 <span style={{ fontWeight: 600, color: "#1e293b" }}>{selectedVideo.title}</span>
-                <span>{formatTime(elapsed)} / {formatTime(CAP_SECONDS)} limit</span>
+                <span>{formatTime(elapsed)} watched</span>
               </div>
             </div>
           )}
