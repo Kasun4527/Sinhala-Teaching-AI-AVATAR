@@ -46,7 +46,8 @@ from agents.dashboard_agent import (
     get_all_students,
     get_student_subjects,
     get_lesson_progress,
-    get_topic_details
+    get_topic_details,
+    get_improvement_summary
 )
 
 
@@ -513,6 +514,14 @@ def admin_get_topic_details(student_id: str, subject: str):
     return {"topics": details}
 
 
+# ✅ Pre/post-quiz improvement trend for a student — used by both the
+# student's own dashboard (their own student_id) and the admin dashboard
+# (any student_id), optionally scoped to one subject.
+@app.get("/progress-improvement")
+def progress_improvement(student_id: str, subject: str = None):
+    return get_improvement_summary(student_id, subject)
+
+
 @app.get("/sidebar-progress")
 def sidebar_progress(student_id: str):
     """Return enrolled subjects with lessons/topics and completion status for sidebar."""
@@ -696,11 +705,23 @@ class QuestionRequest(BaseModel):
 
 @app.post("/ask-question")
 async def ask_question(data: QuestionRequest):
-    from services.retriever import get_relevant_context
+    from services.retriever import get_relevant_context, search_by_question
     import datetime
-    
-    # Run context retrieval in thread
-    context = await asyncio.to_thread(get_relevant_context, data.subject, data.lesson, data.topic, 5)
+
+    context = None
+
+    # Best case: a specific topic lets us pin down the exact source document.
+    if data.topic:
+        context = await asyncio.to_thread(get_relevant_context, data.subject, data.lesson, data.topic, 5)
+
+    # Fallback for chatbots on pages without a specific topic (or where the
+    # topic didn't match a file) — search using the student's actual
+    # question, scoped by whatever subject/lesson is available.
+    if not context:
+        context = await asyncio.to_thread(
+            search_by_question, data.question, data.subject or None, data.lesson or None, 5
+        )
+
     if not context:
         context = f"{data.topic} relating to {data.subject} - {data.lesson}"
 
@@ -758,6 +779,7 @@ def youtube_search(q: str):
             "type": "video",
             "maxResults": 10,
             "safeSearch": "strict",
+            "videoCategoryId": "27",  # Education
             "q": q,
             "key": api_key,
         },

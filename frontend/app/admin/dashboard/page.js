@@ -67,6 +67,7 @@ export default function AdminDashboard() {
   const [engagementData, setEngagementData] = useState({});
   const [qaData, setQaData] = useState({});
   const [youtubeData, setYoutubeData] = useState({});
+  const [improvement, setImprovement] = useState(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -96,11 +97,18 @@ export default function AdminDashboard() {
     setLessonProgress(null);
     setTopicDetails([]);
     setExpandedTopic(null);
+    setImprovement(null);
     try {
-      const res = await axios.get(`${API}/admin/student-subjects`, {
-        params: { student_id: student.student_id }
-      });
-      setSubjects(res.data.subjects);
+      const [subjectsRes, improvementRes] = await Promise.all([
+        axios.get(`${API}/admin/student-subjects`, {
+          params: { student_id: student.student_id }
+        }),
+        axios.get(`${API}/progress-improvement`, {
+          params: { student_id: student.student_id }
+        }),
+      ]);
+      setSubjects(subjectsRes.data.subjects);
+      setImprovement(improvementRes.data);
     } catch (err) {
       console.error("Failed to load subjects", err);
     }
@@ -112,16 +120,20 @@ export default function AdminDashboard() {
     setLessonProgress(null);
     setExpandedTopic(null);
     try {
-      const [progressRes, topicsRes] = await Promise.all([
+      const [progressRes, topicsRes, improvementRes] = await Promise.all([
         axios.get(`${API}/admin/lesson-progress`, {
           params: { student_id: selectedStudent.student_id, subject }
         }),
         axios.get(`${API}/admin/topic-details`, {
           params: { student_id: selectedStudent.student_id, subject }
-        })
+        }),
+        axios.get(`${API}/progress-improvement`, {
+          params: { student_id: selectedStudent.student_id, subject }
+        }),
       ]);
       setLessonProgress(progressRes.data);
       setTopicDetails(topicsRes.data.topics);
+      setImprovement(improvementRes.data);
     } catch (err) {
       console.error("Failed to load subject details", err);
     }
@@ -441,6 +453,74 @@ export default function AdminDashboard() {
                         );
                       })}
                     </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Improvement Trend (pre-quiz → post-quiz) */}
+            {improvement && (
+              <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
+                <div style={{ padding: "20px 28px 18px", borderBottom: `1px solid ${BORDER}` }}>
+                  <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>
+                    Improvement Trend
+                  </p>
+                  <p style={{ color: TEXT, fontSize: 13, margin: 0 }}>
+                    Pre-quiz &rarr; post-quiz score change {selectedSubject ? `in ${selectedSubject}` : "across all subjects"}
+                  </p>
+                </div>
+                <div style={{ padding: "24px 28px" }}>
+                  {improvement.count === 0 ? (
+                    <p style={{ color: MUTED, fontSize: 13, margin: 0 }}>
+                      No completed pre + post quiz pairs yet for this {selectedSubject ? "subject" : "student"}.
+                    </p>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", gap: 20, marginBottom: 22 }}>
+                        <div style={{ flex: 1, background: "#0f172a", borderRadius: 12, padding: "16px 20px", border: `1px solid ${BORDER}`, textAlign: "center" }}>
+                          <p style={{
+                            color: improvement.average_improvement > 0 ? "#34d399" : improvement.average_improvement < 0 ? "#f87171" : TEXT2,
+                            fontSize: 30, fontWeight: 800, margin: 0,
+                          }}>
+                            {improvement.average_improvement > 0 ? "+" : ""}{improvement.average_improvement}
+                          </p>
+                          <p style={{ color: TEXT2, fontSize: 11, margin: "4px 0 0" }}>Avg. Improvement</p>
+                        </div>
+                        <div style={{ flex: 1, background: "#0f172a", borderRadius: 12, padding: "16px 20px", border: `1px solid ${BORDER}`, textAlign: "center" }}>
+                          <p style={{ color: TEXT2, fontSize: 30, fontWeight: 800, margin: 0 }}>{improvement.count}</p>
+                          <p style={{ color: TEXT2, fontSize: 11, margin: "4px 0 0" }}>Topics Compared</p>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {improvement.topics.map((t, i) => {
+                          const delta = t.improvement;
+                          const dColor = delta > 0 ? "#34d399" : delta < 0 ? "#f87171" : MUTED;
+                          const dBg = delta > 0 ? "rgba(52,211,153,0.1)" : delta < 0 ? "rgba(248,113,113,0.1)" : "rgba(255,255,255,0.04)";
+                          return (
+                            <div key={i} style={{
+                              display: "flex", alignItems: "center", justifyContent: "space-between",
+                              padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}`,
+                            }}>
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {t.topic}
+                                </p>
+                                <p style={{ color: MUTED, fontSize: 11, margin: "2px 0 0" }}>
+                                  {t.subject} &middot; {t.lesson} &middot; {t.initial_quiz_marks} &rarr; {t.final_quiz_marks}
+                                </p>
+                              </div>
+                              <span style={{
+                                background: dBg, color: dColor, fontWeight: 700, fontSize: 12,
+                                padding: "4px 12px", borderRadius: 20, flexShrink: 0, marginLeft: 12,
+                              }}>
+                                {delta > 0 ? "+" : ""}{delta}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
