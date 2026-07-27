@@ -7,6 +7,11 @@ const NGROK_HDR = { "ngrok-skip-browser-warning": "1" };
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 
+// Only these avatars (from the renderer's full character list) are shown
+// to students, with "kate" preferred as the default when available.
+const FEMALE_AVATARS = ["camila", "caroline", "clara", "elena", "kate", "maria", "may", "olivia"];
+const DEFAULT_AVATAR = "kate";
+
 export default function AvatarTeacher({ content, topic, speechReady = true, onSentenceChange, paragraphCount = 1, answerContent, onAnswerSpoken }) {
   const videoRef    = useRef(null);
   const pcRef       = useRef(null);
@@ -43,11 +48,14 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
     fetch(`${AVTR_HOST}/avatars`, { headers: NGROK_HDR })
       .then(r => r.json())
       .then(data => {
-        const avatars = Array.isArray(data.avatars) ? data.avatars : [];
+        const allAvatars = Array.isArray(data.avatars) ? data.avatars : [];
+        const avatars = allAvatars.filter(a => FEMALE_AVATARS.includes(a));
         const bgs     = Array.isArray(data.backgrounds) ? data.backgrounds : [];
         setAvatarList(avatars);
         setBgList(bgs);
-        if (avatars.length > 0) setSelectedAvatar(avatars[0]);
+        if (avatars.length > 0) {
+          setSelectedAvatar(avatars.includes(DEFAULT_AVATAR) ? DEFAULT_AVATAR : avatars[0]);
+        }
         if (bgs.length > 0)     setSelectedBg(bgs[0]);
       })
       .catch(() => {});
