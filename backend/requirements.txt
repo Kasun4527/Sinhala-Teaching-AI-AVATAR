@@ -1,4 +1,4 @@
-1fastapi
+fastapi
 uvicorn[standard]
 langchain
 langchain-community
@@ -9,7 +9,7 @@ scikit-learn
 pymongo
 python-dotenv
 python-jose[cryptography]
-passlib[bcrypt]
+bcrypt
 pydantic[email]
 requests
 chromadb

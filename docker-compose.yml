@@ -9,12 +9,23 @@ services:
       - .env
     restart: unless-stopped
 
+  engagement_engine:
+    build:
+      context: ./engagement_engine
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL}
+        NEXT_PUBLIC_ENGAGEMENT_URL: ${NEXT_PUBLIC_ENGAGEMENT_URL}
     ports:
       - "3000:3000"
     environment:
@@ -22,3 +33,4 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - engagement_engine

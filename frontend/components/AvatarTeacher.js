@@ -2,20 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const AVTR_HOST = "https://stifle-implement-feminist.ngrok-free.dev";
+const AVTR_HOST = process.env.NEXT_PUBLIC_AVTR_HOST || "https://stifle-implement-feminist.ngrok-free.dev";
 const NGROK_HDR = { "ngrok-skip-browser-warning": "1" };
 
-const WPM = 130;
+const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 
-function estimateDuration(text) {
-  const words = text.trim().split(/\s+/).length;
-  return Math.max((words / WPM) * 60, 1.5);
-}
+// Only these avatars (from the renderer's full character list) are shown
+// to students, with "kate" preferred as the default when available.
+const FEMALE_AVATARS = ["camila", "caroline", "clara", "elena", "kate", "maria", "may", "olivia"];
+const DEFAULT_AVATAR = "kate";
 
 export default function AvatarTeacher({ content, topic, speechReady = true, onSentenceChange, paragraphCount = 1, answerContent, onAnswerSpoken }) {
-  const videoRef  = useRef(null);
-  const pcRef     = useRef(null);
-  const timerRef  = useRef(null);
+  const videoRef    = useRef(null);
+  const pcRef       = useRef(null);
+  const channelRef  = useRef(null);
 
   const [status, setStatus]                 = useState("idle");
   const [error,  setError]                  = useState("");
@@ -23,13 +23,15 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
   const [bgList, setBgList]                 = useState([]);
   const [selectedAvatar, setSelectedAvatar] = useState("");
   const [selectedBg, setSelectedBg]         = useState("");
+  const [speed, setSpeed]                   = useState(1);
+  const [paused, setPaused]                 = useState(false);
 
   const activeContent = answerContent || content;
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopHighlightTimer();
+      clearHighlight();
       if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
       if (videoRef.current) { videoRef.current.srcObject = null; }
     };
@@ -46,48 +48,51 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
     fetch(`${AVTR_HOST}/avatars`, { headers: NGROK_HDR })
       .then(r => r.json())
       .then(data => {
-        const avatars = Array.isArray(data.avatars) ? data.avatars : [];
+        const allAvatars = Array.isArray(data.avatars) ? data.avatars : [];
+        const avatars = allAvatars.filter(a => FEMALE_AVATARS.includes(a));
         const bgs     = Array.isArray(data.backgrounds) ? data.backgrounds : [];
         setAvatarList(avatars);
         setBgList(bgs);
-        if (avatars.length > 0) setSelectedAvatar(avatars[0]);
+        if (avatars.length > 0) {
+          setSelectedAvatar(avatars.includes(DEFAULT_AVATAR) ? DEFAULT_AVATAR : avatars[0]);
+        }
         if (bgs.length > 0)     setSelectedBg(bgs[0]);
       })
       .catch(() => {});
   }, []);
 
-  async function getChunkDuration(b64) {
-    try {
-      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const buf = await ctx.decodeAudioData(bytes.buffer);
-      ctx.close();
-      return buf.duration;
-    } catch {
-      return null;
-    }
+  function clearHighlight() {
+    if (onSentenceChange) onSentenceChange(-1);
   }
 
-  function startHighlightTimer(durations) {
-    if (!onSentenceChange || durations.length === 0) return;
-    let idx = 0;
-    const next = () => {
-      if (idx >= durations.length) {
-        onSentenceChange(-1);
-        if (answerContent && onAnswerSpoken) onAnswerSpoken();
+  // Real playback timing from the avatar server — no estimation. The
+  // browser (as WebRTC offerer) must create this channel itself, BEFORE
+  // createOffer(), so the SDP negotiates an SCTP transport for it — the
+  // server then sends on this same channel via aiortc's "datachannel"
+  // event rather than trying to create its own after negotiation.
+  function handleAvatarEvent(pc, paragraphCountForSession) {
+    const channel = pc.createDataChannel("events");
+    channelRef.current = channel;
+    channel.onopen  = () => console.log("[AVTR-1] events channel OPEN, readyState:", channel.readyState);
+    channel.onclose = () => console.log("[AVTR-1] events channel CLOSED");
+    channel.onerror = (e) => console.error("[AVTR-1] events channel ERROR:", e);
+    channel.onmessage = (msg) => {
+      console.log("[AVTR-1] events channel message:", msg.data);
+      let data;
+      try {
+        data = JSON.parse(msg.data);
+      } catch {
         return;
       }
-      onSentenceChange(idx);
-      timerRef.current = setTimeout(next, durations[idx] * 1000);
-      idx++;
+      if (data.type === "avatar.speech.playback.segment_started") {
+        if (onSentenceChange) onSentenceChange(data.para_index);
+      } else if (data.type === "avatar.speech.playback.segment_completed") {
+        if (data.para_index === paragraphCountForSession - 1) {
+          clearHighlight();
+          if (answerContent && onAnswerSpoken) onAnswerSpoken();
+        }
+      }
     };
-    next();
-  }
-
-  function stopHighlightTimer() {
-    clearTimeout(timerRef.current);
-    timerRef.current = null;
-    if (onSentenceChange) onSentenceChange(-1);
   }
 
   function splitParagraphs(text) {
@@ -106,6 +111,26 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
     return chunks.length ? chunks : [clean];
   }
 
+  function sendCommand(command) {
+    const channel = channelRef.current;
+    if (channel && channel.readyState === "open") {
+      channel.send(JSON.stringify(command));
+    }
+  }
+
+  function changeSpeed(rate) {
+    setSpeed(rate);
+    // Only meaningful once a session is live — if not, this just sets the
+    // rate that will be sent in the initial /offer payload next start.
+    sendCommand({ command: "set_speed", rate });
+  }
+
+  function togglePause() {
+    const next = !paused;
+    setPaused(next);
+    sendCommand({ command: next ? "pause" : "resume" });
+  }
+
   async function waitForIceComplete(pc, ms = 8000) {
     if (pc.iceGatheringState === "complete") return;
     return new Promise(resolve => {
@@ -120,20 +145,14 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
     try {
       setError("");
       setStatus("connecting");
+      setPaused(false);
 
       const speechText = activeContent
         .replace(/\[IMAGE:[^\]]+\]/gi, "")
         .trim()
-        .slice(0, 4000);
+        .slice(0, 8000);
 
       const paragraphs = splitParagraphs(speechText);
-
-      // Fetch TTS in parallel to measure paragraph durations for highlighting
-      const ttsPromise = fetch("/api/generate-tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: speechText }),
-      }).then(r => r.json()).catch(() => null);
 
       const iceResp = await fetch(`${AVTR_HOST}/ice-servers`, { headers: NGROK_HDR });
       if (!iceResp.ok) throw new Error("Failed to get ICE servers");
@@ -144,6 +163,7 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
         iceTransportPolicy: iceCfg.iceTransportPolicy || "all",
       });
       pcRef.current = pc;
+      handleAvatarEvent(pc, paragraphs.length);
 
       pc.addTransceiver("video", { direction: "recvonly" });
       pc.addTransceiver("audio", { direction: "recvonly" });
@@ -170,6 +190,7 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
             type:    "custom",
             content: speechText,
             topic:   topic || "",
+            speed,
           },
         }),
       });
@@ -182,34 +203,13 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
 
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-          stopHighlightTimer();
+          clearHighlight();
           setStatus("idle");
         }
       };
 
       setStatus("live");
-
-      // Get TTS durations for accurate highlight timing
-      // Audio is NOT played — AVTR-1 plays its own audio via WebRTC
-      const ttsData = await ttsPromise;
-      const audioChunks = ttsData?.audioChunks;
-
-      let durations;
-      if (audioChunks?.length > 0) {
-        durations = await Promise.all(
-          audioChunks.map((b64, i) =>
-            getChunkDuration(b64).then(d => d ?? estimateDuration(paragraphs[i] || ""))
-          )
-        );
-        console.log("[AVTR-1] para durations (s):", durations.map(d => d.toFixed(2)));
-      } else {
-        console.warn("[AVTR-1] TTS unavailable, using WPM estimates");
-        durations = paragraphs.map(estimateDuration);
-      }
-
       console.log("[AVTR-1] paragraphs:", paragraphs.length, paragraphs.map(p => p.slice(0, 40)));
-      console.log("[AVTR-1] durations:", durations);
-      setTimeout(() => startHighlightTimer(durations), 1200);
 
     } catch (err) {
       console.error("AvatarTeacher:", err);
@@ -219,9 +219,11 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
   }
 
   function stopSession() {
-    stopHighlightTimer();
+    clearHighlight();
     if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
     if (videoRef.current) { videoRef.current.srcObject = null; }
+    channelRef.current = null;
+    setPaused(false);
     setStatus("idle");
   }
 
@@ -270,6 +272,37 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
               {bgList.map((b, i) => <option key={i} value={b}>{b}</option>)}
             </select>
           )}
+
+          {/* Speed selector — always visible so it can be set before starting too */}
+          <div style={{ display: "flex", gap: 0, background: "#1e293b", borderRadius: 8, padding: 3 }}>
+            {SPEED_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => changeSpeed(opt)}
+                style={{
+                  padding: "4px 9px", borderRadius: 6, border: "none",
+                  background: speed === opt ? "#3b82f6" : "transparent",
+                  color: speed === opt ? "white" : "#94a3b8",
+                  fontWeight: 600, fontSize: 11, cursor: "pointer",
+                }}
+              >
+                {opt}x
+              </button>
+            ))}
+          </div>
+
+          {isLive && (
+            <button
+              onClick={togglePause}
+              style={{
+                backgroundColor: "#1e293b", color: "#e2e8f0", border: "1px solid #334155",
+                borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              {paused ? "▶ Resume" : "⏸ Pause"}
+            </button>
+          )}
+
           <span style={{ color: "#64748b", fontSize: 12 }}>{topic}</span>
         </div>
 

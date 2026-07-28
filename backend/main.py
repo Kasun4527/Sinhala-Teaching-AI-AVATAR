@@ -23,7 +23,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection
+from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection
 from services.email_service import send_verification_email, verify_token
 from models.User import User
 from auth.security import hash_password
@@ -46,7 +46,8 @@ from agents.dashboard_agent import (
     get_all_students,
     get_student_subjects,
     get_lesson_progress,
-    get_topic_details
+    get_topic_details,
+    get_improvement_summary
 )
 
 
@@ -59,7 +60,11 @@ app = FastAPI()
 # Serve images statically
 app.mount("/images", StaticFiles(directory="images"), name="images")
 
-_default_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+_default_origins = [
+    "http://localhost:3000", 
+    "http://127.0.0.1:3000",
+    "https://witty-moss-04a910200.7.azurestaticapps.net"
+]
 _frontend_url = os.getenv("FRONTEND_URL")
 allow_origins = _default_origins + [_frontend_url] if _frontend_url else _default_origins
 
@@ -509,6 +514,14 @@ def admin_get_topic_details(student_id: str, subject: str):
     return {"topics": details}
 
 
+# ✅ Pre/post-quiz improvement trend for a student — used by both the
+# student's own dashboard (their own student_id) and the admin dashboard
+# (any student_id), optionally scoped to one subject.
+@app.get("/progress-improvement")
+def progress_improvement(student_id: str, subject: str = None):
+    return get_improvement_summary(student_id, subject)
+
+
 @app.get("/sidebar-progress")
 def sidebar_progress(student_id: str):
     """Return enrolled subjects with lessons/topics and completion status for sidebar."""
@@ -692,11 +705,23 @@ class QuestionRequest(BaseModel):
 
 @app.post("/ask-question")
 async def ask_question(data: QuestionRequest):
-    from services.retriever import get_relevant_context
+    from services.retriever import get_relevant_context, search_by_question
     import datetime
-    
-    # Run context retrieval in thread
-    context = await asyncio.to_thread(get_relevant_context, data.subject, data.lesson, data.topic, 5)
+
+    context = None
+
+    # Best case: a specific topic lets us pin down the exact source document.
+    if data.topic:
+        context = await asyncio.to_thread(get_relevant_context, data.subject, data.lesson, data.topic, 5)
+
+    # Fallback for chatbots on pages without a specific topic (or where the
+    # topic didn't match a file) — search using the student's actual
+    # question, scoped by whatever subject/lesson is available.
+    if not context:
+        context = await asyncio.to_thread(
+            search_by_question, data.question, data.subject or None, data.lesson or None, 5
+        )
+
     if not context:
         context = f"{data.topic} relating to {data.subject} - {data.lesson}"
 
@@ -741,3 +766,58 @@ def get_student_qa(student_id: str, subject: str, topic: str):
         {"_id": 0}
     ).sort("asked_at", -1))
     return {"qa": records}
+
+
+# ── YouTube search + watch-history endpoints ──────────────────────────────────
+@app.get("/youtube/search")
+def youtube_search(q: str):
+    api_key = os.getenv("YOUTUBE_API_KEY")
+    resp = requests.get(
+        "https://www.googleapis.com/youtube/v3/search",
+        params={
+            "part": "snippet",
+            "type": "video",
+            "maxResults": 10,
+            "safeSearch": "strict",
+            "videoCategoryId": "27",  # Education
+            "q": q,
+            "key": api_key,
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    items = resp.json().get("items", [])
+    return {"results": [
+        {
+            "video_id": item["id"]["videoId"],
+            "title": item["snippet"]["title"],
+            "thumbnail_url": item["snippet"]["thumbnails"]["medium"]["url"],
+            "channel_title": item["snippet"]["channelTitle"],
+        }
+        for item in items
+    ]}
+
+
+class YouTubeWatchSession(BaseModel):
+    student_id: str
+    subject: str
+    lesson: str
+    topic: str
+    video_id: str
+    video_title: str
+    video_url: str
+    watched_seconds: int
+    started_at: str
+
+@app.post("/youtube-log")
+def log_youtube_watch(data: YouTubeWatchSession):
+    youtube_watch_collection.insert_one(data.dict())
+    return {"message": "logged"}
+
+@app.get("/admin/youtube-history")
+def get_youtube_history(student_id: str, subject: str, topic: str):
+    sessions = list(youtube_watch_collection.find(
+        {"student_id": student_id, "subject": subject, "topic": topic},
+        {"_id": 0}
+    ).sort("started_at", -1).limit(10))
+    return {"sessions": sessions}

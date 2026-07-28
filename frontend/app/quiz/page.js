@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import { getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer } from "@/services/api";
 
@@ -111,7 +111,7 @@ function LoadingScreen({ subject, cfg, title, subtitle }) {
   );
 }
 
-export default function QuizPage() {
+function QuizPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -120,6 +120,7 @@ export default function QuizPage() {
   const topic   = searchParams.get("topic");
   const level   = searchParams.get("level") || "Beginner";
   const type    = searchParams.get("type") || "pre";
+  const grade   = searchParams.get("grade") || "";
 
   const [quiz, setQuiz]           = useState({ questions: [] });
   const [answers, setAnswers]     = useState([]);
@@ -169,11 +170,11 @@ export default function QuizPage() {
       if (isPost) {
         const res = await submitPostQuiz(payload);
         if (res?.data?.content) localStorage.setItem("lesson_content", res.data.content);
-        router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=post&subject=${subject}&lesson=${lesson}`);
+        router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=post&subject=${subject}&lesson=${lesson}&grade=${encodeURIComponent(grade)}`);
       } else {
         const res = await submitPreQuiz(payload);
         localStorage.setItem("lesson_content", res?.data?.content || "");
-        router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=pre&subject=${subject}&lesson=${lesson}`);
+        router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=pre&subject=${subject}&lesson=${lesson}&grade=${encodeURIComponent(grade)}`);
       }
     } catch (err) {
       console.error("Submit error:", err?.response?.data || err.message);
@@ -403,5 +404,13 @@ export default function QuizPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function QuizPage() {
+  return (
+    <Suspense fallback={null}>
+      <QuizPageContent />
+    </Suspense>
   );
 }

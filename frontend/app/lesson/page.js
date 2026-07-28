@@ -1,10 +1,11 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarSelector from "@/components/AvatarSelector";
 import ChatBot from "@/components/ChatBot";
+import YouTubePanel from "@/components/YouTubePanel";
 
 const ENGAGEMENT_SERVER = process.env.NEXT_PUBLIC_ENGAGEMENT_URL || "http://localhost:5000";
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
@@ -47,7 +48,7 @@ function FloatingPattern({ color }) {
   return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
 }
 
-export default function LessonPage() {
+function LessonPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -67,6 +68,7 @@ export default function LessonPage() {
 
   // Q&A state
   const [qaOpen, setQaOpen] = useState(false);
+  const [youtubeOpen, setYoutubeOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [question, setQuestion] = useState("");
   const [qaLoading, setQaLoading] = useState(false);
@@ -555,6 +557,21 @@ export default function LessonPage() {
                   {level}
                 </span>
 
+                {/* YouTube video button */}
+                <button
+                  onClick={() => setYoutubeOpen(true)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    borderRadius: 100, padding: "5px 14px",
+                    color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  📺 Watch a Video
+                </button>
+
                 {/* Engagement inline pill */}
                 {(() => {
                   const scoreColor = engScore === null ? "#94a3b8"
@@ -927,6 +944,24 @@ export default function LessonPage() {
       })()}
 
       <ChatBot subject={subject} lesson={lesson} topic={topic} accent={accent} />
+
+      {youtubeOpen && (
+        <YouTubePanel
+          subject={subject}
+          lesson={lesson}
+          topic={topic}
+          accent={accent}
+          onClose={() => setYoutubeOpen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+export default function LessonPage() {
+  return (
+    <Suspense fallback={null}>
+      <LessonPageContent />
+    </Suspense>
   );
 }
