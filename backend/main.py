@@ -14,12 +14,13 @@ from pydantic import BaseModel, Field
 
 from typing import Optional, List
 from agents.content_agent import generate_content
-from agents.explain_agent import generate_explanation
+from agents.explain_agent import generate_explanation, generate_paragraph_explanations
 from agents.quiz_agent import generate_quiz, evaluate_answers
 from agents.adaptation_agent import decide_next_step
 from agents.student_agent import get_level
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection
@@ -32,6 +33,8 @@ from agents.supervisor import learning_graph
 
 from agents.tts_agent import generate_teacher_speech
 from fastapi.responses import Response as FastAPIResponse
+from fastapi import UploadFile, File
+from agents.align_agent import get_word_timestamps, words_to_sentence_segments
 
 from agents.progress_agent import (
     save_pre_quiz_result,
@@ -56,9 +59,13 @@ app = FastAPI()
 # Serve images statically
 app.mount("/images", StaticFiles(directory="images"), name="images")
 
+_default_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+_frontend_url = os.getenv("FRONTEND_URL")
+allow_origins = _default_origins + [_frontend_url] if _frontend_url else _default_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # frontend
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -165,6 +172,32 @@ def normalize_enrolled_subject(subject):
 @app.get("/")
 def home():
     return {"message": "Adaptive Learning AI Running 🚀"}
+
+
+class AlignRequest(BaseModel):
+    audio_b64: str        # base64-encoded WAV
+    text:      str        # original speech text for sentence mapping
+    duration:  float = 0  # WAV duration in seconds (used as fallback)
+
+@app.post("/align-audio/")
+async def align_audio(data: AlignRequest):
+    """
+    Run faster-whisper on the provided WAV and return sentence-level segments
+    with real timestamps.  Falls back to character-ratio if whisper fails.
+    """
+    import base64
+    try:
+        wav_bytes = base64.b64decode(data.audio_b64)
+        words     = get_word_timestamps(wav_bytes)
+        segments  = words_to_sentence_segments(data.text, words, data.duration)
+        return {"segments": segments, "words": words, "source": "whisper"}
+    except Exception as exc:
+        import traceback; traceback.print_exc()
+        # Graceful fallback — character ratio
+        from agents.align_agent import words_to_sentence_segments as wts
+        segments = wts(data.text, [], data.duration)
+        return {"segments": segments, "words": [], "source": "fallback", "error": str(exc)}
+
 
 @app.get("/pre-quiz/")
 def pre_quiz(subject: str, lesson: str, topic: str):
@@ -317,8 +350,13 @@ def get_lesson(subject: str, lesson: str, topic: str, level: str):
 @app.post("/explain-content/")
 def explain_content_route(data: dict):
     content = data.get("content", "")
+    paragraphs = data.get("paragraphs", [])
     if not content:
         raise HTTPException(status_code=400, detail="content is required")
+    if paragraphs:
+        explanation_parts = generate_paragraph_explanations(paragraphs)
+        explanation = "\n\n".join(explanation_parts)
+        return {"explanation": explanation, "explanationParts": explanation_parts}
     explanation = generate_explanation(content)
     return {"explanation": explanation}
 
@@ -609,6 +647,9 @@ def lstm_status():
 
 
 # ── Engagement endpoints ──────────────────────────────────────────────────────
+# The engagement engine is its own hosted service (browser captures webcam
+# frames and POSTs them directly to it) — the backend only stores/reads the
+# session summaries it logs afterward.
 
 class EngagementSession(BaseModel):
     student_id: str
@@ -637,6 +678,7 @@ def get_engagement_history(student_id: str, subject: str, topic: str):
     return {"sessions": sessions}
 
 
+
 # ── Student Q&A endpoint ──────────────────────────────────────────────────────
 import json as _json
 import requests as _requests
@@ -661,7 +703,7 @@ async def ask_question(data: QuestionRequest):
     instruction = "ඔබ දක්ෂ ගුරුවරයෙකි. පහත context ඇසුරින් සිසුවාගේ ප්‍රශ්නයට සරල සිංහල පිළිතුරක් දෙන්න."
     input_text = f"Context:\n{context[:2000]}\n\nප්‍රශ්නය: {data.question}"
 
-    FINETUNED_URL = os.getenv("FINETUNED_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
+    FINETUNED_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
     try:
         def _fetch():
             return _requests.post(

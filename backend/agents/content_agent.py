@@ -1,8 +1,9 @@
 import json
+import os
 import requests
 from services.retriever import get_relevant_context
 
-FINETUNED_MODEL_URL = "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask"
+FINETUNED_MODEL_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
 
 
 def generate_content(subject, lesson, topic, level):
