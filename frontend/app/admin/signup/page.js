@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { getErrorMessage } from "@/services/api";
 
 function ParticleNetwork({ color }) {
   const canvasRef = useRef(null);
@@ -85,7 +86,7 @@ export default function AdminSignupPage() {
       await signupUser({ ...form, role: "admin" });
       setDone(true);
     } catch (err) {
-      setError(err?.response?.data?.detail || "Signup failed");
+      setError(getErrorMessage(err, "Signup failed"));
     } finally {
       setLoading(false);
     }

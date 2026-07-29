@@ -2,6 +2,31 @@ import axios from "axios";
 
 const API = "http://localhost:8000";
 
+export const getErrorMessage = (err, fallback = "Something went wrong") => {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+
+  const detail = err?.response?.data?.detail ?? err?.message ?? err?.response?.data ?? err;
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item?.msg) return item.msg;
+        if (item?.message) return item.message;
+        return JSON.stringify(item);
+      })
+      .join("; ");
+  }
+  if (typeof detail === "object") {
+    if (detail?.msg) return detail.msg;
+    if (detail?.message) return detail.message;
+    return JSON.stringify(detail);
+  }
+  return String(detail);
+};
+
 export const getPreQuiz = (subject, lesson, topic) =>
   axios.get(`${API}/pre-quiz/`, {
     params: { subject, lesson, topic },
@@ -42,4 +67,4 @@ export const getEnrollments = (studentId) =>
 
 // Bug #10: Per-answer online learning submission
 export const submitSingleAnswer = (data) =>
-  axios.post(`${API}/submit-answer/`, data);
+  axios.post(`${API}/submit-answer/`, data);
