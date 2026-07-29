@@ -32,6 +32,27 @@ def _is_english_contaminated(question):
     return (latin_count / total) > _ENGLISH_CONTAMINATION_THRESHOLD
 
 
+# The source textbook content contains references to its own numbered
+# figures/diagrams (e.g. "රූපය 5.36"). The quiz UI is text-only and never
+# displays any of those images, so a question whose options are themselves
+# just figure labels (e.g. "5.37 රූපය") is unanswerable no matter how
+# well-formed it otherwise is — the student has nothing to compare them
+# against.
+_FIGURE_REFERENCE = re.compile(r'රූප')
+
+
+def _is_figure_reference_question(question):
+    """True if most of a question's options are just numbered figure/diagram
+    labels rather than substantive answer text."""
+    options = question.get("options") or []
+    if not options:
+        return False
+    figure_like = sum(
+        1 for opt in options if isinstance(opt, str) and _FIGURE_REFERENCE.search(opt)
+    )
+    return figure_like >= max(2, len(options) // 2)
+
+
 def normalize_quiz_questions(result):
     questions = result.get("questions")
     if not isinstance(questions, list):
@@ -49,6 +70,10 @@ def normalize_quiz_questions(result):
 
         if _is_english_contaminated(question):
             print(f"[WARNING] Dropping English-contaminated question: {question.get('question', '')[:60]}")
+            continue
+
+        if _is_figure_reference_question(question):
+            print(f"[WARNING] Dropping unanswerable figure-reference question: {question.get('question', '')[:60]}")
             continue
 
         shuffled_options = [option for option in options if option]
@@ -239,10 +264,16 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
     # Explicitly forbids English — the fine-tuned model occasionally
     # code-switches mid-answer without this reminder.
     language_rule = "ප්‍රශ්නය, විකල්ප සහ පිළිතුර සම්පූර්ණයෙන්ම සිංහල භාෂාවෙන් පමණක් ලියන්න. ඉංග්‍රීසි වචන හෝ අකුරු කිසිසේත් භාවිත නොකරන්න."
+    # The source textbook content references its own numbered figures/diagrams
+    # (e.g. "රූපය 5.36"), but the quiz UI is text-only and never shows any
+    # image — a question asking the student to pick a figure number is
+    # unanswerable. This is a mitigation, not a guarantee; _is_figure_reference_question()
+    # in normalize_quiz_questions() is the deterministic backstop.
+    no_figures_rule = "රූප, රූප සටහන් හෝ රූප අංක ගැන ප්‍රශ්න අසන්න එපා — සිසුවාට කිසිදු රූපයක් පෙන්වන්නේ නැති බැවින්, ලිඛිත කරුණු පමණක් ඇසුරින් ප්‍රශ්න සකසන්න."
     if quiz_type == "pre":
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න. {language_rule}"
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}"
     else:
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න. {language_rule}"
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}"
 
     # STEP 2: Build input prompt with context
     input_text = f"""Context:

@@ -29,6 +29,27 @@ def _strip_template_echo(text: str) -> str:
         text = text[matches[-1].end():]
     return text.strip()
 
+
+# Detects generations where the model produced substantially more English
+# than the intended style — the fine-tune data itself trains the model to
+# gloss terms in parentheses (e.g. "(Consumer Choice)"), so some Latin
+# characters are expected and wanted. This threshold is deliberately more
+# lenient than quiz_agent.py's 0.15 (where no English is wanted at all); it
+# only catches generations that drift into substantial English rather than
+# occasional glossary terms.
+_SINHALA_CHAR = re.compile(r'[඀-෿]')
+_LATIN_CHAR = re.compile(r'[A-Za-z]')
+_LATIN_CONTAMINATION_THRESHOLD = 0.30
+
+
+def _is_english_contaminated(text: str) -> bool:
+    sinhala_count = len(_SINHALA_CHAR.findall(text))
+    latin_count = len(_LATIN_CHAR.findall(text))
+    total = sinhala_count + latin_count
+    if total == 0:
+        return False
+    return (latin_count / total) > _LATIN_CONTAMINATION_THRESHOLD
+
 # Base instruction text matches the fine-tuning dataset exactly — the model was
 # trained on these three fixed instructions, one per mastery level. The
 # language-purity clause is appended on top of that (not part of the original
@@ -141,7 +162,7 @@ def generate_content(subject, lesson, topic, level):
             continue
         raw_answer = answers[text_i].strip() if text_i < len(answers) else ""
         answer = _strip_template_echo(raw_answer) if raw_answer else ""
-        if not answer:
+        if not answer or _is_english_contaminated(answer):
             answer = g["clean_input"]
         if g["image_tags"]:
             answer = f"{answer}\n\n{chr(10).join(g['image_tags'])}"
