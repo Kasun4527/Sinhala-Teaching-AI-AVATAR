@@ -272,7 +272,10 @@ Format:
         "max_new_tokens": 2000,
     }
 
+    TARGET_QUESTION_COUNT = 10
     max_retries = 3
+    best_result = None  # most complete attempt seen, in case none hit the full target count
+
     for attempt in range(1, max_retries + 1):
         print(f"\n[DEBUG] Quiz generation attempt {attempt}/{max_retries}...")
         try:
@@ -289,6 +292,8 @@ Format:
             except Exception as parse_error:
                 print(f"Model response was not valid JSON (Attempt {attempt}): {parse_error}")
                 if attempt == max_retries:
+                    if best_result:
+                        return best_result
                     return {
                         "questions": [],
                         "error": "Model response was not valid JSON."
@@ -299,14 +304,31 @@ Format:
             print(f"\nRAW RESPONSE (Attempt {attempt}):\n", raw_content)
 
             result = extract_json(raw_content)
+            question_count = len(result.get("questions") or [])
 
-            if not result.get("questions"):
+            if question_count == 0:
                 print(f"Invalid quiz format on attempt {attempt}.")
                 if attempt == max_retries:
+                    if best_result:
+                        return best_result
                     return {
                         "questions": [],
                         "error": result.get("error", "Quiz generator returned no questions.")
                     }
+                continue
+
+            # Remember the most complete attempt so far — if no attempt ever
+            # reaches the full target count, this is what we fall back to
+            # instead of failing outright or silently returning a short quiz
+            # from whichever attempt happened to run last.
+            if best_result is None or question_count > len(best_result.get("questions") or []):
+                best_result = result
+
+            if question_count < TARGET_QUESTION_COUNT:
+                print(f"Only {question_count}/{TARGET_QUESTION_COUNT} questions on attempt {attempt}, retrying...")
+                if attempt == max_retries:
+                    print(f"Falling back to best attempt: {len(best_result.get('questions') or [])} questions")
+                    return best_result
                 continue
 
             print("Quiz generated successfully", result)
@@ -315,6 +337,8 @@ Format:
         except Exception as e:
             print(f"Error calling model on attempt {attempt}: {e}")
             if attempt == max_retries:
+                if best_result:
+                    return best_result
                 return {"questions": [], "error": f"Error calling model: {e}"}
             continue
 
