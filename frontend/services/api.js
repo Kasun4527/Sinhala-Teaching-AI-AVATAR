@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export const getErrorMessage = (err, fallback = "Something went wrong") => {
   if (!err) return fallback;

@@ -1,13 +1,14 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import AvatarSelector from "@/components/AvatarSelector";
 import ChatBot from "@/components/ChatBot";
+import YouTubePanel from "@/components/YouTubePanel";
 
-const ENGAGEMENT_SERVER = "http://localhost:5000";
-const BACKEND = "http://localhost:8000";
+const ENGAGEMENT_SERVER = process.env.NEXT_PUBLIC_ENGAGEMENT_URL || "http://localhost:5000";
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 function FloatingPattern({ color }) {
   const canvasRef = useRef(null);
@@ -47,7 +48,7 @@ function FloatingPattern({ color }) {
   return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
 }
 
-export default function LessonPage() {
+function LessonPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -60,9 +61,14 @@ export default function LessonPage() {
   const [avatarSpeech, setAvatarSpeech] = useState("");
   const [speechReady, setSpeechReady] = useState(false);
   const [speechProgress, setSpeechProgress] = useState(-1);
+  const handleSentenceChange = (idx) => {
+    console.log("[HIGHLIGHT] onSentenceChange called with idx:", idx);
+    setSpeechProgress(idx);
+  };
 
   // Q&A state
   const [qaOpen, setQaOpen] = useState(false);
+  const [youtubeOpen, setYoutubeOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [question, setQuestion] = useState("");
   const [qaLoading, setQaLoading] = useState(false);
@@ -80,6 +86,7 @@ export default function LessonPage() {
   const [engEmotion, setEngEmotion] = useState("");
   const [engAlert, setEngAlert] = useState(false);
   const [engConnected, setEngConnected] = useState(false);
+  const [engPhoneDetected, setEngPhoneDetected] = useState(false);
   const engTimelineRef = useRef([]);
   const sessionStartRef = useRef(new Date().toISOString());
   const alertCooldownRef = useRef(false);
@@ -87,23 +94,58 @@ export default function LessonPage() {
   const maxScoreRef = useRef(0);
   const audioCtxRef = useRef(null);
 
-  // Detect if a line looks like a heading (short, no ending punctuation mid-sentence)
+  // Detect if a line looks like a heading.
+  // Works for both English and Sinhala — relies on structure, not character set.
   const isHeading = (line) => {
     const t = line.trim();
-    if (!t || t.length > 120) return false;
-    if (/^\d+[\.\)]\s/.test(t)) return false; // numbered list items — not headings
-    // Short line ending with ":" or no punctuation → likely a heading
-    if (t.endsWith(":") || t.endsWith("：")) return true;
-    // Short standalone line (likely a section title)
-    if (t.length < 60 && !/[,;]/.test(t) && !/[a-z]{4,}/.test(t)) return true;
+    if (!t || t.length > 160) return false;
+    if (/^\d+[\.\)]\s/.test(t)) return false;   // numbered list items — not headings
+    if (t.endsWith(":") || t.endsWith("：")) return true;  // ends with colon
+    // English headings: short line with no lowercase words longer than 3 chars
+    if (/[a-zA-Z]/.test(t) && t.length < 60 && !/[,;]/.test(t) && !/[a-z]{4,}/.test(t)) return true;
+    // For Sinhala/non-Latin: only treat as heading if it ends with ":" or is extremely short (< 20 chars)
+    // to avoid swallowing real Sinhala paragraph text
+    if (!/[a-zA-Z]/.test(t) && t.length < 20) return true;
     return false;
   };
 
-  // Pre-count paragraphs in displayContent so we can map progress → index
-  const paraCountRef = useRef(0);
-  const highlightedParaIdx = speechProgress >= 0 && paraCountRef.current > 0
-    ? Math.min(Math.floor(speechProgress * paraCountRef.current), paraCountRef.current - 1)
-    : -1;
+  const paraRefsMap = useRef({});
+
+  // Extract only the highlightable plain paragraphs (no headings, no lists, no images).
+  // This array is passed to Avatar → TTS route so both sides use identical indices.
+  const contentParas = useMemo(() => {
+    if (!displayContent) return [];
+    const lines = displayContent.split("\n");
+    const paras = [];
+    let buf = [];
+    const flush = () => {
+      const j = buf.join(" ").trim();
+      buf = [];
+      if (!j) return;
+      if (/^(\d+[\.\)]|•|●|-)\s/.test(j)) return; // skip lists
+      if (/\[IMAGE:/i.test(j)) return;              // skip images
+      paras.push(j);
+    };
+    lines.forEach((line) => {
+      const l = line.trim();
+      if (!l || /\[IMAGE:/i.test(l) || l === "---") { flush(); return; }
+      if (isHeading(l)) { flush(); return; }
+      buf.push(l);
+    });
+    flush();
+    return paras;
+  }, [displayContent]);
+
+  // speechProgress = chunk index (each chunk covers 2 content paragraphs)
+  // para i is highlighted when Math.floor(i/2) === speechProgress
+  const highlightedParaIdx = speechProgress;
+
+  // Auto-scroll to first paragraph of the highlighted pair
+  useEffect(() => {
+    if (highlightedParaIdx < 0) return;
+    const el = paraRefsMap.current[highlightedParaIdx * 2];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightedParaIdx]);
 
   const renderContentWithImages = (text) => {
     const lines = text.split("\n");
@@ -111,14 +153,13 @@ export default function LessonPage() {
     let paraLines = [];
     let keyIdx = 0;
     let sectionCount = 0;
-    let localParaCount = 0;
+    let plainParaCount = 0; // counts only highlightable <p> elements, matches contentParas indices
 
     const flushPara = () => {
       const joined = paraLines.join(" ").trim();
       if (!joined) { paraLines = []; return; }
-      const thisParaIdx = localParaCount++;
 
-      // Detect bullet / numbered list
+      // Detect bullet / numbered list — render but don't count as highlightable
       if (/^(\d+[\.\)]|•|●|-)\s/.test(joined)) {
         const items = joined.split(/\n/).filter(Boolean);
         elements.push(
@@ -133,20 +174,23 @@ export default function LessonPage() {
           </ul>
         );
       } else {
-        const isHighlighted = thisParaIdx === highlightedParaIdx;
+        const capturedIdx = plainParaCount++;
+        const isHighlighted = highlightedParaIdx >= 0 && Math.floor(capturedIdx / 2) === highlightedParaIdx;
         elements.push(
-          <p key={`p-${keyIdx++}`} style={{
-            marginBottom: 20, lineHeight: 2,
-            color: isHighlighted ? "#0f172a" : "#374151", fontSize: 15.5,
-            textAlign: "justify",
-            borderLeft: isHighlighted ? `4px solid ${accent}` : sectionCount === 0 && thisParaIdx === 0 ? `3px solid ${accent}` : "none",
-            paddingLeft: isHighlighted || (sectionCount === 0 && thisParaIdx === 0) ? 16 : 0,
-            backgroundColor: isHighlighted ? `${accent}12` : "transparent",
-            borderRadius: isHighlighted ? 8 : 0,
-            padding: isHighlighted ? "10px 16px" : undefined,
-            transition: "all 0.5s ease",
-            boxShadow: isHighlighted ? `0 0 0 2px ${accent}30` : "none",
-          }}>
+          <p
+            key={`p-${keyIdx++}`}
+            ref={(el) => { paraRefsMap.current[capturedIdx] = el; }}
+            style={{
+              marginBottom: 20, lineHeight: 2,
+              color: isHighlighted ? "#0f172a" : "#374151",
+              fontSize: 15.5, textAlign: "justify",
+              backgroundColor: isHighlighted ? `${accent}14` : "transparent",
+              borderLeft: isHighlighted ? `4px solid ${accent}` : "none",
+              paddingLeft: isHighlighted ? 14 : 0,
+              borderRadius: isHighlighted ? 6 : 0,
+              transition: "background-color 0.3s ease, border-left 0.3s ease",
+            }}
+          >
             {joined}
           </p>
         );
@@ -203,8 +247,6 @@ export default function LessonPage() {
           <div key={`h-${keyIdx++}`} style={{ margin: "32px 0 12px" }}>
             <h3 style={{
               fontSize: 17, fontWeight: 700, color: "#0f172a",
-              borderBottom: `2px solid ${accent}`,
-              paddingBottom: 6, display: "inline-block",
             }}>
               {line.trim().replace(/:$/, "")}
             </h3>
@@ -216,7 +258,6 @@ export default function LessonPage() {
     });
 
     flushPara();
-    paraCountRef.current = localParaCount;
     return elements;
   };
 
@@ -253,66 +294,118 @@ export default function LessonPage() {
   }, []);
 
   // ── Engagement tracking ──────────────────────────────────────────────────
+  // The engagement engine has no access to the student's webcam itself (it's a
+  // hosted service) — the browser captures frames here and POSTs each one for
+  // scoring, instead of the old model of asking a local server process to open
+  // the camera and stream results back over SSE.
+  const engStreamRef = useRef(null);
+  const engVideoRef = useRef(null);
+  const engIntervalRef = useRef(null);
+  const engSessionIdRef = useRef(null);
+
   useEffect(() => {
     if (!topic) return;
     sessionStartRef.current = new Date().toISOString();
-    let es;
-    try {
-      es = new EventSource(`${ENGAGEMENT_SERVER}/api/stats/stream`);
-      es.onopen = () => setEngConnected(true);
-      es.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data.stopped) { setEngConnected(false); return; }
-          const score = data.current?.score ?? 0;
-          const state = data.current?.state ?? "";
-          const emotion = data.current?.emotion ?? "";
-          setEngScore(Math.round(score));
-          setEngState(state);
-          setEngEmotion(emotion);
-          setEngConnected(true);
-          minScoreRef.current = Math.min(minScoreRef.current, score);
-          maxScoreRef.current = Math.max(maxScoreRef.current, score);
-          engTimelineRef.current.push({
-            time: new Date().toLocaleTimeString("en-GB"),
-            score: Math.round(score),
-            emotion,
-          });
-          // Keep last 300 points (~60s at 5/s)
-          if (engTimelineRef.current.length > 300) engTimelineRef.current.shift();
+    engSessionIdRef.current = crypto.randomUUID();
 
-          // Alert if below 50
-          if (score < 50 && !alertCooldownRef.current) {
-            setEngAlert(true);
-            alertCooldownRef.current = true;
-            try {
-              if (!audioCtxRef.current) {
-                audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-              }
-              const ctx = audioCtxRef.current;
-              if (ctx.state === "suspended") ctx.resume();
-              // Play two beeps
-              [0, 0.4].forEach((delay) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain); gain.connect(ctx.destination);
-                osc.frequency.value = 880;
-                gain.gain.setValueAtTime(0, ctx.currentTime + delay);
-                gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.5);
-                osc.start(ctx.currentTime + delay);
-                osc.stop(ctx.currentTime + delay + 0.5);
-              });
-            } catch (_) {}
-            setTimeout(() => {
-              setEngAlert(false);
-              alertCooldownRef.current = false;
-            }, 30000); // 30s cooldown
+    const FRAME_INTERVAL_MS = 700;
+    const MAX_TIMELINE_POINTS = 90; // ~60s of history at one frame per 700ms
+
+    const applyStats = (current) => {
+      if (!current) return;
+      const score = current.score ?? 0;
+      const state = current.state ?? "";
+      const emotion = current.emotion ?? "";
+      const phoneDetected = current.phone_detected ?? false;
+      setEngScore(Math.round(score));
+      setEngState(state);
+      setEngEmotion(emotion);
+      setEngPhoneDetected(phoneDetected);
+      setEngConnected(true);
+      minScoreRef.current = Math.min(minScoreRef.current, score);
+      maxScoreRef.current = Math.max(maxScoreRef.current, score);
+      engTimelineRef.current.push({
+        time: new Date().toLocaleTimeString("en-GB"),
+        score: Math.round(score),
+        emotion,
+      });
+      if (engTimelineRef.current.length > MAX_TIMELINE_POINTS) engTimelineRef.current.shift();
+
+      // Low-engagement badge tracks the live score directly, so it clears
+      // as soon as the score recovers instead of waiting on the beep cooldown.
+      setEngAlert(score < 50);
+
+      // Beep is still throttled so it doesn't fire on every frame while score stays low.
+      if (score < 50 && !alertCooldownRef.current) {
+        alertCooldownRef.current = true;
+        try {
+          if (!audioCtxRef.current) {
+            audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
           }
+          const ctx = audioCtxRef.current;
+          if (ctx.state === "suspended") ctx.resume();
+          // Play two beeps
+          [0, 0.4].forEach((delay) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+            gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.5);
+            osc.start(ctx.currentTime + delay);
+            osc.stop(ctx.currentTime + delay + 0.5);
+          });
         } catch (_) {}
-      };
-      es.onerror = () => setEngConnected(false);
-    } catch (_) {}
+        setTimeout(() => {
+          alertCooldownRef.current = false;
+        }, 30000); // 30s cooldown
+      }
+    };
+
+    let cancelled = false;
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    const canvasCtx = canvas.getContext("2d");
+
+    const captureAndSend = async () => {
+      const video = engVideoRef.current;
+      if (!video || video.readyState < 2) return;
+      canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame_b64 = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+      try {
+        const res = await fetch(`${ENGAGEMENT_SERVER}/api/frame`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: engSessionIdRef.current, frame_b64 }),
+        });
+        if (!res.ok) throw new Error("bad response");
+        const data = await res.json();
+        applyStats(data.current);
+      } catch (_) {
+        setEngConnected(false);
+      }
+    };
+
+    navigator.mediaDevices?.getUserMedia?.({ video: { width: 640, height: 480 } })
+      .then((stream) => {
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        engStreamRef.current = stream;
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+        video.play().catch(() => {});
+        engVideoRef.current = video;
+        engIntervalRef.current = setInterval(captureAndSend, FRAME_INTERVAL_MS);
+      })
+      .catch(() => {
+        // No camera, or the student denied permission — degrade gracefully
+        // instead of leaving the pill stuck on "Connecting...".
+        setEngConnected(false);
+        setEngState("Camera unavailable");
+      });
 
     // Save session on unmount
     const saveSession = () => {
@@ -326,7 +419,7 @@ export default function LessonPage() {
         avg_score: Math.round(avg * 10) / 10,
         min_score: minScoreRef.current,
         max_score: maxScoreRef.current,
-        duration_seconds: Math.round(timeline.length * 0.2),
+        duration_seconds: Math.round(timeline.length * (FRAME_INTERVAL_MS / 1000)),
         timeline: timeline.filter((_, i) => i % 5 === 0), // sample every 5
         started_at: sessionStartRef.current,
       };
@@ -336,7 +429,13 @@ export default function LessonPage() {
 
     window.addEventListener("beforeunload", saveSession);
     return () => {
-      es?.close();
+      cancelled = true;
+      if (engIntervalRef.current) clearInterval(engIntervalRef.current);
+      // Release the webcam the moment the student leaves the lesson page
+      // (tab close, navigation away, etc.) instead of leaving it running.
+      engStreamRef.current?.getTracks().forEach((t) => t.stop());
+      engStreamRef.current = null;
+      engVideoRef.current = null;
       saveSession();
       window.removeEventListener("beforeunload", saveSession);
     };
@@ -352,10 +451,43 @@ export default function LessonPage() {
       setContent(savedContent);
       localStorage.removeItem("lesson_content");
 
+      // Extract plain paragraphs (same logic as contentParas useMemo)
+      // so backend can generate one explanation per paragraph
+      const disp = savedContent.includes("\n---\n")
+        ? savedContent.split("\n---\n").slice(1).join("\n---\n").trim()
+        : savedContent;
+      const isHdg = (t) => {
+        if (!t || t.length > 160) return false;
+        if (/^\d+[\.\)]\s/.test(t)) return false;
+        if (t.endsWith(":") || t.endsWith("：")) return true;
+        if (/[a-zA-Z]/.test(t) && t.length < 60 && !/[,;]/.test(t) && !/[a-z]{4,}/.test(t)) return true;
+        if (!/[a-zA-Z]/.test(t) && t.length < 20) return true;
+        return false;
+      };
+      const lines = disp.split("\n");
+      const paras = [];
+      let buf = [];
+      lines.forEach((line) => {
+        const l = line.trim();
+        if (!l || /\[IMAGE:/i.test(l) || l === "---") {
+          const j = buf.join(" ").trim(); buf = [];
+          if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j) && !/\[IMAGE:/i.test(j)) paras.push(j);
+          return;
+        }
+        if (isHdg(l)) {
+          const j = buf.join(" ").trim(); buf = [];
+          if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j)) paras.push(j);
+          return;
+        }
+        buf.push(l);
+      });
+      const j = buf.join(" ").trim();
+      if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j)) paras.push(j);
+
       fetch(`${BACKEND}/explain-content/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: savedContent }),
+        body: JSON.stringify({ content: savedContent, paragraphs: paras }),
       })
         .then(r => r.json())
         .then(data => {
@@ -425,6 +557,21 @@ export default function LessonPage() {
                   {level}
                 </span>
 
+                {/* YouTube video button */}
+                <button
+                  onClick={() => setYoutubeOpen(true)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    borderRadius: 100, padding: "5px 14px",
+                    color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  📺 Watch a Video
+                </button>
+
                 {/* Engagement inline pill */}
                 {(() => {
                   const scoreColor = engScore === null ? "#94a3b8"
@@ -434,8 +581,8 @@ export default function LessonPage() {
                   return (
                     <div style={{
                       display: "flex", alignItems: "center", gap: 8,
-                      background: engAlert ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.08)",
-                      border: `1px solid ${engAlert ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.14)"}`,
+                      background: (engAlert || engPhoneDetected) ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.08)",
+                      border: `1px solid ${(engAlert || engPhoneDetected) ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.14)"}`,
                       borderRadius: 100, padding: "5px 14px",
                       transition: "all 0.3s",
                     }}>
@@ -446,6 +593,11 @@ export default function LessonPage() {
                       </span>
                       {engEmotion && (
                         <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{engEmotion}</span>
+                      )}
+                      {engPhoneDetected && (
+                        <span style={{ color: "#f87171", fontSize: 11, fontWeight: 700, animation: "pulse 1s infinite" }}>
+                          📱 Phone Detected
+                        </span>
                       )}
                       {engAlert && (
                         <span style={{ color: "#f87171", fontSize: 11, fontWeight: 700, animation: "pulse 1s infinite" }}>
@@ -471,7 +623,8 @@ export default function LessonPage() {
               content={avatarSpeech || content}
               topic={topic}
               speechReady={speechReady}
-              onSentenceChange={setSpeechProgress}
+              onSentenceChange={handleSentenceChange}
+              paragraphCount={contentParas.length}
               answerContent={avatarAnswer || undefined}
               onAnswerSpoken={() => setAvatarAnswer("")}
             />
@@ -791,6 +944,24 @@ export default function LessonPage() {
       })()}
 
       <ChatBot subject={subject} lesson={lesson} topic={topic} accent={accent} />
+
+      {youtubeOpen && (
+        <YouTubePanel
+          subject={subject}
+          lesson={lesson}
+          topic={topic}
+          accent={accent}
+          onClose={() => setYoutubeOpen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+export default function LessonPage() {
+  return (
+    <Suspense fallback={null}>
+      <LessonPageContent />
+    </Suspense>
   );
 }

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+test/
+test_retriever.py
+.git
+.gitignore
+*.md

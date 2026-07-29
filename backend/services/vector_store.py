@@ -4,6 +4,8 @@ import shutil
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.documents import Document
+import chromadb
+from chromadb.config import Settings
 
 CHROMA_PATH = "./chroma_db"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
@@ -19,11 +21,24 @@ def get_embeddings():
 
 def get_vector_store():
     embeddings = get_embeddings()
-    return Chroma(
-        persist_directory=CHROMA_PATH,
-        embedding_function=embeddings,
-        collection_name="sinhala_education"
-    )
+    
+    if os.getenv("ENVIRONMENT") == "production":
+        client_settings = Settings(
+            chroma_api_impl="rest",
+            chroma_server_host=os.getenv("CHROMA_HOST", "localhost"),
+            chroma_server_http_port=os.getenv("CHROMA_PORT", "8000")
+        )
+        return Chroma(
+            client_settings=client_settings,
+            embedding_function=embeddings,
+            collection_name="sinhala_education"
+        )
+    else:
+        return Chroma(
+            persist_directory=CHROMA_PATH,
+            embedding_function=embeddings,
+            collection_name="sinhala_education"
+        )
 
 
 def parse_filename_metadata(filename: str) -> dict:

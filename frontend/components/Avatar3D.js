@@ -12,9 +12,9 @@ const Avatar3DCanvas = dynamic(() => import("./Avatar3DCanvas"), { ssr: false })
  * Accepts the same key props: content, topic, speechReady, answerContent, onAnswerSpoken.
  */
 export default function Avatar3D({ content, topic, speechReady = true, answerContent, onAnswerSpoken, onSentenceChange }) {
-  const audioRef   = useRef(null);
+  const audioRef    = useRef(null);
   const timelineRef = useRef([]);
-  const avatarRef  = useRef(null);
+  const avatarRef   = useRef(null);
 
   const [speaking, setSpeaking]   = useState(false);
   const [status,   setStatus]     = useState("");
@@ -50,40 +50,103 @@ export default function Avatar3D({ content, topic, speechReady = true, answerCon
         const msg = await res.json().catch(() => ({}));
         throw new Error(msg.detail || `TTS failed (${res.status})`);
       }
-      const { audio, timeline } = await res.json();
+      const { audio, timeline, audioChunks } = await res.json();
       timelineRef.current = timeline || [];
 
-      const bytes = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
-      const blob  = new Blob([bytes], { type: "audio/wav" });
-      const url   = URL.createObjectURL(blob);
+      console.log("[Avatar3D] audioChunks received:", audioChunks?.length, "onSentenceChange:", !!onSentenceChange);
+
+      // Load full audio into the avatar canvas for lip-sync animation
+      const fullBytes = Uint8Array.from(atob(audio), c => c.charCodeAt(0));
+      const fullBlob  = new Blob([fullBytes], { type: "audio/wav" });
+      const fullUrl   = URL.createObjectURL(fullBlob);
+
+      // Pre-decode each paragraph chunk into an object URL
+      const chunkUrls = (audioChunks || []).map(b64 => {
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        return URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+      });
+
+      if (chunkUrls.length === 0) chunkUrls.push(fullUrl);
+      console.log("[Avatar3D] chunkUrls:", chunkUrls.length);
 
       const audioEl = audioRef.current;
-      audioEl.src = url;
+      audioEl.src   = fullUrl;
+      audioEl.muted = true;
 
-      audioEl.onplay  = () => { setSpeaking(true);  setStatus("Speaking…"); };
-      audioEl.onended = () => {
-        setSpeaking(false);
-        setStatus("");
-        if (answerContent && onAnswerSpoken) onAnswerSpoken();
+      setSpeaking(true);
+      setStatus("Speaking…");
+
+      audioEl.play().catch(() => {});
+
+      // Play paragraph chunks one by one; highlight each paragraph before playing it
+      const chunkPlayer = new Audio();
+      let chunkIdx = 0;
+      let stopped = false;
+
+      const playNextChunk = () => {
+        if (stopped || chunkIdx >= chunkUrls.length) {
+          stopped = true;
+          chunkPlayer.onended = null;
+          chunkPlayer.onerror = null;
+          chunkPlayer.src = "";
+          if (audioEl) {
+            audioEl.pause();
+            audioEl.src   = "";
+            audioEl.muted = false;
+          }
+          chunkUrls.forEach(u => URL.revokeObjectURL(u));
+          if (fullUrl !== chunkUrls[0]) URL.revokeObjectURL(fullUrl);
+          setSpeaking(false);
+          setStatus("");
+          console.log("[Avatar3D] all chunks done, clearing highlight");
+          if (onSentenceChange) onSentenceChange(-1);
+          if (answerContent && onAnswerSpoken) onAnswerSpoken();
+          return;
+        }
+        console.log("[Avatar3D] playing chunk", chunkIdx, "→ highlight para", chunkIdx);
+        if (onSentenceChange) onSentenceChange(chunkIdx);
+        chunkPlayer.src = chunkUrls[chunkIdx];
+        chunkPlayer.play().catch(e => console.error("[Avatar3D] chunk play error", e));
+        chunkIdx++;
       };
-      audioEl.onerror = () => { setSpeaking(false); setStatus(""); };
 
-      setStatus("Starting…");
-      await audioEl.play();
+      chunkPlayer.onended = playNextChunk;
+      chunkPlayer.onerror = (e) => { console.error("[Avatar3D] chunkPlayer error", e); playNextChunk(); };
+
+      // Store stopper so handleStop can abort
+      audioEl._stopChunks = () => {
+        stopped = true;
+        chunkPlayer.pause();
+        chunkPlayer.src = "";
+        chunkUrls.forEach(u => URL.revokeObjectURL(u));
+        if (fullUrl !== chunkUrls[0]) URL.revokeObjectURL(fullUrl);
+      };
+
+      playNextChunk();
+
     } catch (err) {
       console.error("Avatar3D speak:", err);
       setError(err.message || "Speech failed");
       setStatus("");
       setSpeaking(false);
     }
-  }, [activeContent, speaking, answerContent, onAnswerSpoken]);
+  }, [activeContent, speaking, answerContent, onAnswerSpoken, onSentenceChange]);
 
   const handleStop = useCallback(() => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+    const el = audioRef.current;
+    if (el) {
+      el._stopChunks?.();  // abort sequential chunk playback
+      el._stopChunks = null;
+      el.onpause = null;
+      el.pause();
+      el.src    = "";
+      el.muted  = false;
+    }
     avatarRef.current?.stopImmediately();
     setSpeaking(false);
     setStatus("");
-  }, []);
+    if (onSentenceChange) onSentenceChange(-1);
+  }, [onSentenceChange]);
 
   const canSpeak = speechReady && !!activeContent && !speaking;
 

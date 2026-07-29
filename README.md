@@ -99,14 +99,77 @@ Powered by **LangGraph** and **Groq**, the backend utilizes specialized agents t
 
 ## 🏗️ Architecture Overview
 
-The backend logic revolves around continuous evaluation and state persistence. The flow is as follows:
-1. **Enrollment**: A student enrolls in a subject (e.g., Buddhism).
-2. **Online Learning**: As the student interacts with a lesson or takes a quiz, their answers are sent to `/submit-answer/`.
-3. **Evaluation**: The Personalization Agent calculates a raw BKT mastery score and queries the TensorFlow LSTM model for a sequential prediction.
-4. **Fusion & Adaptation**: The scores are fused into `hybrid_mastery`. If the student is struggling, the system updates the difficulty curve and enables hints.
-5. **Clustering**: Post-quiz, K-Means clustering re-evaluates the student's learning profile.
+The system is designed as a modern, decoupled web application orchestrating multiple AI services and agents via **LangGraph**.
 
-Detailed technical breakdowns can be found in the `personalization_report_0705.md` file.
+### 1. High-Level System Architecture
+
+```mermaid
+graph TD
+    subgraph "Frontend (Next.js)"
+        UI[User Interface]
+        Avatar[Interactive Avatar]
+    end
+
+    subgraph "Backend (FastAPI)"
+        API[REST API Endpoints]
+        Supervisor[LangGraph Orchestrator]
+        
+        subgraph "AI Agents"
+            ContentAg[Content Agent]
+            QuizAg[Quiz Agent]
+            PersAg[Personalization Agent]
+            EvalAg[Evaluator Agent]
+            TTSAg[TTS Agent]
+            ExplainAg[Explain Agent]
+        end
+        
+        API --> Supervisor
+        Supervisor --> ContentAg
+        Supervisor --> QuizAg
+        Supervisor --> PersAg
+        Supervisor --> EvalAg
+    end
+
+    subgraph "External AI Services"
+        Groq[Groq API - llama-3.3]
+        Gemini[Google Gemini TTS]
+        Ngrok[Finetuned Sinhala Model]
+    end
+
+    UI --> API
+    Avatar --> API
+    ContentAg --> Groq
+    QuizAg --> Ngrok
+    TTSAg --> Gemini
+```
+
+### 2. User Learning Flow
+
+The core of the application is a stateful learning loop managed by the LangGraph Supervisor (`supervisor.py`).
+
+1. **Pre-Quiz Initiation**: A user requests a pre-quiz for a new topic.
+2. **Evaluation**: When answers are submitted, the `EvaluatorAgent` grades them.
+3. **Personalization**: The `PersonalizationAgent` processes the results through the Hybrid PC-BKT + LSTM engine.
+4. **Content Generation**: Based on the new mastery level (Beginner/Intermediate/Advanced), the `ContentAgent` dynamically generates an appropriate lesson.
+5. **Post-Quiz**: After the lesson, a post-quiz is administered to check if mastery improved.
+6. **Decision**: The `DecisionAgent` decides if the user moves to the `NEXT_TOPIC` or needs to `REPEAT_LESSON`.
+
+### 3. The Hybrid Personalization Engine (PC-BKT + LSTM)
+
+This engine calculates a robust metric of a student's true understanding:
+1. **Base Mastery (BKT)**: Traditional Bayesian Knowledge Tracing updates the probability that a student knows a skill based on their correct/incorrect answers. It uses personalized priors (Learn Rate, Guess Rate, Slip Rate) determined by a **K-Means Clustering** of the student's historical behavior.
+2. **Predictive Mastery (LSTM)**: A pre-trained neural network predicts the *future* mastery trajectory based on current BKT mastery, cluster, and question difficulty.
+3. **Hybrid Fusion**: The system calculates a `hybrid_mastery` using weighted fusion: `(0.7 * BKT_Mastery) + (0.3 * LSTM_Prediction)`. 
+4. **Feedback Correction**: If the LSTM predicts a mastery significantly lower than the BKT (divergence > 0.20), it suspects guessing and applies a negative feedback correction.
+
+### 4. RAG (Retrieval-Augmented Generation) & Q&A Workflow
+
+For ad-hoc student questions (`/ask-question/`), the system uses RAG:
+1. **Vector Store**: Educational texts are embedded (`multilingual-e5-base`) and stored locally in **ChromaDB**.
+2. **Retrieval**: Queries fetch the top 5 most relevant context chunks.
+3. **Generation**: The context + question is sent to a custom **Fine-Tuned Sinhala Model** (hosted externally via Ngrok) to generate a contextually accurate, simple Sinhala answer.
+
+Detailed technical breakdowns can be found in the `system_architecture_report.md` artifact.
 
 ---
 

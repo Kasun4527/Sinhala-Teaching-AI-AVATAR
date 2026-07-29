@@ -1,38 +1,40 @@
 import os
-import smtplib
 import secrets
+import requests
 from datetime import datetime, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from db import email_tokens_collection
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
-GMAIL_USER     = os.getenv("GMAIL_USER")
-GMAIL_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
-FRONTEND_URL   = os.getenv("FRONTEND_URL", "http://localhost:3000")
+GMAIL_USER        = os.getenv("GMAIL_USER")
+BREVO_API_KEY     = os.getenv("BREVO_API_KEY")
+FRONTEND_URL      = os.getenv("FRONTEND_URL", "http://localhost:3000")
 TOKEN_EXPIRY_HOURS = 24
 
-print(f"[EmailService] GMAIL_USER={GMAIL_USER!r}  PASSWORD_LEN={len(GMAIL_PASSWORD.replace(' ','')) if GMAIL_PASSWORD else 0}")
+print(f"[EmailService] GMAIL_USER={GMAIL_USER!r}  BREVO_API_KEY_SET={bool(BREVO_API_KEY)}")
 
 
 def _send_email(to_email: str, subject: str, html_body: str):
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"IDS Platform <{GMAIL_USER}>"
-    msg["To"]      = to_email
-    msg.attach(MIMEText(html_body, "html"))
-
-    # Strip spaces from App Password in case it was copied with spaces (xxxx xxxx xxxx xxxx)
-    password = (GMAIL_PASSWORD or "").replace(" ", "")
-
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(GMAIL_USER, password)
-        server.sendmail(GMAIL_USER, to_email, msg.as_string())
+    # Sent via Brevo's HTTPS API (port 443) instead of raw SMTP — some hosts
+    # (e.g. DigitalOcean droplets) block outbound SMTP ports 25/465/587 entirely
+    # at the platform level, which HTTPS traffic isn't subject to.
+    resp = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "api-key": BREVO_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        json={
+            "sender": {"name": "IDS Platform", "email": GMAIL_USER},
+            "to": [{"email": to_email}],
+            "subject": subject,
+            "htmlContent": html_body,
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
 
 
 def create_verification_token(email: str) -> str:

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 
 function FloatingPattern({ color }) {
@@ -108,7 +108,7 @@ function ScoreRing({ score, color, dark }) {
   );
 }
 
-export default function ResultPage() {
+function ResultPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -118,6 +118,7 @@ export default function ResultPage() {
   const level   = searchParams.get("level");
   const topic   = searchParams.get("topic");
   const type    = searchParams.get("type");
+  const grade   = searchParams.get("grade") || "";
   const isPost  = type === "post";
 
   useEffect(() => {
@@ -314,7 +315,7 @@ export default function ResultPage() {
 
               {isPost && score >= 6 && (
                 <button
-                  onClick={() => router.push(`/topics?subject=${subject}&lesson=${lesson}`)}
+                  onClick={() => router.push(`/topics?subject=${subject}&lesson=${encodeURIComponent(lesson)}&grade=${encodeURIComponent(grade)}`)}
                   style={{
                     width: "100%", padding: "15px",
                     background: "linear-gradient(135deg, #064e3b, #059669)",
@@ -350,5 +351,13 @@ export default function ResultPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResultPageContent />
+    </Suspense>
   );
 }

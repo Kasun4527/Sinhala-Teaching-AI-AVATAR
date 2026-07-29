@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { findSubjectByGrade, findSubject } from "@/data/curriculum";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
 
@@ -72,10 +72,11 @@ const SUBJECT_CFG = {
   Maths:                { hue: "#7c3aed", dark: "#3b0764", bg: "#f5f3ff", ring: "#c4b5fd" },
   "ආර්ථික විද්‍යාව":   { hue: "#b45309", dark: "#78350f", bg: "#fffbeb", ring: "#fde68a" },
   "බුද්ධ ධර්මය":       { hue: "#c026d3", dark: "#701a75", bg: "#fdf4ff", ring: "#e879f9" },
+  "විද්‍යාව":           { hue: "#0d9488", dark: "#134e4a", bg: "#f0fdfa", ring: "#99f6e4" },
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" };
 
-export default function LessonsPage() {
+function LessonsPageContent() {
   const params     = useSearchParams();
   const router     = useRouter();
   const subject    = params.get("subject");
@@ -303,5 +304,13 @@ export default function LessonsPage() {
 
       <ChatBot subject={subject} accent={cfg.hue} />
     </div>
+  );
+}
+
+export default function LessonsPage() {
+  return (
+    <Suspense fallback={null}>
+      <LessonsPageContent />
+    </Suspense>
   );
 }

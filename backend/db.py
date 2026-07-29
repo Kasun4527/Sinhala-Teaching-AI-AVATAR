@@ -7,7 +7,6 @@ load_dotenv(override=True)
 
 mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 client = MongoClient(mongo_uri)
-
 db = client["ai_avatar"]
 
 # existing
@@ -21,6 +20,7 @@ delivered_content_collection = db["delivered_content"]
 enrollments_collection = db["enrollments"]
 engagement_collection = db["engagement_sessions"]
 qa_collection = db["student_qa"]
+youtube_watch_collection = db["youtube_watch_sessions"]
 email_tokens_collection = db["email_verification_tokens"]
 
 # ── Personalization Collections (PC-BKT + BKT-LSTM) ─────────────────────────
