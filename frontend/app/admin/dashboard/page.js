@@ -194,6 +194,19 @@ export default function AdminDashboard() {
               <span style={{ fontSize: 15 }}>📊</span>
               <span style={{ color: TEXT, fontSize: 13, fontWeight: 600 }}>Dashboard</span>
             </div>
+            <div
+              onClick={() => router.push("/admin/pdf-upload")}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 14px", borderRadius: 10, marginTop: 4, cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>📄</span>
+              <span style={{ color: TEXT2, fontSize: 13, fontWeight: 600 }}>Add Content</span>
+            </div>
           </div>
 
           <div style={{ margin: "12px 16px", borderTop: `1px solid ${BORDER}` }} />

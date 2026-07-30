@@ -33,8 +33,19 @@ from agents.supervisor import learning_graph
 
 from agents.tts_agent import generate_teacher_speech
 from fastapi.responses import Response as FastAPIResponse
-from fastapi import UploadFile, File
+from fastapi.responses import FileResponse
+from fastapi import UploadFile, File, BackgroundTasks
 from agents.align_agent import get_word_timestamps, words_to_sentence_segments
+
+import json
+import re
+import shutil
+import threading
+import uuid
+import tempfile
+from pathlib import Path
+from pdf_pipeline.pipeline import PDFPipeline, BlockItem
+from services.vector_store import ingest_text_content
 
 from agents.progress_agent import (
     save_pre_quiz_result,
@@ -821,3 +832,289 @@ def get_youtube_history(student_id: str, subject: str, topic: str):
         {"_id": 0}
     ).sort("started_at", -1).limit(10))
     return {"sessions": sessions}
+
+
+# ════════════════════════════════════════════════════════════════════════
+# PDF Ingestion Pipeline (Admin) — upload a textbook PDF, review extracted
+# images and generated topic text, then finalize: saves .txt files into
+# documents_unicode/, images into images/, and ingests each topic directly
+# into the vector store. Ported from the separate admin_portal project's
+# pipeline.py/page_detector.py/text_cleaner.py (backend/pdf_pipeline/),
+# adapted so finalize writes directly into this project instead of
+# zipping and publishing to a separate backend.
+#
+# Three-stage job flow, mirroring admin_portal's pattern:
+#   1. POST /admin/pdf/extract      — upload PDF, background-extract blocks/images
+#   2. POST /admin/pdf/build-text   — selected images + subject/lesson -> topic text
+#   3. POST /admin/pdf/finalize     — edited topics -> save + ingest
+# Poll GET /admin/pdf/jobs/{job_id} for status between each stage.
+# ════════════════════════════════════════════════════════════════════════
+
+pdf_pipeline = PDFPipeline()
+_pdf_jobs: dict = {}
+_pdf_jobs_lock = threading.Lock()
+
+DOCUMENTS_UNICODE_DIR = "documents_unicode"
+IMAGES_DIR = "images"
+
+# Admin_portal's pipeline emits "[image: base_name]" (lowercase, no
+# extension); this project's convention is "[IMAGE: filename.ext]"
+# (uppercase, with the real extension) — normalized at finalize time.
+_PDF_IMAGE_TAG = re.compile(r'\[image:\s*([^\]]+)\]', re.IGNORECASE)
+
+
+def _pdf_slugify(value: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9඀-෿]+", "_", value.strip())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    return cleaned or "untitled"
+
+
+@app.post("/admin/pdf/extract")
+async def pdf_extract(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+):
+    if file.content_type not in {
+        "application/pdf", "application/x-pdf", "application/octet-stream",
+    }:
+        raise HTTPException(status_code=400, detail="Please upload a PDF file.")
+
+    job_id = str(uuid.uuid4())
+    job_dir = Path(tempfile.mkdtemp(prefix=f"pdf_job_{job_id}_"))
+    safe_name = Path(file.filename or "textbook.pdf").name
+    pdf_path = job_dir / safe_name
+    contents = await file.read()
+    pdf_path.write_bytes(contents)
+
+    with _pdf_jobs_lock:
+        _pdf_jobs[job_id] = {
+            "status": "extracting",
+            "progress": 10,
+            "message": "Starting extraction...",
+            "job_dir": job_dir,
+            "pdf_path": pdf_path,
+            "extracted_images": [],
+            "error": None,
+        }
+
+    background_tasks.add_task(_run_pdf_extract_job, job_id)
+    return {"job_id": job_id}
+
+
+def _run_pdf_extract_job(job_id: str) -> None:
+    with _pdf_jobs_lock:
+        job = _pdf_jobs[job_id]
+        pdf_path = job["pdf_path"]
+        job_dir = job["job_dir"]
+    try:
+        blocks, image_files = pdf_pipeline.extract_phase(pdf_path, job_dir)
+        blocks_path = job_dir / "blocks.json"
+        blocks_path.write_text(
+            json.dumps([b.to_dict() for b in blocks], ensure_ascii=False),
+            encoding="utf-8",
+        )
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "extracted"
+            job["message"] = f"Extraction complete. Found {len(image_files)} images."
+            job["progress"] = 100
+            job["extracted_images"] = [p.name for p in image_files]
+    except Exception as exc:
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "failed"
+            job["message"] = "Extraction failed"
+            job["progress"] = 100
+            job["error"] = str(exc)
+
+
+@app.get("/admin/pdf/jobs/{job_id}")
+def pdf_job_status(job_id: str):
+    with _pdf_jobs_lock:
+        job = _pdf_jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return {
+            "job_id": job_id,
+            "status": job["status"],
+            "progress": job["progress"],
+            "message": job["message"],
+            "extracted_images": job.get("extracted_images", []),
+            "topics": job.get("topics", []),
+            "final_images_mapping": job.get("final_images_mapping", {}),
+            "saved_txt_files": job.get("saved_txt_files", []),
+            "saved_images": job.get("saved_images", []),
+            "error": job.get("error"),
+        }
+
+
+@app.get("/admin/pdf/jobs/{job_id}/image/{image_name}")
+def pdf_job_image(job_id: str, image_name: str):
+    with _pdf_jobs_lock:
+        job = _pdf_jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job_dir = job["job_dir"]
+    if Path(image_name).name != image_name:
+        raise HTTPException(status_code=400, detail="Invalid image name")
+    image_path = job_dir / "images" / image_name
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(str(image_path))
+
+
+class PdfBuildTextRequest(BaseModel):
+    job_id: str
+    selected_images: List[str]
+    subject: str
+    lesson: str
+
+
+@app.post("/admin/pdf/build-text")
+def pdf_build_text(req: PdfBuildTextRequest, background_tasks: BackgroundTasks):
+    with _pdf_jobs_lock:
+        job = _pdf_jobs.get(req.job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job["status"] not in ("extracted", "failed"):
+            raise HTTPException(status_code=400, detail="Job not ready for building text")
+        job["status"] = "building_text"
+        job["progress"] = 30
+        job["message"] = "Building text topics..."
+        job["selected_images"] = req.selected_images
+        job["subject"] = req.subject
+        job["lesson"] = req.lesson
+
+    background_tasks.add_task(_run_pdf_build_text_job, req.job_id)
+    return {"job_id": req.job_id}
+
+
+def _run_pdf_build_text_job(job_id: str) -> None:
+    with _pdf_jobs_lock:
+        job = _pdf_jobs[job_id]
+        job_dir = job["job_dir"]
+        selected_images = job["selected_images"]
+        subject = job["subject"]
+    try:
+        blocks_data = json.loads((job_dir / "blocks.json").read_text(encoding="utf-8"))
+        blocks = [BlockItem.from_dict(d) for d in blocks_data]
+        result = pdf_pipeline.build_text_phase(
+            blocks, job_dir, selected_images, subject, lesson_spec=None
+        )
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "text_ready"
+            job["message"] = "Text generated successfully."
+            job["progress"] = 60
+            job["topics"] = result["topics"]
+            job["lesson_name"] = result["lesson_name"]
+            job["final_images_mapping"] = result["final_images_mapping"]
+    except Exception as exc:
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "failed"
+            job["message"] = "Build text failed"
+            job["progress"] = 100
+            job["error"] = str(exc)
+
+
+class PdfTopicData(BaseModel):
+    title: str
+    content: str
+
+
+class PdfFinalizeRequest(BaseModel):
+    job_id: str
+    topics: List[PdfTopicData]
+    subject: str
+    lesson: str
+
+
+@app.post("/admin/pdf/finalize")
+def pdf_finalize(req: PdfFinalizeRequest, background_tasks: BackgroundTasks):
+    with _pdf_jobs_lock:
+        job = _pdf_jobs.get(req.job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job["status"] = "finalizing"
+        job["progress"] = 80
+        job["message"] = "Saving files and ingesting into the vector DB..."
+        job["topics_data"] = [t.dict() for t in req.topics]
+        job["subject"] = req.subject
+        job["lesson"] = req.lesson
+
+    background_tasks.add_task(_run_pdf_finalize_job, req.job_id)
+    return {"job_id": req.job_id}
+
+
+def _run_pdf_finalize_job(job_id: str) -> None:
+    with _pdf_jobs_lock:
+        job = _pdf_jobs[job_id]
+        job_dir = job["job_dir"]
+        topics_data = job["topics_data"]
+        subject = job["subject"]
+        lesson_name = job.get("lesson") or job.get("lesson_name", "lesson")
+
+    try:
+        subject_slug = _pdf_slugify(subject)
+        lesson_slug = _pdf_slugify(lesson_name)
+
+        # Map each extracted image's base name (no extension) to its real
+        # filename, so "[image: base]" tags can be rewritten to this
+        # project's "[IMAGE: filename.ext]" convention with the correct
+        # extension rather than assuming one.
+        image_dir = job_dir / "images"
+        ext_by_base = {}
+        if image_dir.exists():
+            for p in image_dir.iterdir():
+                ext_by_base[p.stem] = p.name
+
+        def _normalize_tag(match: "re.Match") -> str:
+            base = match.group(1).strip()
+            real_name = ext_by_base.get(base, f"{base}.png")
+            return f"[IMAGE: {real_name}]"
+
+        saved_txt_files = []
+        for topic in topics_data:
+            clean_title = re.sub(r'^\d+\.\d+\s*', '', topic["title"])
+            topic_slug = _pdf_slugify(clean_title)
+            # Canonical backend metadata contract: subject_lesson_topic.txt
+            filename = f"{subject_slug}_{lesson_slug}_{topic_slug}.txt"
+
+            content = _PDF_IMAGE_TAG.sub(_normalize_tag, topic["content"])
+
+            txt_path = Path(DOCUMENTS_UNICODE_DIR) / filename
+            txt_path.parent.mkdir(parents=True, exist_ok=True)
+            txt_path.write_text(content, encoding="utf-8")
+            saved_txt_files.append(filename)
+
+            # Ingest this topic's chunks into the vector store right away —
+            # non-destructive: only this file's prior chunks are replaced.
+            ingest_text_content(content, filename)
+
+        saved_images = []
+        if image_dir.exists():
+            dest_dir = Path(IMAGES_DIR)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            for p in image_dir.iterdir():
+                shutil.copy2(p, dest_dir / p.name)
+                saved_images.append(p.name)
+
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "completed"
+            job["progress"] = 100
+            job["message"] = (
+                f"Saved {len(saved_txt_files)} topic file(s) and "
+                f"{len(saved_images)} image(s), and ingested them into the vector DB."
+            )
+            job["saved_txt_files"] = saved_txt_files
+            job["saved_images"] = saved_images
+
+    except Exception as exc:
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "failed"
+            job["message"] = "Finalize failed"
+            job["progress"] = 100
+            job["error"] = str(exc)
