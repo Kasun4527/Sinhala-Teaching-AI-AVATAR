@@ -13,7 +13,7 @@ Upload a PDF textbook, extract text and images in reading order, detect topic he
 ## Install
 
 ```bash
-pip install -e .[test]
+pip install -r requirements.txt
 ```
 
 ## Run
