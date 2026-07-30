@@ -53,7 +53,7 @@ from agents.dashboard_agent import (
 
 load_dotenv(override=True)
 
-print("GROQ KEY LOADED:", os.getenv("GROQ_API_KEY"))
+print("GROQ KEY CONFIGURED:", bool(os.getenv("GROQ_API_KEY")))
 
 app = FastAPI()
 

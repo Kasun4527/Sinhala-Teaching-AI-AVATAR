@@ -15,6 +15,12 @@ users_collection = db["users"]
 # new collections
 subjects_collection = db["subjects"]
 topics_collection = db["topics"]
+
+# Admin Portal Collections
+admin_users_collection = db["admin_users"]
+admin_subjects_collection = db["admin_subjects"]
+admin_lessons_collection = db["admin_lessons"]
+
 student_progress_collection = db["student_progress"]
 delivered_content_collection = db["delivered_content"]
 enrollments_collection = db["enrollments"]
