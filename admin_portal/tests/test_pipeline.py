@@ -34,7 +34,11 @@ def test_pipeline_extracts_blocks_and_images(tmp_path: Path) -> None:
     images = pipeline.extract_and_save_images(pdf_path, tmp_path / "images")
     selected_images = [img.name for img in images]
     topics_data = pipeline.build_text_phase(blocks, tmp_path / "output", selected_images, lesson_spec=None)
-    result = pipeline.finalize_zip_phase(topics_data, tmp_path / "output", lesson_spec=None)
+    result = pipeline.finalize_zip_phase(
+        topics_data["topics"],
+        tmp_path / "output",
+        lesson_spec=None,
+    )
 
     assert font_samples[0].scanned is False
     assert any("helv" in font.lower() for font in font_samples[0].font_names)

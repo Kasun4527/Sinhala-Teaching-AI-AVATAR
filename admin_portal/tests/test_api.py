@@ -5,7 +5,9 @@ from pathlib import Path
 import fitz
 from fastapi.testclient import TestClient
 
-from app.main import app
+import app.main as main
+
+app = main.app
 
 
 def build_sample_pdf(pdf_path: Path) -> None:
@@ -24,7 +26,11 @@ def build_sample_pdf(pdf_path: Path) -> None:
     document.close()
 
 
-def test_upload_process_and_download(tmp_path: Path) -> None:
+def test_upload_process_and_download(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(main, "get_current_admin", lambda authorization=None: {
+        "email": "admin@example.com",
+        "role": "admin",
+    })
     client = TestClient(app)
     pdf_path = tmp_path / "sample.pdf"
     build_sample_pdf(pdf_path)

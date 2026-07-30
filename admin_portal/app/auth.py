@@ -1,9 +1,11 @@
 import os
 import bcrypt
+from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
 ALGORITHM = "HS256"
+TOKEN_EXPIRY_HOURS = 8
 
 
 def hash_password(password: str) -> str:
@@ -22,6 +24,7 @@ def create_jwt_token(email: str, role: str = "admin", name: str = "") -> str:
         "email": email,
         "role": role,
         "name": name,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRY_HOURS),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 

@@ -812,6 +812,8 @@ class PDFPipeline:
         text_dir.mkdir(parents=True, exist_ok=True)
 
         text_files: list[Path] = []
+        subject_slug = _slugify(subject)
+        lesson_slug = _slugify(lesson_name)
         for index, topic in enumerate(topics_data, start=1):
             if lesson_spec:
                 topic_slug = _slugify(lesson_spec.topics[index - 1].filename_slug)
@@ -820,8 +822,8 @@ class PDFPipeline:
                 clean_title = re.sub(r'^\d+\.\d+\s*', '', topic["title"])
                 topic_slug = _slugify(clean_title)
             
-            # Requested filename format: <subject>_<topic>.txt (in letters only, no redundant lesson_name)
-            txt_path = text_dir / f"{subject}_{topic_slug}.txt"
+            # Canonical backend metadata contract: subject_lesson_topic.txt.
+            txt_path = text_dir / f"{subject_slug}_{lesson_slug}_{topic_slug}.txt"
             txt_path.write_text(topic["content"], encoding="utf-8")
             text_files.append(txt_path)
 
@@ -837,11 +839,11 @@ class PDFPipeline:
         if image_dir.exists():
             shutil.copytree(image_dir, export_dir / "images")
 
-        archive_path = base_output / f"{subject}_{lesson_name}.zip"
+        archive_path = base_output / f"{subject_slug}_{lesson_slug}.zip"
         if archive_path.exists():
             archive_path.unlink()
 
-        temp_zip = base_output.parent / f"{subject}_{lesson_name}_results.zip"
+        temp_zip = base_output.parent / f"{subject_slug}_{lesson_slug}_results.zip"
         shutil.make_archive(
             str(temp_zip.with_suffix("")), "zip", root_dir=export_dir, base_dir="."
         )
@@ -899,7 +901,7 @@ def _looks_like_legacy_sinhala_font(font_name: str) -> bool:
 
 
 def _slugify(value: str) -> str:
-    cleaned = re.sub(r"[^a-zA-Z\u0D80-\u0DFF]+", "_", value.strip())
+    cleaned = re.sub(r"[^a-zA-Z0-9\u0D80-\u0DFF]+", "_", value.strip())
     cleaned = re.sub(r"_+", "_", cleaned).strip("_")
     return cleaned or "untitled"
 

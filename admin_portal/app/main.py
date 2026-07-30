@@ -7,6 +7,7 @@ import shutil
 import tempfile
 import threading
 import uuid
+import requests
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -24,14 +25,37 @@ from app.vector_store import ingest_text_content, get_vector_store, CHROMA_PATH
 from app.retriever import get_relevant_context
 import chromadb
 from app.database import (
-    main_collection,
+    admin_users_collection,
+    admin_teachers_collection,
+    admin_subjects_collection,
+    admin_lessons_collection,
+    admin_activity_logs_collection,
     ensure_indexes, log_activity
 )
 from app.auth import hash_password, verify_password, create_jwt_token, decode_jwt_token
 
 logger = logging.getLogger("uvicorn.error")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
 
 app = FastAPI(title="Sinhala Textbook Admin Portal")
+ADMIN_BASE_PATH = os.getenv("ADMIN_BASE_PATH", "/admin").strip()
+if not ADMIN_BASE_PATH.startswith("/"):
+    ADMIN_BASE_PATH = f"/{ADMIN_BASE_PATH}"
+ADMIN_BASE_PATH = ADMIN_BASE_PATH.rstrip("/")
+
+
+@app.middleware("http")
+async def support_admin_path_prefix(request: Request, call_next):
+    """Accept /admin URLs whether the gateway strips the prefix or not."""
+    path = request.scope.get("path", "")
+    if ADMIN_BASE_PATH and (path == ADMIN_BASE_PATH or path.startswith(f"{ADMIN_BASE_PATH}/")):
+        stripped_path = path[len(ADMIN_BASE_PATH):] or "/"
+        request.scope["path"] = stripped_path
+        request.scope["raw_path"] = stripped_path.encode("utf-8")
+        request.scope["root_path"] = ADMIN_BASE_PATH
+    return await call_next(request)
+
+
 pipeline = PDFPipeline()
 _jobs: dict[str, dict[str, Any]] = {}
 _jobs_lock = threading.Lock()
@@ -82,6 +106,8 @@ def get_current_admin(authorization: str = Header(None)) -> dict:
     payload = decode_jwt_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     return payload
 
 
@@ -100,12 +126,11 @@ class LoginRequest(BaseModel):
 
 @app.post("/auth/signup")
 def signup(req: SignupRequest):
-    existing = main_collection.find_one({"type": "admin", "email": req.email})
+    existing = admin_users_collection.find_one({"email": req.email})
     if existing:
         raise HTTPException(status_code=400, detail="An account with this email already exists")
 
-    main_collection.insert_one({
-        "type": "admin",
+    admin_users_collection.insert_one({
         "first_name": req.first_name,
         "last_name": req.last_name,
         "email": req.email,
@@ -119,7 +144,7 @@ def signup(req: SignupRequest):
 
 @app.post("/auth/login")
 def login(req: LoginRequest):
-    user = main_collection.find_one({"type": "admin", "email": req.email})
+    user = admin_users_collection.find_one({"email": req.email})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not verify_password(req.password, user["password"]):
@@ -136,11 +161,11 @@ def login(req: LoginRequest):
 def admin_dashboard(authorization: str = Header(None)):
     admin = get_current_admin(authorization)
     try:
-        teacher_count = main_collection.count_documents({"type": "teacher"})
+        teacher_count = admin_teachers_collection.count_documents({})
     except Exception:
         teacher_count = 0
     try:
-        lesson_count = main_collection.count_documents({"type": "lesson"})
+        lesson_count = admin_lessons_collection.count_documents({})
     except Exception:
         lesson_count = 0
     try:
@@ -149,7 +174,7 @@ def admin_dashboard(authorization: str = Header(None)):
     except Exception:
         vdb_chunks = 0
     try:
-        subject_count = main_collection.count_documents({"type": "subject"})
+        subject_count = admin_subjects_collection.count_documents({})
     except Exception:
         subject_count = 0
 
@@ -165,7 +190,7 @@ def admin_dashboard(authorization: str = Header(None)):
 @app.get("/api/admin/subjects")
 def list_subjects(authorization: str = Header(None)):
     get_current_admin(authorization)
-    subjects = list(main_collection.find({"type": "subject"}, {"_id": 0}))
+    subjects = list(admin_subjects_collection.find({}, {"_id": 0}))
     return {"subjects": subjects}
 
 
@@ -183,12 +208,11 @@ class AddTeacherRequest(BaseModel):
 @app.post("/api/admin/teachers")
 def add_teacher(req: AddTeacherRequest, authorization: str = Header(None)):
     admin = get_current_admin(authorization)
-    existing = main_collection.find_one({"type": "teacher", "$or": [{"email": req.email}, {"nic_number": req.nic_number}]})
+    existing = admin_teachers_collection.find_one({"$or": [{"email": req.email}, {"nic_number": req.nic_number}]})
     if existing:
         raise HTTPException(status_code=400, detail="A teacher with this email or NIC already exists")
 
-    main_collection.insert_one({
-        "type": "teacher",
+    admin_teachers_collection.insert_one({
         "first_name": req.first_name,
         "last_name": req.last_name,
         "email": req.email,
@@ -206,7 +230,7 @@ def add_teacher(req: AddTeacherRequest, authorization: str = Header(None)):
 @app.get("/api/admin/teachers")
 def list_teachers(authorization: str = Header(None)):
     get_current_admin(authorization)
-    teachers = list(main_collection.find({"type": "teacher"}, {"_id": 0, "password": 0}))
+    teachers = list(admin_teachers_collection.find({}, {"_id": 0, "password": 0}))
     return {"teachers": teachers}
 
 
@@ -224,18 +248,17 @@ def record_lesson(req: RecordLessonRequest, authorization: str = Header(None)):
     admin = get_current_admin(authorization)
 
     # Upsert the subject
-    main_collection.update_one(
-        {"type": "subject", "name": req.subject_name},
+    admin_subjects_collection.update_one(
+        {"name": req.subject_name},
         {
-            "$setOnInsert": {"type": "subject", "name": req.subject_name, "created_at": datetime.now(timezone.utc)},
+            "$setOnInsert": {"name": req.subject_name, "created_at": datetime.now(timezone.utc)},
             "$addToSet": {"lessons": req.lesson_name}
         },
         upsert=True
     )
 
     # Insert the lesson record
-    main_collection.insert_one({
-        "type": "lesson",
+    admin_lessons_collection.insert_one({
         "subject_name": req.subject_name,
         "lesson_name": req.lesson_name,
         "topics": req.topics,
@@ -254,7 +277,7 @@ def record_lesson(req: RecordLessonRequest, authorization: str = Header(None)):
 def get_logs(authorization: str = Header(None), limit: int = 50):
     get_current_admin(authorization)
     logs = list(
-        main_collection.find({"type": "activity_log"}, {"_id": 0})
+        admin_activity_logs_collection.find({}, {"_id": 0})
         .sort("timestamp", -1)
         .limit(limit)
     )
@@ -275,8 +298,11 @@ def index() -> str:
 
 @app.post("/api/extract")
 async def extract_pdf(
-    background_tasks: BackgroundTasks, file: UploadFile = File(...)
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    authorization: str = Header(None),
 ) -> JSONResponse:
+    get_current_admin(authorization)
     if file.content_type not in {
         "application/pdf",
         "application/x-pdf",
@@ -286,7 +312,8 @@ async def extract_pdf(
 
     job_id = str(uuid.uuid4())
     job_dir = Path(tempfile.mkdtemp(prefix=f"sinhala_job_{job_id}_"))
-    pdf_path = job_dir / file.filename
+    safe_pdf_name = Path(file.filename or "textbook.pdf").name
+    pdf_path = job_dir / safe_pdf_name
     contents = await file.read()
     pdf_path.write_bytes(contents)
 
@@ -303,6 +330,9 @@ async def extract_pdf(
             "archive_path": None,
             "error": None,
             "text_previews": {},
+            "backend_sync_status": "not_started",
+            "backend_sync_result": None,
+            "backend_sync_error": None,
         }
 
     logger.info(f"[{job_id}] Queued extraction job")
@@ -312,8 +342,11 @@ async def extract_pdf(
 
 @app.post("/api/build_text")
 def build_text(
-    req: BuildTextRequest, background_tasks: BackgroundTasks
+    req: BuildTextRequest,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
 ) -> JSONResponse:
+    get_current_admin(authorization)
     job_id = req.job_id
     with _jobs_lock:
         job = _jobs.get(job_id)
@@ -323,6 +356,14 @@ def build_text(
             raise HTTPException(
                 status_code=400, detail="Job not ready for building text"
             )
+        allowed_images = set(job.get("extracted_images", []))
+        invalid_images = [
+            image_name
+            for image_name in req.selected_images
+            if Path(image_name).name != image_name or image_name not in allowed_images
+        ]
+        if invalid_images:
+            raise HTTPException(status_code=400, detail="Invalid selected image")
 
         job["status"] = "building_text"
         job["progress"] = 30
@@ -340,8 +381,11 @@ def build_text(
 
 @app.post("/api/finalize")
 def finalize_pdf(
-    req: FinalizeRequest, background_tasks: BackgroundTasks
+    req: FinalizeRequest,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
 ) -> JSONResponse:
+    get_current_admin(authorization)
     job_id = req.job_id
     with _jobs_lock:
         job = _jobs.get(job_id)
@@ -358,6 +402,10 @@ def finalize_pdf(
         job["topics_data"] = [t.model_dump() for t in req.topics]
         job["subject"] = req.subject
         job["lesson"] = req.lesson
+        job["backend_authorization"] = authorization
+        job["backend_sync_status"] = "pending"
+        job["backend_sync_result"] = None
+        job["backend_sync_error"] = None
 
 
     logger.info(f"[{job_id}] Queued finalize job")
@@ -366,7 +414,8 @@ def finalize_pdf(
 
 
 @app.get("/jobs/{job_id}")
-def job_status(job_id: str) -> JSONResponse:
+def job_status(job_id: str, authorization: str = Header(None)) -> JSONResponse:
+    get_current_admin(authorization)
     with _jobs_lock:
         job = _jobs.get(job_id)
         if not job:
@@ -383,6 +432,9 @@ def job_status(job_id: str) -> JSONResponse:
             "error": job["error"],
             "topics": job.get("topics", []),
             "final_images_mapping": job.get("final_images_mapping", {}),
+            "backend_sync_status": job.get("backend_sync_status", "not_started"),
+            "backend_sync_result": job.get("backend_sync_result"),
+            "backend_sync_error": job.get("backend_sync_error"),
         }
     return JSONResponse(payload)
 
@@ -394,13 +446,20 @@ def get_job_image(job_id: str, image_name: str) -> FileResponse:
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         image_path = job["job_dir"] / "images" / image_name
+        if Path(image_name).name != image_name:
+            raise HTTPException(status_code=400, detail="Invalid image name")
         if not image_path.exists():
             raise HTTPException(status_code=404, detail="Image not found")
         return FileResponse(image_path)
 
 
 @app.post("/api/jobs/{job_id}/upload_image")
-async def upload_job_image(job_id: str, file: UploadFile = File(...)) -> JSONResponse:
+async def upload_job_image(
+    job_id: str,
+    file: UploadFile = File(...),
+    authorization: str = Header(None),
+) -> JSONResponse:
+    get_current_admin(authorization)
     with _jobs_lock:
         job = _jobs.get(job_id)
         if not job:
@@ -412,9 +471,9 @@ async def upload_job_image(job_id: str, file: UploadFile = File(...)) -> JSONRes
         images_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate a unique name for manual uploads to avoid conflicts
-        ext = Path(file.filename).suffix if file.filename else ".png"
-        if not ext:
-            ext = ".png"
+        ext = Path(file.filename).suffix.lower() if file.filename else ".png"
+        if ext not in {".png", ".jpg", ".jpeg", ".webp"}:
+            raise HTTPException(status_code=400, detail="Unsupported image type")
         new_filename = f"manual_upload_{uuid.uuid4().hex[:8]}{ext}"
         image_path = images_dir / new_filename
         
@@ -433,7 +492,12 @@ class VectorDBIngestRequest(BaseModel):
     topic_index: int
 
 @app.post("/api/vectordb/ingest")
-def ingest_vector_db(req: VectorDBIngestRequest, background_tasks: BackgroundTasks) -> JSONResponse:
+def ingest_vector_db(
+    req: VectorDBIngestRequest,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+) -> JSONResponse:
+    get_current_admin(authorization)
     job_id = req.job_id
     with _jobs_lock:
         job = _jobs.get(job_id)
@@ -464,7 +528,8 @@ def ingest_vector_db(req: VectorDBIngestRequest, background_tasks: BackgroundTas
 
 
 @app.get("/api/vectordb/status")
-def vectordb_status() -> JSONResponse:
+def vectordb_status(authorization: str = Header(None)) -> JSONResponse:
+    get_current_admin(authorization)
     try:
         store = get_vector_store()
         count = store._collection.count()
@@ -498,7 +563,11 @@ class VectorDBRetrieveRequest(BaseModel):
     use_vector_ranking: bool = True
 
 @app.post("/api/vectordb/retrieve")
-def vectordb_retrieve(req: VectorDBRetrieveRequest) -> JSONResponse:
+def vectordb_retrieve(
+    req: VectorDBRetrieveRequest,
+    authorization: str = Header(None),
+) -> JSONResponse:
+    get_current_admin(authorization)
     try:
         context = get_relevant_context(
             subject=req.subject,
@@ -617,7 +686,8 @@ def _run_finalize_job(job_id: str) -> None:
         job_dir = job["job_dir"]
         topics_data = job["topics_data"]
         subject = job["subject"]
-        lesson_name = job.get("lesson_name", "lesson")
+        lesson_name = job.get("lesson") or job.get("lesson_name", "lesson")
+        backend_authorization = job.get("backend_authorization")
     try:
         logger.info(f"[{job_id}] Running finalize zip phase")
         result = pipeline.finalize_zip_phase(
@@ -626,25 +696,24 @@ def _run_finalize_job(job_id: str) -> None:
 
         with _jobs_lock:
             job = _jobs[job_id]
-            job["status"] = "completed"
+            job["status"] = "publishing"
             job["message"] = f"Processed {len(result.text_files)} lesson files"
-            job["progress"] = 100
+            job["progress"] = 90
             job["text_files"] = result.text_files
             job["image_files"] = result.image_files
             job["archive_path"] = result.archive_path
 
         # Record to dashboard database
         try:
-            main_collection.update_one(
-                {"type": "subject", "name": subject},
+            admin_subjects_collection.update_one(
+                {"name": subject},
                 {
-                    "$setOnInsert": {"type": "subject", "name": subject, "created_at": datetime.now(timezone.utc)},
+                    "$setOnInsert": {"name": subject, "created_at": datetime.now(timezone.utc)},
                     "$addToSet": {"lessons": lesson_name}
                 },
                 upsert=True
             )
-            main_collection.insert_one({
-                "type": "lesson",
+            admin_lessons_collection.insert_one({
                 "subject_name": subject,
                 "lesson_name": lesson_name,
                 "topics": [t.get("title") for t in topics_data],
@@ -656,6 +725,53 @@ def _run_finalize_job(job_id: str) -> None:
             log_activity("add_lesson", "pipeline", f"Auto-recorded lesson '{lesson_name}' to subject '{subject}'")
         except Exception as db_exc:
             logger.error(f"[{job_id}] Failed to auto-record lesson to db: {db_exc}")
+
+        # Publish the finalized archive to the existing learning backend. A
+        # publication failure does not discard the successfully generated ZIP.
+        try:
+            with _jobs_lock:
+                job = _jobs[job_id]
+                job["backend_sync_status"] = "publishing"
+                job["message"] = "Files ready. Publishing to learning backend..."
+
+            with result.archive_path.open("rb") as archive_file:
+                response = requests.post(
+                    f"{BACKEND_URL}/api/admin/ingest",
+                    headers={"Authorization": backend_authorization},
+                    files={
+                        "archive": (
+                            result.archive_path.name,
+                            archive_file,
+                            "application/zip",
+                        )
+                    },
+                    timeout=600,
+                )
+            response.raise_for_status()
+            sync_result = response.json()
+
+            with _jobs_lock:
+                job = _jobs[job_id]
+                job["backend_sync_status"] = "published"
+                job["backend_sync_result"] = sync_result
+                job["message"] = "Files generated and published to the learning backend."
+            log_activity(
+                "publish_lesson",
+                sync_result.get("published_by", "admin"),
+                f"Published lesson '{lesson_name}' to the learning backend",
+            )
+        except Exception as sync_exc:
+            logger.error(f"[{job_id}] Backend publication failed: {sync_exc}")
+            with _jobs_lock:
+                job = _jobs[job_id]
+                job["backend_sync_status"] = "failed"
+                job["backend_sync_error"] = str(sync_exc)
+                job["message"] = "Files generated, but backend publication failed."
+
+        with _jobs_lock:
+            job = _jobs[job_id]
+            job["status"] = "completed"
+            job["progress"] = 100
 
         logger.info(f"[{job_id}] Finalization complete")
     except Exception as exc:  # pragma: no cover

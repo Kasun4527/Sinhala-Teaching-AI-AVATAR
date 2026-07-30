@@ -1184,6 +1184,20 @@
     </div>
 
     <script>
+        // The portal remains a standalone application. A gateway can route
+        // /admin and /admin/* here without moving this UI into Next.js.
+        const ADMIN_BASE_PATH = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
+            ? '/admin'
+            : '';
+        const adminUrl = (path) => `${ADMIN_BASE_PATH}${path}`;
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = (resource, options) => {
+            const target = typeof resource === 'string' && resource.startsWith('/')
+                ? adminUrl(resource)
+                : resource;
+            return originalFetch(target, options);
+        };
+
         // ═══════ State ═══════
         let authToken = localStorage.getItem('admin_token');
         let adminName = localStorage.getItem('admin_name') || 'Admin';
@@ -1195,6 +1209,10 @@
 
         function authHeaders() {
             return { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' };
+        }
+
+        function authOnlyHeaders() {
+            return { 'Authorization': `Bearer ${authToken}` };
         }
 
         // ═══════ View Management ═══════
@@ -1485,7 +1503,7 @@
             const formData = new FormData();
             formData.append('file', file);
             try {
-                const res = await fetch('/api/extract', { method: 'POST', body: formData });
+                const res = await fetch('/api/extract', { method: 'POST', headers: authOnlyHeaders(), body: formData });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Upload failed');
                 currentJobId = data.job_id;
@@ -1506,7 +1524,7 @@
         function pollStatus() {
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = setInterval(async () => {
-                const res = await fetch(`/jobs/${currentJobId}`);
+                const res = await fetch(`/jobs/${currentJobId}`, { headers: authOnlyHeaders() });
                 const data = await res.json();
                 jobData = data;
                 if (document.getElementById('content-upload').classList.contains('active')) updateProgress('upload', data.progress || 0);
@@ -1566,7 +1584,7 @@
             card.addEventListener('dragover', (e) => { e.preventDefault(); if (draggedItem && draggedItem !== card) card.classList.add('drag-over'); });
             card.addEventListener('dragleave', () => { card.classList.remove('drag-over'); });
             card.addEventListener('drop', (e) => { e.preventDefault(); card.classList.remove('drag-over'); if (draggedItem && draggedItem !== card) { const grid = document.getElementById('image-grid'); const allCards = [...grid.querySelectorAll('.image-card')]; const draggedIdx = allCards.indexOf(draggedItem); const dropIdx = allCards.indexOf(card); if (draggedIdx < dropIdx) card.after(draggedItem); else card.before(draggedItem); } });
-            card.innerHTML = `<div class="badge"></div><img src="/jobs/${currentJobId}/image/${img}" alt="${img}"><div class="overlay"><div class="check-icon">✓</div></div>`;
+            card.innerHTML = `<div class="badge"></div><img src="${adminUrl(`/jobs/${currentJobId}/image/${img}`)}" alt="${img}"><div class="overlay"><div class="check-icon">✓</div></div>`;
             return card;
         }
 
@@ -1584,7 +1602,7 @@
             const formData = new FormData();
             formData.append('file', file);
             try {
-                const res = await fetch(`/api/jobs/${currentJobId}/upload_image`, { method: 'POST', body: formData });
+                const res = await fetch(`/api/jobs/${currentJobId}/upload_image`, { method: 'POST', headers: authOnlyHeaders(), body: formData });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Upload failed');
                 document.getElementById('image-grid').appendChild(createImageCard(data.image_name, true));
@@ -1610,7 +1628,7 @@
 
         async function downloadImagesZip() {
             if (!currentJobId) return;
-            window.open(`/api/jobs/${currentJobId}/download_images`, '_blank');
+            window.open(adminUrl(`/api/jobs/${currentJobId}/download_images`), '_blank');
         }
 
         async function submitImages() {
@@ -1627,7 +1645,7 @@
             try {
                 const res = await fetch('/api/build_text', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders(),
                     body: JSON.stringify({ job_id: currentJobId, selected_images: orderedImages, subject, lesson })
                 });
                 if (!res.ok) throw new Error('Build text failed');
@@ -1746,7 +1764,7 @@
                 const div = document.createElement('div');
                 div.className = 'review-image-item';
                 div.style.position = 'relative';
-                div.innerHTML = `<div class="used-tick" data-image-name="${pureName.replace(/"/g, '&quot;')}">✓</div><img src="/jobs/${currentJobId}/image/${newName}" alt="${newName}"><div class="tag-container"><code>${tag}</code><button onclick="navigator.clipboard.writeText('${tag}'); this.textContent='Copied!'; this.style.background='var(--success)'; setTimeout(()=>{this.textContent='Copy';this.style.background='var(--text-dark)';},2000);" style="padding:0.3rem 0.6rem;font-size:0.8rem;background:var(--text-dark);color:white;border:none;border-radius:4px;cursor:pointer;">Copy</button></div>`;
+                div.innerHTML = `<div class="used-tick" data-image-name="${pureName.replace(/"/g, '&quot;')}">✓</div><img src="${adminUrl(`/jobs/${currentJobId}/image/${newName}`)}" alt="${newName}"><div class="tag-container"><code>${tag}</code><button onclick="navigator.clipboard.writeText('${tag}'); this.textContent='Copied!'; this.style.background='var(--success)'; setTimeout(()=>{this.textContent='Copy';this.style.background='var(--text-dark)';},2000);" style="padding:0.3rem 0.6rem;font-size:0.8rem;background:var(--text-dark);color:white;border:none;border-radius:4px;cursor:pointer;">Copy</button></div>`;
                 imagesContainer.appendChild(div);
             }
             checkImageUsage();
@@ -1781,7 +1799,7 @@
             try {
                 const res = await fetch('/api/finalize', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders(),
                     body: JSON.stringify({ job_id: currentJobId, topics, subject, lesson })
                 });
                 if (res.status === 404 || res.status === 422) throw new Error("Session expired. Please restart.");
@@ -1804,7 +1822,12 @@
 
             const dlContainer = document.getElementById('download-links');
             dlContainer.innerHTML = '<p style="margin-bottom: 1rem; color: var(--text-white);">Text generation complete! Final zip is ready.</p>';
-            if (data.archive_path) dlContainer.innerHTML += `<a href="/api/jobs/${currentJobId}/download_zip" class="download-btn" style="background: var(--purple);">Download ZIP Archive</a>`;
+            if (data.backend_sync_status === 'published') {
+                dlContainer.innerHTML += '<p style="margin-bottom: 1rem; color: var(--success);">✅ Published to the learning backend and its knowledge base was refreshed.</p>';
+            } else if (data.backend_sync_status === 'failed') {
+                dlContainer.innerHTML += `<p style="margin-bottom: 1rem; color: var(--danger);">⚠️ ZIP created, but backend publication failed: ${data.backend_sync_error || 'Unknown error'}</p>`;
+            }
+            if (data.archive_path) dlContainer.innerHTML += `<a href="${adminUrl(`/api/jobs/${currentJobId}/download_zip`)}" class="download-btn" style="background: var(--purple);">Download ZIP Archive</a>`;
 
             const ingestContainer = document.getElementById('ingest-topics-container');
             ingestContainer.innerHTML = '';
@@ -1852,7 +1875,7 @@
             try {
                 const res = await fetch('/api/vectordb/ingest', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders(),
                     body: JSON.stringify({ job_id: currentJobId, filename: filename, topic_index: topicIndex })
                 });
                 if (!res.ok) {
@@ -1875,7 +1898,7 @@
         async function loadVDBStatus() {
             const el = document.getElementById('vdb-status-text');
             try {
-                const res = await fetch('/api/vectordb/status');
+                const res = await fetch('/api/vectordb/status', { headers: authOnlyHeaders() });
                 const data = await res.json();
                 el.innerHTML = data.status === 'active'
                     ? `<span style="color: var(--success); font-weight: bold;">Online</span> — ${data.chunks} chunks`
@@ -1904,7 +1927,7 @@
             const el = document.getElementById('retrieval-results');
             el.style.display = 'block'; el.textContent = 'Retrieving...';
             try {
-                const res = await fetch('/api/vectordb/retrieve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject, lesson, topic, use_vector_ranking: useVector }) });
+                const res = await fetch('/api/vectordb/retrieve', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ subject, lesson, topic, use_vector_ranking: useVector }) });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
                 el.textContent = data.context || "No context found.";

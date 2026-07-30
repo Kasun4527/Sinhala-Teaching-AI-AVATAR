@@ -24,6 +24,9 @@ python -m uvicorn app.main:app --port 8000 --reload
 
 Open the local URL shown by Uvicorn and upload a PDF.
 
+The service can also be exposed at `/admin` behind a gateway without moving the
+UI into Next.js. See `DEPLOYMENT.md` for the route and environment settings.
+
 ## Test
 ```bash
 pytest

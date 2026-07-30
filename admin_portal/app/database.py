@@ -8,25 +8,33 @@ load_dotenv()
 mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 client = MongoClient(mongo_uri)
 
-db = client["sinhala_admin"]
+db = client["ai_avatar"]
 
-main_collection = db["app_data"]
+# Option 2: shared database, isolated admin-portal collections.
+admin_users_collection = db["admin_users"]
+admin_teachers_collection = db["admin_teachers"]
+admin_subjects_collection = db["admin_subjects"]
+admin_lessons_collection = db["admin_lessons"]
+admin_activity_logs_collection = db["admin_activity_logs"]
 
 
 def ensure_indexes():
     """Create indexes for performance. Called on FastAPI startup."""
-    main_collection.create_index([("type", 1), ("email", 1)])
-    main_collection.create_index([("type", 1), ("name", 1)])
-    main_collection.create_index([("type", 1), ("nic_number", 1)])
-    main_collection.create_index("timestamp")
+    admin_users_collection.create_index("email", unique=True)
+    admin_teachers_collection.create_index("email", unique=True)
+    admin_teachers_collection.create_index("nic_number", unique=True)
+    admin_subjects_collection.create_index("name", unique=True)
+    admin_lessons_collection.create_index(
+        [("subject_name", 1), ("lesson_name", 1), ("source_filename", 1)]
+    )
+    admin_activity_logs_collection.create_index("timestamp")
     print("[DB] Admin dashboard indexes ensured.")
 
 
 def log_activity(action: str, performed_by: str, details: str = ""):
     """Insert an activity log entry."""
     from datetime import datetime, timezone
-    main_collection.insert_one({
-        "type": "activity_log",
+    admin_activity_logs_collection.insert_one({
         "action": action,
         "performed_by": performed_by,
         "details": details,
