@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sinhala-textbook-pipeline"
+version = "0.1.0"
+description = "Upload a Sinhala textbook PDF and export topic text files plus extracted images."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "python-multipart>=0.0.9",
+  "pymupdf>=1.24",
+  "pandukabhaya",
+  "python-dotenv>=1.0",
+  "pymongo>=4.0",
+  "python-jose[cryptography]>=3.3",
+  "bcrypt>=4.0",
+  "email-validator>=2.0",
+  "chromadb>=1.0",
+  "langchain-community>=0.2",
+  "langchain-huggingface>=0.0.3",
+  "langchain-chroma>=0.1.1",
+  "sentence-transformers>=2.0",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+  "httpx>=0.27",
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

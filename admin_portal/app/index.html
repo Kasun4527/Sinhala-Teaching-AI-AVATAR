@@ -1,0 +1,1939 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sinhala Avatar Admin Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: rgba(255, 255, 255, 0.06);
+            --bg-surface: #1e293b;
+            --bg-white: #ffffff;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --primary-glow: rgba(59, 130, 246, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+            --text-white: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-dark: #1e293b;
+            --border: #334155;
+            --border-light: #e2e8f0;
+            --radius: 12px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --glass: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            color: var(--text-white);
+        }
+
+        /* ─── Global Loader ─── */
+        #global-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #global-loader.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: flex;
+        }
+
+        /* ─── Login / Signup ─── */
+        .auth-view {
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .auth-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 3rem;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: var(--shadow);
+        }
+
+        .auth-card .logo {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--primary), var(--purple));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .auth-card h2 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-card .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-white);
+            font-size: 0.95rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px var(--primary-glow);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success), #059669);
+        }
+
+        .btn-purple {
+            background: linear-gradient(135deg, var(--purple), #7c3aed);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger), #dc2626);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: none;
+        }
+
+        .auth-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .auth-link a {
+            color: var(--primary);
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .auth-link a:hover {
+            text-decoration: underline;
+        }
+
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #6ee7b7;
+        }
+
+        /* ─── Dashboard ─── */
+        .dashboard-view {
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .topbar h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .topbar .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .topbar .user-name {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .topbar .logout-btn {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .topbar .logout-btn:hover {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .dashboard-content {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .welcome-text {
+            font-size: 1.5rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
+        }
+
+        .welcome-text strong {
+            font-weight: 700;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+        }
+
+        .stat-card .stat-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .stat-card .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        .stat-card .stat-label {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .action-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.75rem;
+            cursor: pointer;
+            text-align: center;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .action-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .action-card .action-icon {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .action-card .action-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .action-card .action-desc {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .action-card.green:hover {
+            border-color: var(--success);
+        }
+
+        .action-card.blue:hover {
+            border-color: var(--primary);
+        }
+
+        .action-card.purple:hover {
+            border-color: var(--purple);
+        }
+
+        .action-card.teal:hover {
+            border-color: #14b8a6;
+        }
+
+        .section-title {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.9rem;
+        }
+
+        .data-table tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .badge-pill {
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background: rgba(59, 130, 246, 0.15);
+            color: #93c5fd;
+        }
+
+        .badge-green {
+            background: rgba(16, 185, 129, 0.15);
+            color: #6ee7b7;
+        }
+
+        /* ─── Modal ─── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal h3 {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal .close-btn {
+            float: right;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        /* ─── Logs Panel ─── */
+        .log-entry {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+        }
+
+        .log-entry .log-action {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .log-entry .log-time {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* ─── Pipeline (existing styles) ─── */
+        .pipeline-view {
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .pipeline-content {
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 0.75rem 1.25rem;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .tab.locked {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .pipeline-content input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+            background: var(--bg-surface);
+            cursor: pointer;
+            color: var(--text-white);
+        }
+
+        .pipeline-content button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pipeline-content button:hover {
+            background: var(--primary-hover);
+        }
+
+        .pipeline-content button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            display: none;
+            margin: 1rem 0;
+            background: var(--bg-surface);
+            border-radius: 999px;
+            height: 8px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--purple));
+            border-radius: 999px;
+            transition: width 0.3s;
+        }
+
+        .status-text {
+            margin: 0.5rem 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .image-card {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .image-card.selected {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .image-card img {
+            width: 100%;
+            height: 160px;
+            object-fit: contain;
+            display: block;
+            background: var(--bg-dark);
+        }
+
+        .image-card .badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            background: var(--text-muted);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .image-card .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(37, 99, 235, 0.3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-card.selected .overlay {
+            display: flex;
+        }
+
+        .image-card .check-icon {
+            font-size: 2rem;
+            color: white;
+        }
+
+        .image-card.drag-over {
+            border-color: var(--success);
+        }
+
+        .image-grid.arrange-mode .image-card {
+            cursor: grab;
+        }
+
+        .preview-pane {
+            max-height: 400px;
+            overflow-y: auto;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            white-space: pre-wrap;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .download-btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+
+        .download-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        .review-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 800px) {
+            .review-layout {
+                grid-template-columns: 250px 1fr;
+            }
+        }
+
+        .review-images-area {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .review-images-container {
+            display: flex;
+            flex-direction: row;
+            gap: 0.75rem;
+            overflow-x: auto;
+            padding-bottom: 0.5rem;
+            scrollbar-width: thin;
+        }
+
+        .review-images-container::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .review-images-container::-webkit-scrollbar-track {
+            background: var(--bg-surface);
+            border-radius: 3px;
+        }
+
+        .review-images-container::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .review-image-item {
+            flex: 0 0 auto;
+            width: 160px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .review-image-item img {
+            width: 100%;
+            height: 160px;
+            object-fit: contain;
+            display: block;
+            background: var(--bg-dark);
+        }
+
+        .tag-container {
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            align-items: center;
+            background: var(--bg-surface);
+        }
+
+        .tag-container code {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .used-tick {
+            display: none;
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: var(--success);
+            color: white;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Global Loader -->
+    <div id="global-loader">
+        <div class="spinner"></div>
+        <div id="loader-text" style="color: var(--text-white); font-weight: 500; font-size: 1.1rem; margin-top: 1rem;">
+            Loading...</div>
+        <div
+            style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem; text-align: center; max-width: 300px;">
+            Initializing resources and loading model weights...
+        </div>
+    </div>
+
+    <!-- ═══════════════ LOGIN VIEW ═══════════════ -->
+    <div id="view-login" class="view auth-view active">
+        <div class="auth-card">
+            <div class="logo">📚</div>
+            <h2>Sinhala Avatar Admin</h2>
+            <p class="subtitle">Sinhala Avatar Knowledge Base Manager</p>
+            <div id="login-alert"></div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="login-email" placeholder="admin@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn" id="login-btn">Sign In</button>
+            </form>
+            <div class="auth-link">Don't have an account? <a onclick="showView('signup')">Create Account</a></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ SIGNUP VIEW ═══════════════ -->
+    <div id="view-signup" class="view auth-view">
+        <div class="auth-card">
+            <div class="logo">📚</div>
+            <h2>Create Account</h2>
+            <p class="subtitle">Set up your admin access</p>
+            <div id="signup-alert"></div>
+            <form id="signup-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>First Name</label>
+                        <input type="text" id="signup-fname" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name</label>
+                        <input type="text" id="signup-lname" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="signup-email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="signup-password" placeholder="Min. 8 characters" required>
+                </div>
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" id="signup-confirm" required>
+                </div>
+                <button type="submit" class="btn btn-success" id="signup-btn">Create Account</button>
+            </form>
+            <div class="auth-link">Already have an account? <a onclick="showView('login')">Sign In</a></div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ DASHBOARD VIEW ═══════════════ -->
+    <div id="view-dashboard" class="view dashboard-view">
+        <div class="topbar">
+            <h1>📚 Sinhala Avatar Admin</h1>
+            <div class="user-info">
+                <span class="user-name" id="topbar-name">Admin</span>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+        <div class="dashboard-content">
+            <p class="welcome-text">Welcome back, <strong id="welcome-name">Admin</strong> 👋</p>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">👨‍🏫</div>
+                    <div class="stat-value" id="stat-teachers">0</div>
+                    <div class="stat-label">Total Teachers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📖</div>
+                    <div class="stat-value" id="stat-lessons">0</div>
+                    <div class="stat-label">Total Lessons</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📂</div>
+                    <div class="stat-value" id="stat-subjects">0</div>
+                    <div class="stat-label">Subjects</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🧠</div>
+                    <div class="stat-value" id="stat-chunks">0</div>
+                    <div class="stat-label">Vector DB Chunks</div>
+                </div>
+            </div>
+
+            <div class="actions-grid">
+                <div class="action-card green" onclick="openTeacherModal()">
+                    <div class="action-icon">👤+</div>
+                    <div class="action-title">Add Teacher</div>
+                    <div class="action-desc">Register a new teacher</div>
+                </div>
+                <div class="action-card blue" onclick="showView('pipeline')">
+                    <div class="action-icon">📖+</div>
+                    <div class="action-title">Add Lesson</div>
+                    <div class="action-desc">Extract & ingest a textbook PDF</div>
+                </div>
+                <div class="action-card purple" onclick="openLogsModal()">
+                    <div class="action-icon">📋</div>
+                    <div class="action-title">View Logs</div>
+                    <div class="action-desc">Activity history</div>
+                </div>
+                <div class="action-card teal" onclick="openTeachersListModal()">
+                    <div class="action-icon">👥</div>
+                    <div class="action-title">View Teachers</div>
+                    <div class="action-desc">Manage registered teachers</div>
+                </div>
+                <div class="action-card" style="border-color: var(--warning);"
+                    onclick="showView('playground'); loadVDBStatus();">
+                    <div class="action-icon">🎯</div>
+                    <div class="action-title">RAG Playground</div>
+                    <div class="action-desc">Test database retrieval</div>
+                </div>
+            </div>
+
+            <div class="section-title">📂 Existing Subjects</div>
+            <div class="card" style="padding: 0; overflow: hidden;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Subject Name</th>
+                            <th>Lessons</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subjects-tbody">
+                        <tr>
+                            <td colspan="2" style="text-align: center; color: var(--text-muted);">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ ADD TEACHER MODAL ═══════════════ -->
+    <div class="modal-overlay" id="teacher-modal">
+        <div class="modal">
+            <button class="close-btn" onclick="closeModal('teacher-modal')">&times;</button>
+            <h3>👤 Add New Teacher</h3>
+            <div id="teacher-alert"></div>
+            <form id="teacher-form">
+                <div class="form-row">
+                    <div class="form-group"><label>First Name</label><input type="text" id="teacher-fname" required>
+                    </div>
+                    <div class="form-group"><label>Last Name</label><input type="text" id="teacher-lname" required>
+                    </div>
+                </div>
+                <div class="form-group"><label>Email</label><input type="email" id="teacher-email" required></div>
+                <div class="form-group"><label>Contact Number</label><input type="text" id="teacher-phone" required>
+                </div>
+                <div class="form-group"><label>Address</label><input type="text" id="teacher-address" required></div>
+                <div class="form-group"><label>NIC Number</label><input type="text" id="teacher-nic" required></div>
+                <div class="form-group"><label>Password</label><input type="password" id="teacher-password" required>
+                </div>
+                <button type="submit" class="btn btn-success">Add Teacher</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══════════════ LOGS MODAL ═══════════════ -->
+    <div class="modal-overlay" id="logs-modal">
+        <div class="modal" style="max-width: 640px;">
+            <button class="close-btn" onclick="closeModal('logs-modal')">&times;</button>
+            <h3>📋 Activity Logs</h3>
+            <div id="logs-container" style="max-height: 60vh; overflow-y: auto;">
+                <p style="color: var(--text-muted);">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ TEACHERS LIST MODAL ═══════════════ -->
+    <div class="modal-overlay" id="teachers-list-modal">
+        <div class="modal" style="max-width: 700px;">
+            <button class="close-btn" onclick="closeModal('teachers-list-modal')">&times;</button>
+            <h3>👥 Registered Teachers</h3>
+            <div id="teachers-list-container" style="max-height: 60vh; overflow-y: auto;">
+                <p style="color: var(--text-muted);">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ PIPELINE VIEW ═══════════════ -->
+    <div id="view-pipeline" class="view pipeline-view">
+        <div class="topbar">
+            <h1>📖 Add New Lesson</h1>
+            <div class="user-info">
+                <button class="logout-btn" onclick="resetPipeline(); showView('dashboard'); loadDashboard();"
+                    style="border-color: var(--primary); color: var(--primary);">← Back to Dashboard</button>
+            </div>
+        </div>
+        <div class="pipeline-content">
+            <div class="card">
+                <div class="tabs">
+                    <div class="tab active" id="tab-upload" onclick="switchTab('upload')">1. Upload PDF</div>
+                    <div class="tab disabled" id="tab-images"
+                        onclick="if(!this.classList.contains('disabled')) switchTab('images')">2. Select Images</div>
+                    <div class="tab disabled" id="tab-review"
+                        onclick="if(!this.classList.contains('disabled')) switchTab('review')">3. Review & Edit</div>
+                    <div class="tab disabled" id="tab-ingest"
+                        onclick="if(!this.classList.contains('disabled')) switchTab('ingest')">4. Ingest & Download
+                    </div>
+
+                </div>
+
+                <!-- Upload Tab -->
+                <div id="content-upload" class="tab-content active">
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label style="color: var(--text-white); font-size: 1rem;">Subject Name</label>
+                        <input type="text" id="subject-input" placeholder="e.g., Science Grade 11" required
+                            style="background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-white); margin-bottom: 1rem;">
+                        <label style="color: var(--text-white); font-size: 1rem;">Lesson Name</label>
+                        <input type="text" id="lesson-input" placeholder="e.g., Human Body" required
+                            style="background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-white);">
+                    </div>
+                    <form id="upload-form">
+                        <input type="file" id="pdf-file" accept="application/pdf" required />
+                        <button type="submit" id="upload-btn">Start Extraction</button>
+                    </form>
+                    <div id="upload-progress-container" class="progress-container">
+                        <div id="upload-progress-bar" class="progress-bar"></div>
+                    </div>
+                    <div id="upload-status" class="status-text"></div>
+                </div>
+
+                <!-- Images Tab -->
+                <div id="content-images" class="tab-content">
+                    <p style="margin-bottom: 1rem; color: var(--text-muted);">Click images to select/deselect. Use
+                        Arrange Mode to reorder. You can also paste (Ctrl+V) images.</p>
+                    <div
+                        style="margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                        <button id="toggle-arrange-btn" onclick="toggleArrangeMode()"
+                            style="background: #64748b;">Arrange: OFF</button>
+                        <button onclick="selectAllImages()" style="background: var(--primary);">Select All</button>
+                        <button onclick="unselectAllImages()" style="background: var(--danger);">Unselect All</button>
+                        <button onclick="document.getElementById('manual-upload-input').click()"
+                            style="background: var(--success);">Upload Image</button>
+                        <input type="file" id="manual-upload-input" accept="image/*" multiple style="display: none;"
+                            onchange="handleManualUpload(event)">
+                        <button onclick="downloadImagesZip()" style="background: var(--purple);">Zip & Download</button>
+                    </div>
+                    <div id="image-grid" class="image-grid"></div>
+                    <button id="submit-images-btn" onclick="submitImages()">Confirm Selection & Build Text</button>
+                    <div id="images-progress-container" class="progress-container">
+                        <div id="images-progress-bar" class="progress-bar"></div>
+                    </div>
+                    <div id="images-status" class="status-text"></div>
+                </div>
+
+                <!-- Review Tab -->
+                <div id="content-review" class="tab-content">
+                    <p style="margin-bottom: 1rem; color: var(--text-muted);">Edit topic titles and content below, then
+                        finalize.</p>
+                    <div class="review-vertical-layout" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="review-images-area">
+                            <h3 style="margin-top: 0; margin-bottom: 0.5rem; font-size: 1rem;">Images (Copy tags)
+                                [Horizontal scroll]</h3>
+                            <div id="review-images-container" class="review-images-container"></div>
+                        </div>
+                        <div class="review-text-area" id="review-topics-container"></div>
+                    </div>
+                    <button id="finalize-btn" onclick="submitEditedText()" style="margin-top: 1rem;">Save & Download
+                        ZIP</button>
+                    <div id="review-progress-container" class="progress-container">
+                        <div id="review-progress-bar" class="progress-bar"></div>
+                    </div>
+                    <div id="review-status" class="status-text"></div>
+                </div>
+
+                <!-- Ingest & Download Tab -->
+                <div id="content-ingest" class="tab-content">
+                    <h2 style="margin-bottom: 1.5rem;">Ingest Topics to Vector DB</h2>
+                    <div id="ingest-topics-container"
+                        style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+                        <!-- Ingest buttons will be injected here -->
+                    </div>
+                    <hr style="border-color: rgba(255,255,255,0.1); margin: 2rem 0;">
+                    <h3 style="margin-bottom: 1rem;">Download Extracted Files</h3>
+                    <div class="download-links" id="download-links" style="margin-bottom: 1.5rem;"></div>
+                    <button onclick="showView('playground'); loadVDBStatus();" class="download-btn"
+                        style="background: var(--success); margin-right: 0.5rem;">Proceed to Playground</button>
+                    <button onclick="resetPipeline(); showView('dashboard'); loadDashboard();" class="download-btn"
+                        style="background: #64748b;">Back to Dashboard</button>
+                </div>
+
+                <!-- (Playground Tab removed) -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ PLAYGROUND VIEW ═══════════════ -->
+    <div id="view-playground" class="view playground-view">
+        <div class="topbar">
+            <h1>🎯 RAG Playground</h1>
+            <div class="user-info">
+                <button class="logout-btn" onclick="closePlayground();"
+                    style="border-color: var(--primary); color: var(--primary);">← Back to Dashboard</button>
+            </div>
+        </div>
+        <div class="pipeline-content" style="max-width: 1000px; margin: 0 auto; padding-top: 2rem;">
+            <div class="card" style="background: var(--bg-surface); padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h3 style="margin-bottom: 0.75rem;">Database Status</h3>
+                <p id="vdb-status-text" style="color: var(--text-muted);">Checking...</p>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                    <button onclick="loadVDBStatus()" style="background: #64748b; padding: 0.5rem 1rem;">Refresh
+                        Status</button>
+                    <button onclick="clearVectorDB()" style="background: var(--danger); padding: 0.5rem 1rem;">Clear
+                        Database</button>
+                </div>
+            </div>
+            <div class="card" style="background: var(--bg-surface); padding: 1.5rem;">
+                <h3 style="margin-bottom: 0.75rem;">Database Retrieval Test</h3>
+                <p style="color: var(--text-muted);">Test retrieval accuracy from the vector database:</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin: 0.75rem 0;">
+                    <input type="text" id="test-subject" placeholder="Subject"
+                        style="padding: 0.5rem; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; color: var(--text-white);">
+                    <input type="text" id="test-lesson" placeholder="Lesson"
+                        style="padding: 0.5rem; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; color: var(--text-white);">
+                    <input type="text" id="test-topic" placeholder="Topic"
+                        style="padding: 0.5rem; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; color: var(--text-white);">
+                </div>
+                <div style="margin: 0.5rem 0;"><label style="color: var(--text-muted); font-size: 0.85rem;"><input
+                            type="checkbox" id="test-use-vector" checked> Semantic Ranking (Quiz) vs Linear Order
+                        (Content)</label></div>
+                <button onclick="testRetrieval()" style="background: var(--primary); margin-top: 0.5rem;">Test
+                    Retrieval</button>
+                <div id="retrieval-results" class="preview-pane" style="margin-top: 1rem; display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // The portal remains a standalone application. A gateway can route
+        // /admin and /admin/* here without moving this UI into Next.js.
+        const ADMIN_BASE_PATH = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
+            ? '/admin'
+            : '';
+        const adminUrl = (path) => `${ADMIN_BASE_PATH}${path}`;
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = (resource, options) => {
+            const target = typeof resource === 'string' && resource.startsWith('/')
+                ? adminUrl(resource)
+                : resource;
+            return originalFetch(target, options);
+        };
+
+        // ═══════ State ═══════
+        let authToken = localStorage.getItem('admin_token');
+        let adminName = localStorage.getItem('admin_name') || 'Admin';
+        let currentJobId = null;
+        let pollInterval = null;
+        let jobData = null;
+        let isArrangeMode = false;
+        let draggedItem = null;
+
+        function authHeaders() {
+            return { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' };
+        }
+
+        function authOnlyHeaders() {
+            return { 'Authorization': `Bearer ${authToken}` };
+        }
+
+        // ═══════ View Management ═══════
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(`view-${viewId}`).classList.add('active');
+        }
+
+        function resetPipeline() {
+            currentJobId = null;
+            jobData = null;
+            if (pollInterval) clearInterval(pollInterval);
+
+            // Reset tabs UI
+            document.querySelectorAll('.tab').forEach(t => {
+                t.classList.remove('active', 'locked');
+                t.classList.add('disabled');
+            });
+            document.getElementById('tab-upload').classList.remove('disabled', 'locked');
+            document.getElementById('tab-upload').classList.add('active');
+
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('content-upload').classList.add('active');
+
+            // Reset inputs
+            const uploadForm = document.getElementById('upload-form');
+            if (uploadForm) uploadForm.reset();
+            document.getElementById('subject-input').value = '';
+            document.getElementById('lesson-input').value = '';
+            document.getElementById('pdf-file').value = '';
+
+            // Clear progress bars and buttons
+            ['upload', 'images', 'review'].forEach(id => {
+                const pc = document.getElementById(`${id}-progress-container`);
+                if (pc) pc.style.display = 'none';
+                const ps = document.getElementById(`${id}-status`);
+                if (ps) ps.textContent = '';
+                const btn = document.getElementById(id === 'upload' ? 'upload-btn' : id === 'images' ? 'submit-images-btn' : 'finalize-btn');
+                if (btn) btn.disabled = false;
+            });
+
+            // Clear dynamic content
+            document.getElementById('image-grid').innerHTML = '';
+            document.getElementById('review-topics-container').innerHTML = '';
+            document.getElementById('review-images-container').innerHTML = '';
+            document.getElementById('ingest-topics-container').innerHTML = '';
+            document.getElementById('download-links').innerHTML = '';
+        }
+
+        // Auto-login if token exists
+        if (authToken) {
+            showView('dashboard');
+            loadDashboard();
+        }
+
+        // ═══════ Auth ═══════
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const alertEl = document.getElementById('login-alert');
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true;
+            alertEl.innerHTML = '';
+            showLoader('Signing in...');
+
+            try {
+                const res = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('login-email').value,
+                        password: document.getElementById('login-password').value,
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Login failed');
+
+                authToken = data.token;
+                adminName = data.name;
+                localStorage.setItem('admin_token', authToken);
+                localStorage.setItem('admin_name', adminName);
+                showView('dashboard');
+                loadDashboard();
+            } catch (err) {
+                hideLoader();
+                alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const alertEl = document.getElementById('signup-alert');
+            const btn = document.getElementById('signup-btn');
+            btn.disabled = true;
+            alertEl.innerHTML = '';
+
+            const pw = document.getElementById('signup-password').value;
+            const confirm = document.getElementById('signup-confirm').value;
+            if (pw !== confirm) {
+                alertEl.innerHTML = '<div class="alert alert-error">Passwords do not match</div>';
+                btn.disabled = false;
+                return;
+            }
+
+            try {
+                const res = await fetch('/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        first_name: document.getElementById('signup-fname').value,
+                        last_name: document.getElementById('signup-lname').value,
+                        email: document.getElementById('signup-email').value,
+                        password: pw,
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Signup failed');
+                alertEl.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                setTimeout(() => showView('login'), 2000);
+            } catch (err) {
+                alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        function logout() {
+            authToken = null;
+            adminName = 'Admin';
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_name');
+            showView('login');
+        }
+
+        // ═══════ Dashboard ═══════
+        function showLoader(text = "Loading...") {
+            document.getElementById('loader-text').textContent = text;
+            document.getElementById('global-loader').classList.add('active');
+        }
+        function hideLoader() {
+            document.getElementById('global-loader').classList.remove('active');
+        }
+
+        async function loadDashboard() {
+            document.getElementById('topbar-name').textContent = adminName;
+            document.getElementById('welcome-name').textContent = adminName;
+
+            showLoader("Connecting to Database & Loading Models...");
+
+            try {
+                const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
+                if (res.status === 401) { logout(); hideLoader(); return; }
+                const data = await res.json();
+                document.getElementById('stat-teachers').textContent = data.teacher_count;
+                document.getElementById('stat-lessons').textContent = data.lesson_count;
+                document.getElementById('stat-subjects').textContent = data.subject_count;
+                document.getElementById('stat-chunks').textContent = data.vdb_chunks;
+            } catch (e) { console.error('Dashboard load failed:', e); }
+
+            try {
+                const res = await fetch('/api/admin/subjects', { headers: authHeaders() });
+                const data = await res.json();
+                const tbody = document.getElementById('subjects-tbody');
+                if (data.subjects && data.subjects.length > 0) {
+                    tbody.innerHTML = data.subjects.map(s => `
+                        <tr>
+                            <td>${s.name}</td>
+                            <td style="color: var(--text-muted);">${(s.lessons || []).join(', ') || 'No lessons yet'}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No subjects added yet. Click "Add Lesson" to get started.</td></tr>';
+                }
+            } catch (e) { console.error('Subjects load failed:', e); }
+
+            hideLoader();
+        }
+
+        // ═══════ Teacher Modal ═══════
+        function openTeacherModal() { document.getElementById('teacher-modal').classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        document.getElementById('teacher-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const alertEl = document.getElementById('teacher-alert');
+            alertEl.innerHTML = '';
+            try {
+                const res = await fetch('/api/admin/teachers', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({
+                        first_name: document.getElementById('teacher-fname').value,
+                        last_name: document.getElementById('teacher-lname').value,
+                        email: document.getElementById('teacher-email').value,
+                        contact_number: document.getElementById('teacher-phone').value,
+                        address: document.getElementById('teacher-address').value,
+                        nic_number: document.getElementById('teacher-nic').value,
+                        password: document.getElementById('teacher-password').value,
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Failed');
+                alertEl.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                document.getElementById('teacher-form').reset();
+                loadDashboard();
+                setTimeout(() => closeModal('teacher-modal'), 2000);
+            } catch (err) {
+                alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+            }
+        });
+
+        // ═══════ Logs Modal ═══════
+        async function openLogsModal() {
+            document.getElementById('logs-modal').classList.add('active');
+            const container = document.getElementById('logs-container');
+            container.innerHTML = '<p style="color: var(--text-muted);">Loading...</p>';
+            try {
+                const res = await fetch('/api/admin/logs?limit=50', { headers: authHeaders() });
+                const data = await res.json();
+                if (data.logs && data.logs.length > 0) {
+                    container.innerHTML = data.logs.map(l => `
+                        <div class="log-entry">
+                            <span class="log-action">${l.action}</span> by ${l.performed_by}
+                            ${l.details ? ` — ${l.details}` : ''}
+                            <div class="log-time">${l.timestamp ? new Date(l.timestamp).toLocaleString() : ''}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: var(--text-muted);">No activity logs yet.</p>';
+                }
+            } catch (e) { container.innerHTML = `<p style="color: var(--danger);">Error: ${e.message}</p>`; }
+        }
+
+        // ═══════ Teachers List Modal ═══════
+        async function openTeachersListModal() {
+            document.getElementById('teachers-list-modal').classList.add('active');
+            const container = document.getElementById('teachers-list-container');
+            container.innerHTML = '<p style="color: var(--text-muted);">Loading...</p>';
+            try {
+                const res = await fetch('/api/admin/teachers', { headers: authHeaders() });
+                const data = await res.json();
+                if (data.teachers && data.teachers.length > 0) {
+                    container.innerHTML = `<table class="data-table">
+                        <thead><tr><th>Name</th><th>Email</th><th>NIC</th><th>Contact</th></tr></thead>
+                        <tbody>${data.teachers.map(t => `
+                            <tr><td>${t.first_name} ${t.last_name}</td><td>${t.email}</td><td>${t.nic_number}</td><td>${t.contact_number}</td></tr>
+                        `).join('')}</tbody>
+                    </table>`;
+                } else {
+                    container.innerHTML = '<p style="color: var(--text-muted);">No teachers registered yet.</p>';
+                }
+            } catch (e) { container.innerHTML = `<p style="color: var(--danger);">Error: ${e.message}</p>`; }
+        }
+
+        // ═══════ Pipeline Tab Logic ═══════
+        function closePlayground() {
+            const resultsEl = document.getElementById('retrieval-results');
+            if (resultsEl) {
+                document.getElementById('test-subject').value = '';
+                document.getElementById('test-lesson').value = '';
+                document.getElementById('test-topic').value = '';
+                resultsEl.style.display = 'none';
+                resultsEl.textContent = '';
+            }
+            showView('dashboard');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            document.getElementById(`content-${tabId}`).classList.add('active');
+        }
+
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('pdf-file').files[0];
+            if (!file) return;
+            const btn = document.getElementById('upload-btn');
+            const status = document.getElementById('upload-status');
+            const pContainer = document.getElementById('upload-progress-container');
+            const pBar = document.getElementById('upload-progress-bar');
+            btn.disabled = true;
+            status.textContent = 'Uploading...';
+            pContainer.style.display = 'block';
+            pBar.style.width = '0%';
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch('/api/extract', { method: 'POST', headers: authOnlyHeaders(), body: formData });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Upload failed');
+                currentJobId = data.job_id;
+                status.textContent = 'Extracting... Please wait.';
+                pollStatus();
+            } catch (err) {
+                status.textContent = `Error: ${err.message}`;
+                btn.disabled = false;
+                pContainer.style.display = 'none';
+            }
+        });
+
+        function updateProgress(tab, progress) {
+            const bar = document.getElementById(`${tab}-progress-bar`);
+            if (bar) bar.style.width = `${progress}%`;
+        }
+
+        function pollStatus() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(async () => {
+                const res = await fetch(`/jobs/${currentJobId}`, { headers: authOnlyHeaders() });
+                const data = await res.json();
+                jobData = data;
+                if (document.getElementById('content-upload').classList.contains('active')) updateProgress('upload', data.progress || 0);
+                else if (document.getElementById('content-images').classList.contains('active')) updateProgress('images', data.progress || 0);
+                else if (document.getElementById('content-review').classList.contains('active')) updateProgress('review', data.progress || 0);
+
+                if (data.status === 'extracted') {
+                    clearInterval(pollInterval);
+                    document.getElementById('upload-status').textContent = 'Extraction complete!';
+                    setTimeout(() => setupImagesTab(data.extracted_images), 500);
+                } else if (data.status === 'text_ready') {
+                    clearInterval(pollInterval);
+                    document.getElementById('images-status').textContent = 'Text ready!';
+                    setTimeout(() => setupReviewTab(data.topics, data.final_images_mapping), 500);
+                } else if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    document.getElementById('review-status').textContent = 'Done!';
+                    setTimeout(() => setupTextTab(data), 500);
+                } else if (data.status === 'failed') {
+                    clearInterval(pollInterval);
+                    document.getElementById('upload-status').textContent = `Failed: ${data.error}`;
+                    document.getElementById('images-status').textContent = `Failed: ${data.error}`;
+                } else {
+                    if (document.getElementById('content-upload').classList.contains('active')) document.getElementById('upload-status').textContent = data.message;
+                    else if (document.getElementById('content-images').classList.contains('active')) document.getElementById('images-status').textContent = data.message;
+                    else if (document.getElementById('content-review').classList.contains('active')) document.getElementById('review-status').textContent = data.message;
+                }
+            }, 1000);
+        }
+
+        function toggleArrangeMode() {
+            isArrangeMode = !isArrangeMode;
+            const grid = document.getElementById('image-grid');
+            const btn = document.getElementById('toggle-arrange-btn');
+            if (isArrangeMode) { grid.classList.add('arrange-mode'); btn.textContent = 'Arrange: ON'; btn.style.background = 'var(--primary)'; }
+            else { grid.classList.remove('arrange-mode'); btn.textContent = 'Arrange: OFF'; btn.style.background = '#64748b'; }
+            updateNumberBadges();
+        }
+
+        function updateNumberBadges() {
+            let count = 1;
+            document.querySelectorAll('.image-card').forEach(card => {
+                const badge = card.querySelector('.badge');
+                if (card.classList.contains('selected')) { badge.textContent = count++; badge.style.background = 'var(--primary)'; }
+                else { badge.textContent = '-'; badge.style.background = 'var(--text-muted)'; }
+            });
+        }
+
+        function createImageCard(img, isSelected = true) {
+            const card = document.createElement('div');
+            card.className = `image-card ${isSelected ? 'selected' : ''}`;
+            card.dataset.image = img;
+            card.draggable = true;
+            card.onclick = () => { if (isArrangeMode) return; card.classList.toggle('selected'); updateNumberBadges(); };
+            card.addEventListener('dragstart', (e) => { if (!isArrangeMode) { e.preventDefault(); return; } draggedItem = card; setTimeout(() => card.style.opacity = '0.5', 0); });
+            card.addEventListener('dragend', () => { draggedItem = null; card.style.opacity = '1'; document.querySelectorAll('.image-card').forEach(c => c.classList.remove('drag-over')); updateNumberBadges(); });
+            card.addEventListener('dragover', (e) => { e.preventDefault(); if (draggedItem && draggedItem !== card) card.classList.add('drag-over'); });
+            card.addEventListener('dragleave', () => { card.classList.remove('drag-over'); });
+            card.addEventListener('drop', (e) => { e.preventDefault(); card.classList.remove('drag-over'); if (draggedItem && draggedItem !== card) { const grid = document.getElementById('image-grid'); const allCards = [...grid.querySelectorAll('.image-card')]; const draggedIdx = allCards.indexOf(draggedItem); const dropIdx = allCards.indexOf(card); if (draggedIdx < dropIdx) card.after(draggedItem); else card.before(draggedItem); } });
+            card.innerHTML = `<div class="badge"></div><img src="${adminUrl(`/jobs/${currentJobId}/image/${img}`)}" alt="${img}"><div class="overlay"><div class="check-icon">✓</div></div>`;
+            return card;
+        }
+
+        async function handleManualUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            for (let i = 0; i < files.length; i++) await uploadSingleImage(files[i]);
+            event.target.value = "";
+        }
+        function selectAllImages() { document.querySelectorAll('.image-card').forEach(c => c.classList.add('selected')); updateNumberBadges(); }
+        function unselectAllImages() { document.querySelectorAll('.image-card').forEach(c => c.classList.remove('selected')); updateNumberBadges(); }
+
+        async function uploadSingleImage(file) {
+            if (!currentJobId) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(`/api/jobs/${currentJobId}/upload_image`, { method: 'POST', headers: authOnlyHeaders(), body: formData });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Upload failed');
+                document.getElementById('image-grid').appendChild(createImageCard(data.image_name, true));
+                updateNumberBadges();
+            } catch (err) { document.getElementById('images-status').textContent = `Error: ${err.message}`; }
+        }
+
+        window.addEventListener('paste', async (e) => {
+            if (!document.getElementById('content-images').classList.contains('active')) return;
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let index in items) { const item = items[index]; if (item.kind === 'file') await uploadSingleImage(item.getAsFile()); }
+        });
+
+        function setupImagesTab(images) {
+            document.getElementById('tab-upload').classList.add('locked');
+            const grid = document.getElementById('image-grid');
+            grid.innerHTML = '';
+            images.forEach(img => grid.appendChild(createImageCard(img, true)));
+            updateNumberBadges();
+            document.getElementById('tab-images').classList.remove('disabled');
+            switchTab('images');
+        }
+
+        async function downloadImagesZip() {
+            if (!currentJobId) return;
+            window.open(adminUrl(`/api/jobs/${currentJobId}/download_images`), '_blank');
+        }
+
+        async function submitImages() {
+            const btn = document.getElementById('submit-images-btn');
+            const status = document.getElementById('images-status');
+            const pContainer = document.getElementById('images-progress-container');
+            btn.disabled = true;
+            status.textContent = 'Generating text...';
+            pContainer.style.display = 'block';
+            const subject = document.getElementById('subject-input').value.trim() || "Subject";
+            const lesson = document.getElementById('lesson-input').value.trim() || "Lesson";
+            const orderedImages = [];
+            document.querySelectorAll('.image-card.selected').forEach(card => orderedImages.push(card.dataset.image));
+            try {
+                const res = await fetch('/api/build_text', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ job_id: currentJobId, selected_images: orderedImages, subject, lesson })
+                });
+                if (!res.ok) throw new Error('Build text failed');
+                pollStatus();
+            } catch (err) { status.textContent = `Error: ${err.message}`; btn.disabled = false; pContainer.style.display = 'none'; }
+        }
+
+        function setupReviewTab(topics, finalImagesMapping = {}) {
+            document.getElementById('tab-upload').classList.add('locked');
+            document.getElementById('tab-images').classList.add('locked');
+            document.getElementById('tab-review').classList.remove('disabled');
+            switchTab('review');
+            const container = document.getElementById('review-topics-container');
+            container.innerHTML = '';
+            topics.forEach((topic, i) => {
+                const div = document.createElement('div');
+                div.style.marginBottom = '1.5rem';
+
+                // Editable topic title
+                const titleInput = document.createElement('input');
+                titleInput.type = 'text';
+                titleInput.id = `title-input-${i}`;
+                titleInput.value = topic.title;
+                titleInput.style.cssText = 'width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; font-weight: bold; font-size: 1rem; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text-white);';
+
+                // Create a wrapper for textarea and line numbers
+                const editorWrapper = document.createElement('div');
+                editorWrapper.style.cssText = 'display: flex; height: 400px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-surface); margin-bottom: 0.5rem;';
+
+                const gutter = document.createElement('div');
+                gutter.style.cssText = 'padding: 0.5rem; background: rgba(255,255,255,0.03); color: var(--text-muted); text-align: right; user-select: none; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; line-height: 1.5; overflow: hidden; border-right: 1px solid var(--border); min-width: 40px;';
+
+                const textarea = document.createElement('textarea');
+                textarea.id = `textarea-topic-${i}`;
+                textarea.value = topic.content;
+                textarea.wrap = 'off';
+                textarea.style.cssText = 'flex: 1; padding: 0.5rem; border: none; outline: none; resize: none; background: transparent; color: var(--text-white); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; line-height: 1.5; white-space: pre; overflow: auto;';
+
+                const flagsMap = {};
+                if (topic.flags) {
+                    topic.flags.forEach(f => {
+                        if (!flagsMap[f.line_number]) flagsMap[f.line_number] = [];
+                        flagsMap[f.line_number].push(f);
+                    });
+                }
+
+                const updateGutter = () => {
+                    const lines = textarea.value.split('\n');
+                    let gutterHtml = '';
+                    for (let l = 1; l <= lines.length; l++) {
+                        if (flagsMap[l]) {
+                            const flagTypes = flagsMap[l].map(f => f.flag_type.replace('_', ' ')).join(', ');
+                            gutterHtml += `<div style="color: #000; font-weight: bold; background: #eab308; border-radius: 3px; padding: 0 4px; margin: 1px 0;" title="${flagTypes}">${l} ⚠️</div>`;
+                        } else {
+                            gutterHtml += `<div>${l}</div>`;
+                        }
+                    }
+                    gutter.innerHTML = gutterHtml;
+                };
+
+                textarea.addEventListener('input', updateGutter);
+                textarea.addEventListener('scroll', () => {
+                    gutter.scrollTop = textarea.scrollTop;
+                });
+                updateGutter();
+
+                editorWrapper.appendChild(gutter);
+                editorWrapper.appendChild(textarea);
+
+                div.appendChild(titleInput);
+                div.appendChild(editorWrapper);
+
+                // Render flags panel if any flags exist for this topic
+                const flags = topic.flags || [];
+                if (flags.length > 0) {
+                    const flagsPanel = document.createElement('div');
+                    flagsPanel.style.cssText = 'margin-top: 0.5rem; padding: 0.75rem; background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 8px; border-left: 4px solid #eab308;';
+
+                    const flagTitle = document.createElement('div');
+                    flagTitle.style.cssText = 'font-weight: 600; color: #eab308; font-size: 0.85rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;';
+                    flagTitle.innerHTML = `⚠️ ${flags.length} flag${flags.length > 1 ? 's' : ''} for review`;
+                    flagsPanel.appendChild(flagTitle);
+
+                    flags.forEach((flag, fi) => {
+                        const flagItem = document.createElement('div');
+                        flagItem.style.cssText = 'padding: 0.4rem 0.5rem; margin-bottom: 0.25rem; font-size: 0.8rem; color: var(--text-muted); background: rgba(255,255,255,0.03); border-radius: 4px; display: flex; align-items: flex-start; gap: 0.5rem;';
+
+                        const typeColors = {
+                            'POSSIBLE_CORRUPTION': '#f97316',
+                            'NEAR_DUPLICATE': '#a855f7',
+                            'COUNT_MISMATCH': '#ef4444',
+                            'INCOMPLETE_ENDING': '#ef4444',
+                            'EMPTY_SECTION': '#eab308',
+                            'JOINED_SENTENCE': '#3b82f6',
+                        };
+                        const color = typeColors[flag.flag_type] || '#eab308';
+
+                        flagItem.innerHTML = `
+                            <span style="background: ${color}; color: white; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-weight: 600; white-space: nowrap; flex-shrink: 0;">L${flag.line_number} ${flag.flag_type.replace('_', ' ')}</span>
+                            <span>${flag.message}${flag.suggested_text ? ` → <code style="color: var(--success);">${flag.suggested_text}</code>` : ''}</span>
+                        `;
+                        flagsPanel.appendChild(flagItem);
+                    });
+
+                    div.appendChild(flagsPanel);
+                }
+
+                container.appendChild(div);
+            });
+
+            const imagesContainer = document.getElementById('review-images-container');
+            imagesContainer.innerHTML = '';
+            for (const [originalName, newName] of Object.entries(finalImagesMapping)) {
+                const pureName = newName.replace(/\.[^/.]+$/, "");
+                const tag = `[image: ${pureName}]`;
+                const div = document.createElement('div');
+                div.className = 'review-image-item';
+                div.style.position = 'relative';
+                div.innerHTML = `<div class="used-tick" data-image-name="${pureName.replace(/"/g, '&quot;')}">✓</div><img src="${adminUrl(`/jobs/${currentJobId}/image/${newName}`)}" alt="${newName}"><div class="tag-container"><code>${tag}</code><button onclick="navigator.clipboard.writeText('${tag}'); this.textContent='Copied!'; this.style.background='var(--success)'; setTimeout(()=>{this.textContent='Copy';this.style.background='var(--text-dark)';},2000);" style="padding:0.3rem 0.6rem;font-size:0.8rem;background:var(--text-dark);color:white;border:none;border-radius:4px;cursor:pointer;">Copy</button></div>`;
+                imagesContainer.appendChild(div);
+            }
+            checkImageUsage();
+            container.querySelectorAll('textarea').forEach(ta => ta.addEventListener('input', checkImageUsage));
+        }
+
+        function checkImageUsage() {
+            const allText = Array.from(document.querySelectorAll('#review-topics-container textarea')).map(ta => ta.value).join(' ');
+            document.querySelectorAll('.used-tick').forEach(tick => {
+                const imageName = tick.getAttribute('data-image-name');
+                tick.style.display = allText.includes(`[image: ${imageName}]`) ? 'flex' : 'none';
+            });
+        }
+
+        async function submitEditedText() {
+            const btn = document.getElementById('finalize-btn');
+            const status = document.getElementById('review-status');
+            const pContainer = document.getElementById('review-progress-container');
+            btn.disabled = true;
+            status.textContent = 'Zipping files...';
+            pContainer.style.display = 'block';
+
+            const topics = [];
+            const container = document.getElementById('review-topics-container');
+            const textareas = container.querySelectorAll('textarea');
+            const titleInputs = container.querySelectorAll('input[type="text"]');
+            for (let i = 0; i < textareas.length; i++) {
+                topics.push({ title: titleInputs[i].value, content: textareas[i].value });
+            }
+            const subject = document.getElementById('subject-input').value.trim() || "Subject";
+            const lesson = document.getElementById('lesson-input').value.trim() || "Lesson";
+            try {
+                const res = await fetch('/api/finalize', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ job_id: currentJobId, topics, subject, lesson })
+                });
+                if (res.status === 404 || res.status === 422) throw new Error("Session expired. Please restart.");
+                if (!res.ok) throw new Error('Finalization failed');
+                pollStatus();
+            } catch (err) { status.textContent = `Error: ${err.message}`; btn.disabled = false; pContainer.style.display = 'none'; }
+        }
+
+        function setupTextTab(data) {
+            document.getElementById('tab-upload').classList.add('locked');
+            document.getElementById('tab-images').classList.add('locked');
+
+            // Do NOT lock the review tab so users can navigate back and edit
+            document.getElementById('tab-review').classList.remove('locked', 'disabled');
+
+            // Re-enable the finalize button in case they go back to the review tab
+            document.getElementById('finalize-btn').disabled = false;
+            document.getElementById('review-status').textContent = '';
+            document.getElementById('review-progress-container').style.display = 'none';
+
+            const dlContainer = document.getElementById('download-links');
+            dlContainer.innerHTML = '<p style="margin-bottom: 1rem; color: var(--text-white);">Text generation complete! Final zip is ready.</p>';
+            if (data.backend_sync_status === 'published') {
+                dlContainer.innerHTML += '<p style="margin-bottom: 1rem; color: var(--success);">✅ Published to the learning backend and its knowledge base was refreshed.</p>';
+            } else if (data.backend_sync_status === 'failed') {
+                dlContainer.innerHTML += `<p style="margin-bottom: 1rem; color: var(--danger);">⚠️ ZIP created, but backend publication failed: ${data.backend_sync_error || 'Unknown error'}</p>`;
+            }
+            if (data.archive_path) dlContainer.innerHTML += `<a href="${adminUrl(`/api/jobs/${currentJobId}/download_zip`)}" class="download-btn" style="background: var(--purple);">Download ZIP Archive</a>`;
+
+            const ingestContainer = document.getElementById('ingest-topics-container');
+            ingestContainer.innerHTML = '';
+
+            const subject = document.getElementById('subject-input').value.trim() || "Subject";
+            const lesson = document.getElementById('lesson-input').value.trim() || "Lesson";
+
+            if (data.topics && data.topics.length > 0) {
+                data.topics.forEach((topic, i) => {
+                    const cleanTitle = topic.title.replace(/[^a-zA-Z0-9\u0D80-\u0DFF_ -]/g, "").trim().replace(/\s+/g, "_");
+                    const filename = `${subject}_${lesson}_${cleanTitle}.txt`;
+
+                    const div = document.createElement('div');
+                    div.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px;';
+                    div.innerHTML = `
+                        <div style="flex-grow: 1; margin-right: 1rem;">
+                            <strong>Topic ${i + 1}: ${topic.title}</strong>
+                            <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Metadata: ${filename}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span id="ingest-status-${i}" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">Not started</span>
+                            <button id="ingest-btn-${i}" onclick="ingestTopic(${i}, '${filename}')" style="background: var(--primary); padding: 0.5rem 1rem;">Ingest Topic</button>
+                        </div>
+                    `;
+                    ingestContainer.appendChild(div);
+                });
+            } else {
+                ingestContainer.innerHTML = '<p style="color: var(--text-muted);">No topics found to ingest.</p>';
+            }
+
+            document.getElementById('tab-ingest').classList.remove('disabled');
+            switchTab('ingest');
+            loadVDBStatus();
+        }
+
+        async function ingestTopic(topicIndex, filename) {
+            if (!currentJobId) return;
+            const btn = document.getElementById(`ingest-btn-${topicIndex}`);
+            const statusLabel = document.getElementById(`ingest-status-${topicIndex}`);
+
+            btn.disabled = true;
+            statusLabel.textContent = 'Processing...';
+            statusLabel.style.color = '#eab308'; // yellow
+
+            try {
+                const res = await fetch('/api/vectordb/ingest', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ job_id: currentJobId, filename: filename, topic_index: topicIndex })
+                });
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.detail || 'Ingestion request failed');
+                }
+                statusLabel.textContent = 'Done! ✅';
+                statusLabel.style.color = 'var(--success)';
+                btn.style.display = 'none'; // hide button on success
+                setTimeout(loadVDBStatus, 2000); // Check DB status after a bit
+            } catch (err) {
+                statusLabel.textContent = 'Failed ❌';
+                statusLabel.style.color = 'var(--danger)';
+                btn.disabled = false;
+                alert('Ingestion error: ' + err.message);
+            }
+        }
+
+        // ═══════ Vector DB ═══════
+        async function loadVDBStatus() {
+            const el = document.getElementById('vdb-status-text');
+            try {
+                const res = await fetch('/api/vectordb/status', { headers: authOnlyHeaders() });
+                const data = await res.json();
+                el.innerHTML = data.status === 'active'
+                    ? `<span style="color: var(--success); font-weight: bold;">Online</span> — ${data.chunks} chunks`
+                    : `<span style="color: var(--danger); font-weight: bold;">Offline</span> — ${data.error || '0 chunks'}`;
+            } catch (e) { el.innerHTML = `<span style="color: var(--danger);">Error:</span> ${e.message}`; }
+        }
+
+        async function clearVectorDB() {
+            if (!confirm('Are you sure you want to clear the entire vector database?')) return;
+            try {
+                const res = await fetch('/api/admin/vectordb/clear', {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await res.json();
+                alert(data.message || 'Database cleared!');
+                loadVDBStatus();
+            } catch (e) { alert('Error clearing DB: ' + e.message); }
+        }
+
+        async function testRetrieval() {
+            const subject = document.getElementById('test-subject').value.trim() || 'Subject';
+            const lesson = document.getElementById('test-lesson').value.trim() || 'Lesson';
+            const topic = document.getElementById('test-topic').value.trim() || 'Topic';
+            const useVector = document.getElementById('test-use-vector').checked;
+            const el = document.getElementById('retrieval-results');
+            el.style.display = 'block'; el.textContent = 'Retrieving...';
+            try {
+                const res = await fetch('/api/vectordb/retrieve', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ subject, lesson, topic, use_vector_ranking: useVector }) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                el.textContent = data.context || "No context found.";
+            } catch (e) { el.textContent = `Error: ${e.message}`; }
+        }
+    </script>
+</body>
+
+</html>

@@ -53,9 +53,14 @@ from agents.dashboard_agent import (
 
 load_dotenv(override=True)
 
-print("GROQ KEY LOADED:", os.getenv("GROQ_API_KEY"))
+print("GROQ KEY CONFIGURED:", bool(os.getenv("GROQ_API_KEY")))
 
 app = FastAPI()
+
+# Isolated admin-portal publishing bridge. Existing learning routes and agents
+# remain unchanged.
+from admin_ingest import router as admin_ingest_router
+app.include_router(admin_ingest_router)
 
 # Serve images statically
 app.mount("/images", StaticFiles(directory="images"), name="images")
