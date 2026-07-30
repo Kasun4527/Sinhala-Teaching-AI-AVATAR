@@ -1,6 +1,22 @@
 # Next.js
 .next/
 node_modules/
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+frontend/build/
+frontend/*-swa-oryx/
+frontend/*.zip
+
+# Model files & large binaries
+*.pt
+*.pth
+*.onnx
+*.bin
+*.fbx
+*.obj
+*.gltf
+*.glb
 
 # Python / FastAPI
 backend/.env
@@ -13,17 +29,24 @@ backend/temp/
 mongodb_data/
 backend/mongodb_data/
 backend/.venv/
+.venv/
+venv/
 
-# Engagement engine local venv (model weights under engagement_engine/models/ ARE tracked)
+# Engagement engine local venv
 engagement_engine/venv/
+engagement_engine/.venv/
 
 # Personalization / BKT Services ignore
 backend/services/bkt/
-backend/services/bkt
 backend/models/README.md
 conference_paper_personalization_content.md
 implementation_plan.md
 personalization_report_0705.md
+
 # ChromaDB Vector Store
 backend/chroma_db/
 *.sqlite3
+
+# OS generated files
+.DS_Store
+Thumbs.db
