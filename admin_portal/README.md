@@ -19,7 +19,7 @@ pip install -e .[test]
 ## Run
 
 ```bash
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --port 8000 --reload                              
 ```
 
 Open the local URL shown by Uvicorn and upload a PDF.
