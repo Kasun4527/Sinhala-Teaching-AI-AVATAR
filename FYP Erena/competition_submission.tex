@@ -1,0 +1,43 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\hyphenpenalty=500
+\exhyphenpenalty=500
+
+\begin{document}
+
+\title{An AI-Driven Personalized Sinhala Teaching Assistant with Real-Time Student Engagement Detection for Secondary Education}
+
+\author{}
+
+\maketitle
+\vspace{-2em}
+\begin{abstract}
+This paper presents a fully deployed, production-grade AI-driven Sinhala teaching assistant designed for personalized secondary education in Sri Lanka, directly addressing the national shortage of over 30,000 qualified teachers and student-to-teacher ratios that frequently exceed 50:1 in rural provinces. Traditional digital learning platforms provide static, pre-recorded content without adaptive personalization, while general-purpose large language models lack alignment with the national curriculum and cannot dynamically assess or respond to individual learner states. To bridge this gap, this work introduces a unified intelligent tutoring system that operates natively in the Sinhala language, strictly adheres to the national syllabus, dynamically adapts to each student's evolving knowledge state, and continuously monitors real-time learner engagement through advanced computer vision techniques.
+
+The system architecture integrates five core components. First, a curriculum-aligned Sinhala Large Language Model (SinLlama-8B) serves as the foundational educational content generator. Five Sinhala-supporting LLMs were fine-tuned using Low-Rank Adaptation (LoRA) on a custom dataset of 3,547 QA pairs derived from the national curriculum. SinLlama-8B achieved superior performance with a ROUGE-1 score of 0.7714, a BERTScore of 0.9424, and an LLM-as-a-Judge score of 15.88/20, significantly outperforming alternative models such as Qwen-14B, Llama-3.1-8B, and DeepSeek-14B. Second, a Retrieval-Augmented Generation (RAG) pipeline grounds the LLM in verified educational material. National textbooks were digitized, chunked into 512-token segments with a 64-token overlap, and embedded using the multilingual-e5-base model into a ChromaDB vector store. This pipeline employs document-order retrieval to preserve lesson coherence and vector-similarity retrieval for dynamic quiz generation.
+
+Third, the system features a Hybrid Bayesian Knowledge Tracing (Hybrid-BKT) personalization engine that adaptively estimates student mastery. This engine utilizes a weighted ensemble combining Personalized Clustered BKT (PC-BKT)---which leverages K-Means++ clustering for personalized priors---with BKT-LSTM, which captures complex temporal learning dynamics via a two-layer stacked LSTM. The ensemble optimizes mastery prediction with an optimal weight of $\alpha=0.665$, incorporating a feedback correction mechanism to detect guessing behaviors when model divergence exceeds $\delta=0.20$. The Hybrid-BKT approach achieved 56.2\% accuracy and a 0.49 Root Mean Square Error (RMSE), outperforming standalone BKT variants.
+
+Fourth, the system employs a LangGraph-orchestrated multi-agent architecture coordinating eight specialized agents (Orchestrator, Evaluator, Personalisation, Content Generator, Quiz, Explain, Progress Tracker, and Align). These agents manage a four-phase adaptive learning cycle consisting of pre-assessment, tiered content generation across three mastery levels, post-assessment, and continuous capability adaptation. An interactive 3D AI Avatar teacher delivers simplified spoken Sinhala explanations synthesized via Google Gemini TTS (24 kHz) and streamed via WebRTC. A newly integrated Whisper-based forced alignment module extracts word-level timestamps to enable synchronized text highlighting on the frontend during avatar speech delivery.
+
+Fifth, a dedicated Student Engagement Detection Engine provides real-time, computer vision-based monitoring of learner attentiveness. Operating as an independent microservice, it analyzes webcam frames using five specialized sub-modules: MediaPipe for facial landmark extraction; a custom 7-class Convolutional Neural Network for emotion recognition; Eye Aspect Ratio (EAR) and Mouth Aspect Ratio (MAR) computations for drowsiness and yawn detection; head pose estimation for gaze tracking; and a YOLOv8 nano model for detecting phone usage and verifying student presence. These metrics are synthesized via a weighted fusion formula ($0.25 \times \text{emotion} + 0.25 \times \text{eye} + 0.15 \times \text{mouth} + 0.20 \times \text{head} + 0.15 \times \text{behavior}$) to produce a continuous 0--100 engagement score, classifying students into Highly Engaged, Moderately Engaged, Low Engagement, or Not Engaged states. 
+
+Finally, the production system includes YouTube video integration with watch-time logging for supplementary learning, a comprehensive analytics dashboard for teachers, and Docker Compose containerization for reproducible cloud deployment. This work uniquely combines curriculum-aligned language models, hybrid knowledge tracing, RAG-based content grounding, multi-agent orchestration, and real-time engagement detection within a unified educational framework, representing a significant advancement in intelligent tutoring systems for low-resource languages.
+\end{abstract}
+
+\renewcommand\IEEEkeywordsname{Keywords}
+\begin{IEEEkeywords}
+Bayesian knowledge tracing, computer vision, engagement detection, intelligent tutoring systems, large language models, personalized learning, retrieval-augmented generation, Sinhala NLP
+\end{IEEEkeywords}
+
+\end{document}
