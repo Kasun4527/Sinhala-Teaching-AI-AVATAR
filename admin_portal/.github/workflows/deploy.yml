@@ -1,0 +1,36 @@
+name: Build and Deploy to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Parse Azure Credentials for ACR
+        id: acr_creds
+        run: |
+          echo "username=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)" >> $GITHUB_OUTPUT
+          echo "password=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)" >> $GITHUB_OUTPUT
+
+      - name: Build and Deploy to Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          appSourcePath: ${{ github.workspace }}
+          imageToBuild: ca3216ea8fcdacr.azurecr.io/sinhala-textbook-pipeline:${{ github.sha }}
+          registryUrl: ca3216ea8fcdacr.azurecr.io
+          registryUsername: ${{ steps.acr_creds.outputs.username }}
+          registryPassword: ${{ steps.acr_creds.outputs.password }}
+          containerAppName: sinhala-textbook-pipeline
+          resourceGroup: sinhala-pipeline-rg

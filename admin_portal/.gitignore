@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+output/
+textbook/
+*.egg-info/
+all_text.txt
+tmp_*.py
+tmp_*.js
+debug_*.txt
+*.tgz
+.env
+scratch_*
+
+Sinhala-Teaching-AI-AVATAR-main/
+chroma_db/
