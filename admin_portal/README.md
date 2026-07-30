@@ -19,7 +19,9 @@ pip install -r requirements.txt
 ## Run
 
 ```bash
-python -m uvicorn app.main:app --port 8000 --reload                              
+$env:BACKEND_URL = "http://127.0.0.1:8000"
+$env:ADMIN_BASE_PATH = "/admin"
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload                          
 ```
 
 Open the local URL shown by Uvicorn and upload a PDF.
