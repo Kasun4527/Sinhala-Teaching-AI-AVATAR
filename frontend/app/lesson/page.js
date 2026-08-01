@@ -484,20 +484,43 @@ function LessonPageContent() {
       const j = buf.join(" ").trim();
       if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j)) paras.push(j);
 
-      fetch(`${BACKEND}/explain-content/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: savedContent, paragraphs: paras }),
-      })
-        .then(r => r.json())
-        .then(data => {
-          setAvatarSpeech(data.explanation || savedContent);
-          setSpeechReady(true);
+      // The explain-content call hits an external fine-tuned model that's
+      // occasionally slow/flaky rather than consistently down — one retry
+      // before accepting the raw-content fallback avoids the avatar
+      // silently reading unexplained text just because of a transient
+      // hiccup. The backend now reports `explained: false` when it had to
+      // fall back internally, so a 200 response isn't automatically trusted.
+      const fetchExplanation = (attempt = 1) => {
+        fetch(`${BACKEND}/explain-content/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: savedContent, paragraphs: paras }),
         })
-        .catch(() => {
-          setAvatarSpeech(savedContent);
-          setSpeechReady(true);
-        });
+          .then(r => r.json())
+          .then(data => {
+            if (data.explained === false && attempt === 1) {
+              console.warn("[Avatar] explanation failed, retrying once...");
+              fetchExplanation(2);
+              return;
+            }
+            if (data.explained === false) {
+              console.warn("[Avatar] explanation still unavailable after retry — avatar will read raw content.");
+            }
+            setAvatarSpeech(data.explanation || savedContent);
+            setSpeechReady(true);
+          })
+          .catch(() => {
+            if (attempt === 1) {
+              console.warn("[Avatar] explain-content request failed, retrying once...");
+              fetchExplanation(2);
+              return;
+            }
+            console.warn("[Avatar] explain-content failed twice — avatar will read raw content.");
+            setAvatarSpeech(savedContent);
+            setSpeechReady(true);
+          });
+      };
+      fetchExplanation();
     }
   }, [topic, level]);
 

@@ -53,6 +53,31 @@ def _is_figure_reference_question(question):
     return figure_like >= max(2, len(options) // 2)
 
 
+# A second, distinct failure mode: the *question text itself* points at a
+# lettered position in a source diagram (e.g. "A-A1 ප්‍රදේශයේ...", "AB
+# රේඛාවේ...") rather than the options being figure labels. The answer
+# options can look perfectly normal here — the question is unanswerable
+# because identifying "what's at point A-A1" requires seeing the diagram,
+# which the text-only quiz UI never shows.
+_HYPHENATED_DIAGRAM_LABEL = re.compile(r'\b[A-Z][A-Za-z0-9]{0,2}-[A-Z][A-Za-z0-9]{0,2}\b')
+_DIAGRAM_POSITION_WORDS = "ප්‍රදේශ|ලක්ෂ්‍ය|කොටස|සලකුණ|රේඛාව|කිරණ|බින්දුව"
+_LABEL_BEFORE_POSITION_WORD = re.compile(
+    r'\b[A-Z]{1,3}[0-9]?\s*(?=(' + _DIAGRAM_POSITION_WORDS + r'))'
+)
+
+
+def _references_diagram_label(question):
+    """True if the question text references a lettered diagram position
+    (e.g. "A-A1", "AB රේඛාවේ") rather than asking about the content directly."""
+    q_text = question.get("question", "")
+    if not isinstance(q_text, str):
+        return False
+    return bool(
+        _HYPHENATED_DIAGRAM_LABEL.search(q_text)
+        or _LABEL_BEFORE_POSITION_WORD.search(q_text)
+    )
+
+
 def normalize_quiz_questions(result):
     questions = result.get("questions")
     if not isinstance(questions, list):
@@ -74,6 +99,10 @@ def normalize_quiz_questions(result):
 
         if _is_figure_reference_question(question):
             print(f"[WARNING] Dropping unanswerable figure-reference question: {question.get('question', '')[:60]}")
+            continue
+
+        if _references_diagram_label(question):
+            print(f"[WARNING] Dropping unanswerable diagram-label question: {question.get('question', '')[:60]}")
             continue
 
         shuffled_options = [option for option in options if option]
@@ -265,11 +294,18 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
     # code-switches mid-answer without this reminder.
     language_rule = "ප්‍රශ්නය, විකල්ප සහ පිළිතුර සම්පූර්ණයෙන්ම සිංහල භාෂාවෙන් පමණක් ලියන්න. ඉංග්‍රීසි වචන හෝ අකුරු කිසිසේත් භාවිත නොකරන්න."
     # The source textbook content references its own numbered figures/diagrams
-    # (e.g. "රූපය 5.36"), but the quiz UI is text-only and never shows any
-    # image — a question asking the student to pick a figure number is
-    # unanswerable. This is a mitigation, not a guarantee; _is_figure_reference_question()
-    # in normalize_quiz_questions() is the deterministic backstop.
-    no_figures_rule = "රූප, රූප සටහන් හෝ රූප අංක ගැන ප්‍රශ්න අසන්න එපා — සිසුවාට කිසිදු රූපයක් පෙන්වන්නේ නැති බැවින්, ලිඛිත කරුණු පමණක් ඇසුරින් ප්‍රශ්න සකසන්න."
+    # (e.g. "රූපය 5.36") and lettered diagram positions (e.g. "A-A1
+    # ප්‍රදේශයේ..."), but the quiz UI is text-only and never shows any image —
+    # a question that depends on seeing a figure, or identifying a lettered
+    # point/region within one, is unanswerable regardless of how normal the
+    # options look. This is a mitigation, not a guarantee;
+    # _is_figure_reference_question() and _references_diagram_label() in
+    # normalize_quiz_questions() are the deterministic backstop.
+    no_figures_rule = (
+        "රූප, රූප සටහන් හෝ රූප අංක ගැන ප්‍රශ්න අසන්න එපා — සිසුවාට කිසිදු රූපයක් පෙන්වන්නේ නැති බැවින්, "
+        "ලිඛිත කරුණු පමණක් ඇසුරින් ප්‍රශ්න සකසන්න. රූප සටහන්වල ලකුණු කර ඇති අකුරු (A, B, A-A1 වැනි) හෝ ඒවායින් "
+        "දැක්වෙන ප්‍රදේශ/ලක්ෂ්‍ය ගැන ප්‍රශ්න අසන්නත් එපා."
+    )
     if quiz_type == "pre":
         instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}"
     else:

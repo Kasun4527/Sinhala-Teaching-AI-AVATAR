@@ -370,11 +370,11 @@ def explain_content_route(data: dict):
     if not content:
         raise HTTPException(status_code=400, detail="content is required")
     if paragraphs:
-        explanation_parts = generate_paragraph_explanations(paragraphs)
+        explanation_parts, explained = generate_paragraph_explanations(paragraphs)
         explanation = "\n\n".join(explanation_parts)
-        return {"explanation": explanation, "explanationParts": explanation_parts}
-    explanation = generate_explanation(content)
-    return {"explanation": explanation}
+        return {"explanation": explanation, "explanationParts": explanation_parts, "explained": explained}
+    explanation, explained = generate_explanation(content)
+    return {"explanation": explanation, "explained": explained}
 
 
 @app.post("/generate-tts/")
