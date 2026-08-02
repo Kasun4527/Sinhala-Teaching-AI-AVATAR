@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { findSubjectByGrade, findSubject } from "@/data/curriculum";
+import { useMergedCurriculum, findSubjectIn } from "@/data/useCurriculum";
 import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
@@ -88,7 +88,8 @@ function TopicsPageContent() {
   const subject     = params.get("subject");
   const lesson      = params.get("lesson");
   const grade       = params.get("grade") || "";
-  const subjectData = grade ? findSubjectByGrade(subject, grade) : findSubject(subject);
+  const curriculumData = useMergedCurriculum();
+  const subjectData = findSubjectIn(curriculumData, subject, grade || undefined);
   const lessonData  = subjectData?.lessons.find((l) => l.name === lesson);
   const [hovered, setHovered] = useState(null);
 

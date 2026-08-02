@@ -1,0 +1,37 @@
+name: Deploy Engagement Engine to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - new_production
+    paths:
+      - 'engagement_engine/**'
+      - '.github/workflows/engagement-deploy-azure.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push image (ACR Tasks is blocked on trial subscriptions, so build here instead)
+        run: |
+          az acr login -n ${{ secrets.AZURE_ACR_NAME }}
+          IMAGE=${{ secrets.AZURE_ACR_NAME }}.azurecr.io/ai-avatar-engagement
+          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./engagement_engine
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
+
+      - name: Update Container App
+        run: |
+          az containerapp update \
+            -n ai-avatar-engagement \
+            -g ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --image ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/ai-avatar-engagement:${{ github.sha }}

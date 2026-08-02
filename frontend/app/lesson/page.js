@@ -446,16 +446,14 @@ function LessonPageContent() {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
     if (!topic) return;
-    const savedContent = localStorage.getItem("lesson_content");
-    if (savedContent) {
-      setContent(savedContent);
-      localStorage.removeItem("lesson_content");
+    const processContent = (lessonText) => {
+      setContent(lessonText);
 
       // Extract plain paragraphs (same logic as contentParas useMemo)
       // so backend can generate one explanation per paragraph
-      const disp = savedContent.includes("\n---\n")
-        ? savedContent.split("\n---\n").slice(1).join("\n---\n").trim()
-        : savedContent;
+      const disp = lessonText.includes("\n---\n")
+        ? lessonText.split("\n---\n").slice(1).join("\n---\n").trim()
+        : lessonText;
       const isHdg = (t) => {
         if (!t || t.length > 160) return false;
         if (/^\d+[\.\)]\s/.test(t)) return false;
@@ -484,19 +482,63 @@ function LessonPageContent() {
       const j = buf.join(" ").trim();
       if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j)) paras.push(j);
 
-      fetch(`${BACKEND}/explain-content/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: savedContent, paragraphs: paras }),
-      })
+      // The explain-content call hits an external fine-tuned model that's
+      // occasionally slow/flaky rather than consistently down — one retry
+      // before accepting the raw-content fallback avoids the avatar
+      // silently reading unexplained text just because of a transient
+      // hiccup. The backend now reports `explained: false` when it had to
+      // fall back internally, so a 200 response isn't automatically trusted.
+      const fetchExplanation = (attempt = 1) => {
+        fetch(`${BACKEND}/explain-content/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: lessonText, paragraphs: paras }),
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.explained === false && attempt === 1) {
+              console.warn("[Avatar] explanation failed, retrying once...");
+              fetchExplanation(2);
+              return;
+            }
+            if (data.explained === false) {
+              console.warn("[Avatar] explanation still unavailable after retry — avatar will read raw content.");
+            }
+            setAvatarSpeech(data.explanation || lessonText);
+            setSpeechReady(true);
+          })
+          .catch(() => {
+            if (attempt === 1) {
+              console.warn("[Avatar] explain-content request failed, retrying once...");
+              fetchExplanation(2);
+              return;
+            }
+            console.warn("[Avatar] explain-content failed twice — avatar will read raw content.");
+            setAvatarSpeech(lessonText);
+            setSpeechReady(true);
+          });
+      };
+      fetchExplanation();
+    };
+
+    const savedContent = localStorage.getItem("lesson_content");
+    if (savedContent) {
+      localStorage.removeItem("lesson_content");
+      processContent(savedContent);
+    } else if (subject && lesson) {
+      // Refresh case: the quiz flow hands content over via localStorage and
+      // it's consumed (removed) on first load, so a hard refresh lands here
+      // with nothing saved. Re-fetch the lesson from the backend instead of
+      // sitting on the loading spinner forever.
+      fetch(
+        `${BACKEND}/get-lesson/?subject=${encodeURIComponent(subject)}&lesson=${encodeURIComponent(lesson)}&topic=${encodeURIComponent(topic)}&level=${encodeURIComponent(level)}`
+      )
         .then(r => r.json())
         .then(data => {
-          setAvatarSpeech(data.explanation || savedContent);
-          setSpeechReady(true);
+          if (data.content) processContent(data.content);
         })
-        .catch(() => {
-          setAvatarSpeech(savedContent);
-          setSpeechReady(true);
+        .catch(err => {
+          console.error("[Lesson] content re-fetch failed:", err);
         });
     }
   }, [topic, level]);

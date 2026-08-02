@@ -68,7 +68,7 @@ function validatePassword(password) {
 
 export default function SignupPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", teacherCode: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [pwFocused, setPwFocused] = useState(false);
@@ -82,7 +82,8 @@ export default function SignupPage() {
     if (pwError) { setError("Password must include: " + pwError); return; }
     setLoading(true);
     try {
-      await signupUser({ ...form, role: "student" });
+      const { teacherCode, ...rest } = form;
+      await signupUser({ ...rest, teacher_code: teacherCode.trim() || null, role: "student" });
       setDone(true);
     } catch (err) {
       setError(err?.response?.data?.detail || "Signup failed");
@@ -187,6 +188,7 @@ export default function SignupPage() {
             { label: "Full Name", name: "name", type: "text", placeholder: "Your full name" },
             { label: "Email Address", name: "email", type: "email", placeholder: "you@example.com" },
             { label: "Password", name: "password", type: "password", placeholder: "Create a strong password" },
+            { label: "Teacher Code (optional)", name: "teacherCode", type: "text", placeholder: "Ask your teacher for their code" },
           ].map((field) => (
             <div key={field.name} style={{ marginBottom: 20 }}>
               <label style={{ color: "#475569", fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>
