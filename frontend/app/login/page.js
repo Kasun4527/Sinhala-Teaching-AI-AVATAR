@@ -94,6 +94,8 @@ export default function LoginPage() {
       localStorage.setItem("role", data.role);
       localStorage.setItem("name", data.name);
       localStorage.setItem("student_id", data.student_id);
+      if (data.teacher_id) localStorage.setItem("teacher_id", data.teacher_id);
+      else localStorage.removeItem("teacher_id");
       router.push("/dashboard");
     } catch (err) {
       const detail = err?.response?.data?.detail || "Login failed";

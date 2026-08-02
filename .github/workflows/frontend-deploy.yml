@@ -30,5 +30,6 @@ jobs:
           api_location: ""
           output_location: "" 
         env:
-          NEXT_PUBLIC_BACKEND_URL: "https://avatar-backend.duckdns.org"
-          NEXT_PUBLIC_ENGAGEMENT_URL: "https://avatar-engagement.duckdns.org"
+          NEXT_PUBLIC_BACKEND_URL: "https://ai-avatar-backend.thankfulpond-f76d3e0c.eastus.azurecontainerapps.io"
+          NEXT_PUBLIC_ENGAGEMENT_URL: "https://ai-avatar-engagement.thankfulpond-f76d3e0c.eastus.azurecontainerapps.io"
+          NEXT_PUBLIC_AVTR_HOST: "https://stifle-implement-feminist.ngrok-free.dev"

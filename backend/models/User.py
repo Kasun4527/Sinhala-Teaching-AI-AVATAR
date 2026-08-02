@@ -7,6 +7,10 @@ class User(BaseModel):
     password: str
     role: str = "student"
     is_verified: bool = False
+    # Links a student to their teacher (an "admin"-role account). The value
+    # a student enters is that teacher's own user id, shown on the teacher's
+    # dashboard. Not persisted as-is — resolved to teacher_id at signup.
+    teacher_code: str | None = None
 
     @field_validator("password")
     @classmethod

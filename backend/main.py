@@ -8,6 +8,7 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 import asyncio
+from bson import ObjectId
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -23,7 +24,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection
+from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection, curriculum_topics_collection
 from services.email_service import send_verification_email, verify_token
 from models.User import User
 from auth.security import hash_password
@@ -33,8 +34,19 @@ from agents.supervisor import learning_graph
 
 from agents.tts_agent import generate_teacher_speech
 from fastapi.responses import Response as FastAPIResponse
-from fastapi import UploadFile, File
+from fastapi.responses import FileResponse
+from fastapi import UploadFile, File, BackgroundTasks
 from agents.align_agent import get_word_timestamps, words_to_sentence_segments
+
+import json
+import re
+import shutil
+import threading
+import uuid
+import tempfile
+from pathlib import Path
+from pdf_pipeline.pipeline import PDFPipeline, BlockItem
+from services.vector_store import ingest_text_content
 
 from agents.progress_agent import (
     save_pre_quiz_result,
@@ -359,11 +371,11 @@ def explain_content_route(data: dict):
     if not content:
         raise HTTPException(status_code=400, detail="content is required")
     if paragraphs:
-        explanation_parts = generate_paragraph_explanations(paragraphs)
+        explanation_parts, explained = generate_paragraph_explanations(paragraphs)
         explanation = "\n\n".join(explanation_parts)
-        return {"explanation": explanation, "explanationParts": explanation_parts}
-    explanation = generate_explanation(content)
-    return {"explanation": explanation}
+        return {"explanation": explanation, "explanationParts": explanation_parts, "explained": explained}
+    explanation, explained = generate_explanation(content)
+    return {"explanation": explanation, "explained": explained}
 
 
 @app.post("/generate-tts/")
@@ -381,6 +393,20 @@ async def generate_tts(data: dict):
 
 
 
+def _resolve_teacher_id(teacher_code: str) -> str:
+    """A teacher's own user id doubles as their "teacher code" — no
+    separate code needs generating/storing. Raises if it doesn't match a
+    real admin account, so a mistyped code fails loudly at signup rather
+    than silently leaving the student unassigned."""
+    try:
+        teacher = users_collection.find_one({"_id": ObjectId(teacher_code), "role": "admin"})
+    except Exception:
+        teacher = None
+    if not teacher:
+        raise HTTPException(status_code=400, detail="Invalid teacher code")
+    return str(teacher["_id"])
+
+
 @app.post("/auth/signup")
 def signup(user: User):
     existing_user = users_collection.find_one({"email": user.email})
@@ -390,6 +416,10 @@ def signup(user: User):
     user_dict = user.dict()
     user_dict["password"] = hash_password(user.password)
     user_dict["is_verified"] = False
+
+    teacher_code = user_dict.pop("teacher_code", None)
+    if user.role == "student" and teacher_code:
+        user_dict["teacher_id"] = _resolve_teacher_id(teacher_code)
 
     users_collection.insert_one(user_dict)
 
@@ -468,8 +498,34 @@ def login(data: dict):
         "token": token,
         "role": user["role"],
         "name": user["name"],
-        "student_id": str(user["_id"])  
+        "student_id": str(user["_id"]),
+        "teacher_id": user.get("teacher_id"),  # null if not yet linked to a teacher
     }
+
+
+@app.post("/auth/set-teacher-code")
+def set_teacher_code(data: dict):
+    """Lets an already-registered student (signed up before this feature,
+    or who skipped it) link to a teacher afterwards."""
+    student_id = data.get("student_id", "")
+    teacher_code = data.get("teacher_code", "")
+    if not student_id or not teacher_code:
+        raise HTTPException(status_code=400, detail="student_id and teacher_code are required")
+
+    teacher_id = _resolve_teacher_id(teacher_code)
+
+    try:
+        result = users_collection.update_one(
+            {"_id": ObjectId(student_id), "role": "student"},
+            {"$set": {"teacher_id": teacher_id}},
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid student_id")
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    return {"teacher_id": teacher_id}
+
 
 @app.get("/auth/test-email")
 def test_email_connection():
@@ -488,8 +544,8 @@ def test_email_connection():
 
 
 @app.get("/admin/students")
-def admin_get_students():
-    students = get_all_students()
+def admin_get_students(teacher_id: str = None):
+    students = get_all_students(teacher_id)
     return {"students": students}
 
 
@@ -821,3 +877,349 @@ def get_youtube_history(student_id: str, subject: str, topic: str):
         {"_id": 0}
     ).sort("started_at", -1).limit(10))
     return {"sessions": sessions}
+
+
+# ════════════════════════════════════════════════════════════════════════
+# PDF Ingestion Pipeline (Admin) — upload a textbook PDF, review extracted
+# images and generated topic text, then finalize: saves .txt files into
+# documents_unicode/, images into images/, and ingests each topic directly
+# into the vector store. Ported from the separate admin_portal project's
+# pipeline.py/page_detector.py/text_cleaner.py (backend/pdf_pipeline/),
+# adapted so finalize writes directly into this project instead of
+# zipping and publishing to a separate backend.
+#
+# Three-stage job flow, mirroring admin_portal's pattern:
+#   1. POST /admin/pdf/extract      — upload PDF, background-extract blocks/images
+#   2. POST /admin/pdf/build-text   — selected images + subject/lesson -> topic text
+#   3. POST /admin/pdf/finalize     — edited topics -> save + ingest
+# Poll GET /admin/pdf/jobs/{job_id} for status between each stage.
+# ════════════════════════════════════════════════════════════════════════
+
+pdf_pipeline = PDFPipeline()
+_pdf_jobs: dict = {}
+_pdf_jobs_lock = threading.Lock()
+
+DOCUMENTS_UNICODE_DIR = "documents_unicode"
+IMAGES_DIR = "images"
+
+# Admin_portal's pipeline emits "[image: base_name]" (lowercase, no
+# extension); this project's convention is "[IMAGE: filename.ext]"
+# (uppercase, with the real extension) — normalized at finalize time.
+_PDF_IMAGE_TAG = re.compile(r'\[image:\s*([^\]]+)\]', re.IGNORECASE)
+
+
+def _pdf_slugify(value: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9඀-෿]+", "_", value.strip())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    return cleaned or "untitled"
+
+
+@app.post("/admin/pdf/extract")
+async def pdf_extract(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+):
+    if file.content_type not in {
+        "application/pdf", "application/x-pdf", "application/octet-stream",
+    }:
+        raise HTTPException(status_code=400, detail="Please upload a PDF file.")
+
+    job_id = str(uuid.uuid4())
+    job_dir = Path(tempfile.mkdtemp(prefix=f"pdf_job_{job_id}_"))
+    safe_name = Path(file.filename or "textbook.pdf").name
+    pdf_path = job_dir / safe_name
+    contents = await file.read()
+    pdf_path.write_bytes(contents)
+
+    with _pdf_jobs_lock:
+        _pdf_jobs[job_id] = {
+            "status": "extracting",
+            "progress": 10,
+            "message": "Starting extraction...",
+            "job_dir": job_dir,
+            "pdf_path": pdf_path,
+            "extracted_images": [],
+            "error": None,
+        }
+
+    background_tasks.add_task(_run_pdf_extract_job, job_id)
+    return {"job_id": job_id}
+
+
+def _run_pdf_extract_job(job_id: str) -> None:
+    with _pdf_jobs_lock:
+        job = _pdf_jobs[job_id]
+        pdf_path = job["pdf_path"]
+        job_dir = job["job_dir"]
+    try:
+        blocks, image_files = pdf_pipeline.extract_phase(pdf_path, job_dir)
+        blocks_path = job_dir / "blocks.json"
+        blocks_path.write_text(
+            json.dumps([b.to_dict() for b in blocks], ensure_ascii=False),
+            encoding="utf-8",
+        )
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "extracted"
+            job["message"] = f"Extraction complete. Found {len(image_files)} images."
+            job["progress"] = 100
+            job["extracted_images"] = [p.name for p in image_files]
+    except Exception as exc:
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "failed"
+            job["message"] = "Extraction failed"
+            job["progress"] = 100
+            job["error"] = str(exc)
+
+
+@app.get("/admin/pdf/jobs/{job_id}")
+def pdf_job_status(job_id: str):
+    with _pdf_jobs_lock:
+        job = _pdf_jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return {
+            "job_id": job_id,
+            "status": job["status"],
+            "progress": job["progress"],
+            "message": job["message"],
+            "extracted_images": job.get("extracted_images", []),
+            "topics": job.get("topics", []),
+            "final_images_mapping": job.get("final_images_mapping", {}),
+            "saved_txt_files": job.get("saved_txt_files", []),
+            "saved_images": job.get("saved_images", []),
+            "error": job.get("error"),
+        }
+
+
+@app.get("/admin/pdf/jobs/{job_id}/image/{image_name}")
+def pdf_job_image(job_id: str, image_name: str):
+    with _pdf_jobs_lock:
+        job = _pdf_jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job_dir = job["job_dir"]
+    if Path(image_name).name != image_name:
+        raise HTTPException(status_code=400, detail="Invalid image name")
+    image_path = job_dir / "images" / image_name
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(str(image_path))
+
+
+class PdfBuildTextRequest(BaseModel):
+    job_id: str
+    selected_images: List[str]
+    subject: str
+    lesson: str
+
+
+@app.post("/admin/pdf/build-text")
+def pdf_build_text(req: PdfBuildTextRequest, background_tasks: BackgroundTasks):
+    with _pdf_jobs_lock:
+        job = _pdf_jobs.get(req.job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job["status"] not in ("extracted", "failed"):
+            raise HTTPException(status_code=400, detail="Job not ready for building text")
+        job["status"] = "building_text"
+        job["progress"] = 30
+        job["message"] = "Building text topics..."
+        job["selected_images"] = req.selected_images
+        job["subject"] = req.subject
+        job["lesson"] = req.lesson
+
+    background_tasks.add_task(_run_pdf_build_text_job, req.job_id)
+    return {"job_id": req.job_id}
+
+
+def _run_pdf_build_text_job(job_id: str) -> None:
+    with _pdf_jobs_lock:
+        job = _pdf_jobs[job_id]
+        job_dir = job["job_dir"]
+        selected_images = job["selected_images"]
+        subject = job["subject"]
+    try:
+        blocks_data = json.loads((job_dir / "blocks.json").read_text(encoding="utf-8"))
+        blocks = [BlockItem.from_dict(d) for d in blocks_data]
+        result = pdf_pipeline.build_text_phase(
+            blocks, job_dir, selected_images, subject, lesson_spec=None
+        )
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "text_ready"
+            job["message"] = "Text generated successfully."
+            job["progress"] = 60
+            job["topics"] = result["topics"]
+            job["lesson_name"] = result["lesson_name"]
+            job["final_images_mapping"] = result["final_images_mapping"]
+    except Exception as exc:
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "failed"
+            job["message"] = "Build text failed"
+            job["progress"] = 100
+            job["error"] = str(exc)
+
+
+class PdfTopicData(BaseModel):
+    title: str
+    content: str
+
+
+class PdfFinalizeRequest(BaseModel):
+    job_id: str
+    topics: List[PdfTopicData]
+    subject: str
+    lesson: str
+    grade: str = ""  # e.g. "12 ශ්‍රේණිය" — used to place new topics in the student curriculum UI
+    teacher_id: str = ""  # uploading teacher's own user id — scopes this content to their students
+
+
+@app.post("/admin/pdf/finalize")
+def pdf_finalize(req: PdfFinalizeRequest, background_tasks: BackgroundTasks):
+    with _pdf_jobs_lock:
+        job = _pdf_jobs.get(req.job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job["status"] = "finalizing"
+        job["progress"] = 80
+        job["message"] = "Saving files and ingesting into the vector DB..."
+        job["topics_data"] = [t.dict() for t in req.topics]
+        job["subject"] = req.subject
+        job["lesson"] = req.lesson
+        job["grade"] = req.grade
+        job["teacher_id"] = req.teacher_id
+
+    background_tasks.add_task(_run_pdf_finalize_job, req.job_id)
+    return {"job_id": req.job_id}
+
+
+def _run_pdf_finalize_job(job_id: str) -> None:
+    with _pdf_jobs_lock:
+        job = _pdf_jobs[job_id]
+        job_dir = job["job_dir"]
+        topics_data = job["topics_data"]
+        subject = job["subject"]
+        lesson_name = job.get("lesson") or job.get("lesson_name", "lesson")
+        grade = job.get("grade", "")
+        teacher_id = job.get("teacher_id", "")
+
+    try:
+        subject_slug = _pdf_slugify(subject)
+        lesson_slug = _pdf_slugify(lesson_name)
+
+        # Map each extracted image's base name (no extension) to its real
+        # filename, so "[image: base]" tags can be rewritten to this
+        # project's "[IMAGE: filename.ext]" convention with the correct
+        # extension rather than assuming one.
+        image_dir = job_dir / "images"
+        ext_by_base = {}
+        if image_dir.exists():
+            for p in image_dir.iterdir():
+                ext_by_base[p.stem] = p.name
+
+        def _normalize_tag(match: "re.Match") -> str:
+            base = match.group(1).strip()
+            real_name = ext_by_base.get(base, f"{base}.png")
+            return f"[IMAGE: {real_name}]"
+
+        saved_txt_files = []
+        for topic in topics_data:
+            clean_title = re.sub(r'^\d+\.\d+\s*', '', topic["title"])
+            topic_slug = _pdf_slugify(clean_title)
+            # Canonical backend metadata contract: subject_lesson_topic.txt
+            filename = f"{subject_slug}_{lesson_slug}_{topic_slug}.txt"
+
+            content = _PDF_IMAGE_TAG.sub(_normalize_tag, topic["content"])
+
+            txt_path = Path(DOCUMENTS_UNICODE_DIR) / filename
+            txt_path.parent.mkdir(parents=True, exist_ok=True)
+            txt_path.write_text(content, encoding="utf-8")
+            saved_txt_files.append(filename)
+
+            # Ingest this topic's chunks into the vector store right away —
+            # non-destructive: only this file's prior chunks are replaced.
+            ingest_text_content(content, filename)
+
+            # Record the topic so the student curriculum UI can show it —
+            # the frontend's static curriculum.js is merged with these
+            # records at load time (GET /curriculum-additions). Upsert so
+            # re-finalizing the same topic doesn't create duplicates.
+            curriculum_topics_collection.update_one(
+                {"grade": grade, "subject": subject, "lesson": lesson_name, "topic": clean_title},
+                {"$set": {
+                    "grade": grade,
+                    "subject": subject,
+                    "lesson": lesson_name,
+                    "topic": clean_title,
+                    "source_file": filename,
+                    "teacher_id": teacher_id,
+                }},
+                upsert=True,
+            )
+
+        saved_images = []
+        if image_dir.exists():
+            dest_dir = Path(IMAGES_DIR)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            for p in image_dir.iterdir():
+                shutil.copy2(p, dest_dir / p.name)
+                saved_images.append(p.name)
+
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "completed"
+            job["progress"] = 100
+            job["message"] = (
+                f"Saved {len(saved_txt_files)} topic file(s) and "
+                f"{len(saved_images)} image(s), and ingested them into the vector DB."
+            )
+            job["saved_txt_files"] = saved_txt_files
+            job["saved_images"] = saved_images
+
+    except Exception as exc:
+        with _pdf_jobs_lock:
+            job = _pdf_jobs[job_id]
+            job["status"] = "failed"
+            job["message"] = "Finalize failed"
+            job["progress"] = 100
+            job["error"] = str(exc)
+
+
+@app.get("/curriculum-additions")
+def curriculum_additions(student_id: str = None, teacher_id: str = None):
+    """Topics added via the admin PDF pipeline, grouped by grade → subject →
+    lesson. The student frontend fetches this (passing its own student_id)
+    and merges it into its static curriculum so newly ingested topics show
+    up for selection. A teacher can pass their own id directly to preview
+    their own uploads.
+
+    Visibility: records with no teacher_id (added before this feature
+    existed) are global — visible to everyone. Records added afterwards are
+    scoped to the uploading teacher's own students only.
+    """
+    resolved_teacher_id = teacher_id
+    if student_id and not resolved_teacher_id:
+        try:
+            student = users_collection.find_one({"_id": ObjectId(student_id)})
+        except Exception:
+            student = None
+        resolved_teacher_id = student.get("teacher_id") if student else None
+
+    visibility = [{"teacher_id": {"$in": ["", None]}}, {"teacher_id": {"$exists": False}}]
+    if resolved_teacher_id:
+        visibility.append({"teacher_id": resolved_teacher_id})
+
+    grouped: dict = {}
+    for rec in curriculum_topics_collection.find({"$or": visibility}, {"_id": 0}):
+        key = (rec.get("grade", ""), rec.get("subject", ""), rec.get("lesson", ""))
+        grouped.setdefault(key, [])
+        topic = rec.get("topic", "")
+        if topic and topic not in grouped[key]:
+            grouped[key].append(topic)
+    return {"additions": [
+        {"grade": g, "subject": s, "lesson": l, "topics": topics}
+        for (g, s, l), topics in grouped.items()
+    ]}

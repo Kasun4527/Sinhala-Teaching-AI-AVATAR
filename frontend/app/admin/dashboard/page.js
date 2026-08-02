@@ -70,19 +70,23 @@ export default function AdminDashboard() {
   const [improvement, setImprovement] = useState(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [teacherCode, setTeacherCode] = useState("");
+  const [codeCopied, setCodeCopied] = useState(false);
 
   useEffect(() => {
     const role = localStorage.getItem("role");
     const name = localStorage.getItem("name");
     if (role !== "admin") { router.push("/"); return; }
     setAdminName(name || "Admin");
+    setTeacherCode(localStorage.getItem("student_id") || "");
     fetchStudents();
   }, []);
 
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/admin/students`);
+      const teacherId = localStorage.getItem("student_id"); // this admin's own user id
+      const res = await axios.get(`${API}/admin/students`, { params: { teacher_id: teacherId } });
       setStudents(res.data.students);
     } catch (err) {
       console.error("Failed to load students", err);
@@ -194,6 +198,19 @@ export default function AdminDashboard() {
               <span style={{ fontSize: 15 }}>📊</span>
               <span style={{ color: TEXT, fontSize: 13, fontWeight: 600 }}>Dashboard</span>
             </div>
+            <div
+              onClick={() => router.push("/admin/pdf-upload")}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 14px", borderRadius: 10, marginTop: 4, cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>📄</span>
+              <span style={{ color: TEXT2, fontSize: 13, fontWeight: 600 }}>Add Content</span>
+            </div>
           </div>
 
           <div style={{ margin: "12px 16px", borderTop: `1px solid ${BORDER}` }} />
@@ -285,6 +302,40 @@ export default function AdminDashboard() {
           </div>
           <div style={{ color: TEXT2, fontSize: 12 }}>
             {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          </div>
+        </div>
+
+        {/* Teacher code — students enter this at signup to link to you */}
+        <div style={{
+          background: CARD, borderRadius: 14, border: `1px solid ${BORDER}`,
+          padding: "16px 22px", marginBottom: 24,
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
+        }}>
+          <div>
+            <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 6px" }}>
+              Your Teacher Code
+            </p>
+            <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>
+              Share this with your students — they enter it at signup to see your content and appear in your dashboard.
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <code style={{
+              background: "#0f172a", border: `1px solid ${BORDER}`, borderRadius: 8,
+              padding: "8px 14px", color: ACCENT, fontSize: 13, fontWeight: 700, letterSpacing: "0.02em",
+            }}>
+              {teacherCode}
+            </code>
+            <button
+              onClick={() => { navigator.clipboard.writeText(teacherCode); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1500); }}
+              style={{
+                padding: "8px 14px", borderRadius: 8, border: "none",
+                background: codeCopied ? "#10b981" : ACCENT, color: "white",
+                fontWeight: 600, fontSize: 12, cursor: "pointer",
+              }}
+            >
+              {codeCopied ? "Copied!" : "Copy"}
+            </button>
           </div>
         </div>
 
