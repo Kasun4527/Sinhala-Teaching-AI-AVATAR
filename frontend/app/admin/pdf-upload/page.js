@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import { curriculum } from "@/data/curriculum";
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
@@ -40,6 +41,7 @@ export default function PdfUploadPage() {
   const [file, setFile] = useState(null);
   const [subject, setSubject] = useState("");
   const [lesson, setLesson] = useState("");
+  const [grade, setGrade] = useState("");
   const [jobId, setJobId] = useState(null);
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -135,8 +137,8 @@ export default function PdfUploadPage() {
   };
 
   const handleBuildText = async () => {
-    if (!subject.trim() || !lesson.trim()) {
-      setErrorMsg("Please enter both subject and lesson before continuing.");
+    if (!grade || !subject.trim() || !lesson.trim()) {
+      setErrorMsg("Please select a grade and enter both subject and lesson before continuing.");
       return;
     }
     setErrorMsg("");
@@ -169,6 +171,8 @@ export default function PdfUploadPage() {
         topics: topics.map(t => ({ title: t.title, content: t.content })),
         subject,
         lesson,
+        grade,
+        teacher_id: localStorage.getItem("student_id") || "",
       });
     } catch (err) {
       setErrorMsg(err?.response?.data?.detail || "Failed to start finalization.");
@@ -257,9 +261,18 @@ export default function PdfUploadPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 900 }}>
             <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, padding: 24 }}>
               <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 16px" }}>
-                Subject &amp; Lesson
+                Grade, Subject &amp; Lesson
               </p>
               <div style={{ display: "flex", gap: 12 }}>
+                <select
+                  value={grade} onChange={e => setGrade(e.target.value)}
+                  style={{ flex: 1, padding: "9px 12px", background: "#0f172a", border: `1px solid ${BORDER}`, borderRadius: 8, color: grade ? TEXT : "#475569", fontSize: 13 }}
+                >
+                  <option value="">Select grade...</option>
+                  {curriculum.map((g) => (
+                    <option key={g.grade} value={g.grade}>{g.grade}</option>
+                  ))}
+                </select>
                 <input
                   value={subject} onChange={e => setSubject(e.target.value)}
                   placeholder="e.g. Science11"

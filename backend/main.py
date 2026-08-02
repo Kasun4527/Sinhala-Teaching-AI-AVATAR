@@ -8,6 +8,7 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 import asyncio
+from bson import ObjectId
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -23,7 +24,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection
+from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection, curriculum_topics_collection
 from services.email_service import send_verification_email, verify_token
 from models.User import User
 from auth.security import hash_password
@@ -392,6 +393,20 @@ async def generate_tts(data: dict):
 
 
 
+def _resolve_teacher_id(teacher_code: str) -> str:
+    """A teacher's own user id doubles as their "teacher code" — no
+    separate code needs generating/storing. Raises if it doesn't match a
+    real admin account, so a mistyped code fails loudly at signup rather
+    than silently leaving the student unassigned."""
+    try:
+        teacher = users_collection.find_one({"_id": ObjectId(teacher_code), "role": "admin"})
+    except Exception:
+        teacher = None
+    if not teacher:
+        raise HTTPException(status_code=400, detail="Invalid teacher code")
+    return str(teacher["_id"])
+
+
 @app.post("/auth/signup")
 def signup(user: User):
     existing_user = users_collection.find_one({"email": user.email})
@@ -401,6 +416,10 @@ def signup(user: User):
     user_dict = user.dict()
     user_dict["password"] = hash_password(user.password)
     user_dict["is_verified"] = False
+
+    teacher_code = user_dict.pop("teacher_code", None)
+    if user.role == "student" and teacher_code:
+        user_dict["teacher_id"] = _resolve_teacher_id(teacher_code)
 
     users_collection.insert_one(user_dict)
 
@@ -479,8 +498,34 @@ def login(data: dict):
         "token": token,
         "role": user["role"],
         "name": user["name"],
-        "student_id": str(user["_id"])  
+        "student_id": str(user["_id"]),
+        "teacher_id": user.get("teacher_id"),  # null if not yet linked to a teacher
     }
+
+
+@app.post("/auth/set-teacher-code")
+def set_teacher_code(data: dict):
+    """Lets an already-registered student (signed up before this feature,
+    or who skipped it) link to a teacher afterwards."""
+    student_id = data.get("student_id", "")
+    teacher_code = data.get("teacher_code", "")
+    if not student_id or not teacher_code:
+        raise HTTPException(status_code=400, detail="student_id and teacher_code are required")
+
+    teacher_id = _resolve_teacher_id(teacher_code)
+
+    try:
+        result = users_collection.update_one(
+            {"_id": ObjectId(student_id), "role": "student"},
+            {"$set": {"teacher_id": teacher_id}},
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid student_id")
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    return {"teacher_id": teacher_id}
+
 
 @app.get("/auth/test-email")
 def test_email_connection():
@@ -499,8 +544,8 @@ def test_email_connection():
 
 
 @app.get("/admin/students")
-def admin_get_students():
-    students = get_all_students()
+def admin_get_students(teacher_id: str = None):
+    students = get_all_students(teacher_id)
     return {"students": students}
 
 
@@ -1028,6 +1073,8 @@ class PdfFinalizeRequest(BaseModel):
     topics: List[PdfTopicData]
     subject: str
     lesson: str
+    grade: str = ""  # e.g. "12 ශ්‍රේණිය" — used to place new topics in the student curriculum UI
+    teacher_id: str = ""  # uploading teacher's own user id — scopes this content to their students
 
 
 @app.post("/admin/pdf/finalize")
@@ -1042,6 +1089,8 @@ def pdf_finalize(req: PdfFinalizeRequest, background_tasks: BackgroundTasks):
         job["topics_data"] = [t.dict() for t in req.topics]
         job["subject"] = req.subject
         job["lesson"] = req.lesson
+        job["grade"] = req.grade
+        job["teacher_id"] = req.teacher_id
 
     background_tasks.add_task(_run_pdf_finalize_job, req.job_id)
     return {"job_id": req.job_id}
@@ -1054,6 +1103,8 @@ def _run_pdf_finalize_job(job_id: str) -> None:
         topics_data = job["topics_data"]
         subject = job["subject"]
         lesson_name = job.get("lesson") or job.get("lesson_name", "lesson")
+        grade = job.get("grade", "")
+        teacher_id = job.get("teacher_id", "")
 
     try:
         subject_slug = _pdf_slugify(subject)
@@ -1092,6 +1143,23 @@ def _run_pdf_finalize_job(job_id: str) -> None:
             # non-destructive: only this file's prior chunks are replaced.
             ingest_text_content(content, filename)
 
+            # Record the topic so the student curriculum UI can show it —
+            # the frontend's static curriculum.js is merged with these
+            # records at load time (GET /curriculum-additions). Upsert so
+            # re-finalizing the same topic doesn't create duplicates.
+            curriculum_topics_collection.update_one(
+                {"grade": grade, "subject": subject, "lesson": lesson_name, "topic": clean_title},
+                {"$set": {
+                    "grade": grade,
+                    "subject": subject,
+                    "lesson": lesson_name,
+                    "topic": clean_title,
+                    "source_file": filename,
+                    "teacher_id": teacher_id,
+                }},
+                upsert=True,
+            )
+
         saved_images = []
         if image_dir.exists():
             dest_dir = Path(IMAGES_DIR)
@@ -1118,3 +1186,40 @@ def _run_pdf_finalize_job(job_id: str) -> None:
             job["message"] = "Finalize failed"
             job["progress"] = 100
             job["error"] = str(exc)
+
+
+@app.get("/curriculum-additions")
+def curriculum_additions(student_id: str = None, teacher_id: str = None):
+    """Topics added via the admin PDF pipeline, grouped by grade → subject →
+    lesson. The student frontend fetches this (passing its own student_id)
+    and merges it into its static curriculum so newly ingested topics show
+    up for selection. A teacher can pass their own id directly to preview
+    their own uploads.
+
+    Visibility: records with no teacher_id (added before this feature
+    existed) are global — visible to everyone. Records added afterwards are
+    scoped to the uploading teacher's own students only.
+    """
+    resolved_teacher_id = teacher_id
+    if student_id and not resolved_teacher_id:
+        try:
+            student = users_collection.find_one({"_id": ObjectId(student_id)})
+        except Exception:
+            student = None
+        resolved_teacher_id = student.get("teacher_id") if student else None
+
+    visibility = [{"teacher_id": {"$in": ["", None]}}, {"teacher_id": {"$exists": False}}]
+    if resolved_teacher_id:
+        visibility.append({"teacher_id": resolved_teacher_id})
+
+    grouped: dict = {}
+    for rec in curriculum_topics_collection.find({"$or": visibility}, {"_id": 0}):
+        key = (rec.get("grade", ""), rec.get("subject", ""), rec.get("lesson", ""))
+        grouped.setdefault(key, [])
+        topic = rec.get("topic", "")
+        if topic and topic not in grouped[key]:
+            grouped[key].append(topic)
+    return {"additions": [
+        {"grade": g, "subject": s, "lesson": l, "topics": topics}
+        for (g, s, l), topics in grouped.items()
+    ]}

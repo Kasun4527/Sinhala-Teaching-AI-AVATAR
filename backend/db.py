@@ -22,6 +22,9 @@ engagement_collection = db["engagement_sessions"]
 qa_collection = db["student_qa"]
 youtube_watch_collection = db["youtube_watch_sessions"]
 email_tokens_collection = db["email_verification_tokens"]
+# Topics added via the admin PDF-ingestion pipeline, merged into the static
+# frontend curriculum at load time so they show up for students to select.
+curriculum_topics_collection = db["curriculum_topics"]
 
 # ── Personalization Collections (PC-BKT + BKT-LSTM) ─────────────────────────
 

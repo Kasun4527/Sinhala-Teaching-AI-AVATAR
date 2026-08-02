@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { curriculum } from "@/data/curriculum";
+import { useMergedCurriculum } from "@/data/useCurriculum";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
@@ -92,6 +92,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export default function StudentDashboard() {
   const router = useRouter();
+  const curriculum = useMergedCurriculum();
   const [name, setName]             = useState("");
   const [hovered, setHovered]       = useState(null);
   const [pendingEnroll, setPending] = useState(null);
@@ -99,11 +100,15 @@ export default function StudentDashboard() {
   const [enrollErr, setEnrollErr]   = useState("");
   const [grade, setGrade]           = useState(0);
   const [improvement, setImprovement] = useState(null);
+  const [needsTeacherCode, setNeedsTeacherCode] = useState(false);
+  const [teacherCodeInput, setTeacherCodeInput] = useState("");
+  const [teacherCodeStatus, setTeacherCodeStatus] = useState({ saving: false, error: "" });
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
     setName(localStorage.getItem("name") || "Student");
+    setNeedsTeacherCode(!localStorage.getItem("teacher_id"));
 
     const studentId = localStorage.getItem("student_id");
     if (studentId) {
@@ -113,6 +118,28 @@ export default function StudentDashboard() {
         .catch(() => setImprovement(null));
     }
   }, []);
+
+  const submitTeacherCode = async () => {
+    const code = teacherCodeInput.trim();
+    if (!code) return;
+    setTeacherCodeStatus({ saving: true, error: "" });
+    try {
+      const res = await fetch(`${BACKEND}/auth/set-teacher-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: localStorage.getItem("student_id"), teacher_code: code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Invalid code");
+      localStorage.setItem("teacher_id", data.teacher_id);
+      setNeedsTeacherCode(false);
+      // Reload so useMergedCurriculum (only fetches once on mount) picks up
+      // this teacher's content immediately instead of on next visit.
+      window.location.reload();
+    } catch (err) {
+      setTeacherCodeStatus({ saving: false, error: err.message || "Invalid code" });
+    }
+  };
 
   const totalSubjects = curriculum.reduce((a, g) => a + g.subjects.length, 0);
   const totalLessons  = curriculum.reduce((a, g) => a + g.subjects.reduce((s, sub) => s + (sub.lessons?.length || 0), 0), 0);
@@ -176,6 +203,48 @@ export default function StudentDashboard() {
         {/* ═══ BODY ═══ */}
         <div style={{ padding: "48px 60px 80px", position: "relative" }}>
           <FloatingPattern color={BLUE} />
+
+          {/* Teacher code prompt — shown until a teacher is linked */}
+          {needsTeacherCode && (
+            <div style={{
+              background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 16,
+              padding: "20px 24px", marginBottom: 32, position: "relative", zIndex: 1,
+            }}>
+              <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#78350f" }}>
+                Link to your teacher
+              </p>
+              <p style={{ margin: "0 0 14px", fontSize: 13, color: "#92400e" }}>
+                Enter the code your teacher gave you so their added lessons and your progress show up correctly.
+              </p>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <input
+                  value={teacherCodeInput}
+                  onChange={(e) => setTeacherCodeInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submitTeacherCode()}
+                  placeholder="Teacher code"
+                  style={{
+                    flex: "1 1 220px", padding: "9px 14px", borderRadius: 10,
+                    border: "1.5px solid #fde68a", fontSize: 13, outline: "none",
+                  }}
+                />
+                <button
+                  onClick={submitTeacherCode}
+                  disabled={teacherCodeStatus.saving || !teacherCodeInput.trim()}
+                  style={{
+                    padding: "9px 20px", borderRadius: 10, border: "none",
+                    background: "#b45309", color: "white", fontWeight: 600, fontSize: 13,
+                    cursor: teacherCodeStatus.saving ? "default" : "pointer",
+                    opacity: teacherCodeStatus.saving ? 0.6 : 1,
+                  }}
+                >
+                  {teacherCodeStatus.saving ? "Linking..." : "Link"}
+                </button>
+              </div>
+              {teacherCodeStatus.error && (
+                <p style={{ margin: "10px 0 0", fontSize: 12, color: "#dc2626" }}>{teacherCodeStatus.error}</p>
+              )}
+            </div>
+          )}
 
           {/* Header row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, flexWrap: "wrap", gap: 16, position: "relative", zIndex: 1 }}>

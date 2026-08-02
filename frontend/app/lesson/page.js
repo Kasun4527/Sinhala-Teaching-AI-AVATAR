@@ -446,16 +446,14 @@ function LessonPageContent() {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
     if (!topic) return;
-    const savedContent = localStorage.getItem("lesson_content");
-    if (savedContent) {
-      setContent(savedContent);
-      localStorage.removeItem("lesson_content");
+    const processContent = (lessonText) => {
+      setContent(lessonText);
 
       // Extract plain paragraphs (same logic as contentParas useMemo)
       // so backend can generate one explanation per paragraph
-      const disp = savedContent.includes("\n---\n")
-        ? savedContent.split("\n---\n").slice(1).join("\n---\n").trim()
-        : savedContent;
+      const disp = lessonText.includes("\n---\n")
+        ? lessonText.split("\n---\n").slice(1).join("\n---\n").trim()
+        : lessonText;
       const isHdg = (t) => {
         if (!t || t.length > 160) return false;
         if (/^\d+[\.\)]\s/.test(t)) return false;
@@ -494,7 +492,7 @@ function LessonPageContent() {
         fetch(`${BACKEND}/explain-content/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: savedContent, paragraphs: paras }),
+          body: JSON.stringify({ content: lessonText, paragraphs: paras }),
         })
           .then(r => r.json())
           .then(data => {
@@ -506,7 +504,7 @@ function LessonPageContent() {
             if (data.explained === false) {
               console.warn("[Avatar] explanation still unavailable after retry — avatar will read raw content.");
             }
-            setAvatarSpeech(data.explanation || savedContent);
+            setAvatarSpeech(data.explanation || lessonText);
             setSpeechReady(true);
           })
           .catch(() => {
@@ -516,11 +514,32 @@ function LessonPageContent() {
               return;
             }
             console.warn("[Avatar] explain-content failed twice — avatar will read raw content.");
-            setAvatarSpeech(savedContent);
+            setAvatarSpeech(lessonText);
             setSpeechReady(true);
           });
       };
       fetchExplanation();
+    };
+
+    const savedContent = localStorage.getItem("lesson_content");
+    if (savedContent) {
+      localStorage.removeItem("lesson_content");
+      processContent(savedContent);
+    } else if (subject && lesson) {
+      // Refresh case: the quiz flow hands content over via localStorage and
+      // it's consumed (removed) on first load, so a hard refresh lands here
+      // with nothing saved. Re-fetch the lesson from the backend instead of
+      // sitting on the loading spinner forever.
+      fetch(
+        `${BACKEND}/get-lesson/?subject=${encodeURIComponent(subject)}&lesson=${encodeURIComponent(lesson)}&topic=${encodeURIComponent(topic)}&level=${encodeURIComponent(level)}`
+      )
+        .then(r => r.json())
+        .then(data => {
+          if (data.content) processContent(data.content);
+        })
+        .catch(err => {
+          console.error("[Lesson] content re-fetch failed:", err);
+        });
     }
   }, [topic, level]);
 

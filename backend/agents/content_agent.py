@@ -50,6 +50,41 @@ def _is_english_contaminated(text: str) -> bool:
         return False
     return (latin_count / total) > _LATIN_CONTAMINATION_THRESHOLD
 
+
+# Long, formula/number-dense chunks (lab procedures, worked chemistry
+# examples) occasionally cause the generation to break down partway through
+# rather than staying incoherent throughout — producing a handful of
+# corrupted words (garbled numbers, English fused mid-word) inside an
+# otherwise mostly-fine passage. A ratio-based contamination check misses
+# this, since a few bad words don't move the Latin/Sinhala ratio much. What
+# reliably signals a breakdown is characters from a script that has no
+# legitimate reason to appear at all — Sinhala STEM content never contains
+# Ethiopic, Devanagari, Thai, Arabic, CJK, or Hangul characters, so any
+# occurrence is treated as a hard failure for that chunk.
+_FOREIGN_SCRIPT = re.compile(
+    r'[ऀ-ॿ؀-ۿ฀-๿ሀ-፿'
+    r'一-鿿぀-ヿ가-힯]'
+)
+
+
+def _has_foreign_script(text: str) -> bool:
+    return bool(_FOREIGN_SCRIPT.search(text))
+
+
+# The model occasionally fabricates a figure reference that doesn't
+# correspond to any real image — verified against documents_unicode/, where
+# only the bracketed "[IMAGE: filename]" tags (handled separately, above)
+# actually occur. An unbracketed "රූපය: IMAGE 267"-style reference is
+# generation noise, not a real placeholder to preserve, so it's stripped
+# rather than reattached like a genuine tag.
+_HALLUCINATED_IMAGE_REF = re.compile(
+    r'රූප(ය|\s*සටහන)?\s*[:：]?\s*IMAGE\s*\d+', re.IGNORECASE
+)
+
+
+def _strip_hallucinated_image_refs(text: str) -> str:
+    return _HALLUCINATED_IMAGE_REF.sub('', text).strip()
+
 # Base instruction text matches the fine-tuning dataset exactly — the model was
 # trained on these three fixed instructions, one per mastery level. The
 # language-purity clause is appended on top of that (not part of the original
@@ -74,27 +109,21 @@ def _group_paragraphs_for_rewrite(paragraphs: list) -> list:
 
     [IMAGE: ...] paragraphs (retriever.py stores them as their own standalone
     paragraphs, in document order) pass straight through untouched — they're
-    never sent to the model. Consecutive text paragraphs are paired up (two
-    at a time, mirroring explain_agent's batching) to keep each chunk small
-    enough for a reliable rewrite while limiting the number of request items.
+    never sent to the model. Each text paragraph is its own rewrite unit
+    (one paragraph per chunk, not paired) — bundling two paragraphs into one
+    "rewrite this completely" call let the model merge/condense them instead
+    of fully covering both, silently thinning out or dropping one
+    paragraph's content even though nothing was lost on the input side.
+    One paragraph per call has nothing to compete with, so the model has no
+    reason to summarize away part of it.
     """
     groups = []
-    text_buffer = []
-
-    def flush_text():
-        if text_buffer:
-            groups.append({"type": "text", "paragraphs": list(text_buffer)})
-            text_buffer.clear()
 
     for para in paragraphs:
         if para.strip().upper().startswith("[IMAGE"):
-            flush_text()
             groups.append({"type": "image", "text": para.strip()})
             continue
-        text_buffer.append(para)
-        if len(text_buffer) == 2:
-            flush_text()
-    flush_text()
+        groups.append({"type": "text", "paragraphs": [para]})
     return groups
 
 
@@ -162,7 +191,10 @@ def generate_content(subject, lesson, topic, level):
             continue
         raw_answer = answers[text_i].strip() if text_i < len(answers) else ""
         answer = _strip_template_echo(raw_answer) if raw_answer else ""
-        if not answer or _is_english_contaminated(answer):
+        answer = _strip_hallucinated_image_refs(answer) if answer else answer
+        if not answer or _is_english_contaminated(answer) or _has_foreign_script(answer):
+            if _has_foreign_script(answer):
+                print(f"[WARNING] Dropping garbled generation (foreign script detected) for chunk {text_i}")
             answer = g["clean_input"]
         if g["image_tags"]:
             answer = f"{answer}\n\n{chr(10).join(g['image_tags'])}"

@@ -143,6 +143,27 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
 
   async function startSession() {
     try {
+      // Close any previous session first — the avatar server only allows
+      // one session at a time, and nothing else guarantees the old
+      // connection was closed before this (e.g. moving to a new topic
+      // doesn't unmount/remount this component, and there's no effect that
+      // auto-restarts on topic/content change). Without this, starting a
+      // new session while the old one is still technically alive gets
+      // rejected with "409 Another session is active".
+      stopSession();
+
+      // stopSession()'s pc.close() only starts the WebRTC teardown on our
+      // side — the server only notices via ICE consent-freshness checks,
+      // which can take far longer than we're willing to wait here. Ask it
+      // to end the previous session explicitly and wait for confirmation,
+      // so the slot is guaranteed free before we send the new offer below
+      // instead of racing WebRTC's own (much slower) disconnect detection.
+      try {
+        await fetch(`${AVTR_HOST}/end-session`, { method: "POST", headers: NGROK_HDR });
+      } catch {
+        // best-effort — if this fails, the 409 retry below is still there as a fallback
+      }
+
       setError("");
       setStatus("connecting");
       setPaused(false);
@@ -178,22 +199,35 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
       await pc.setLocalDescription(offer);
       await waitForIceComplete(pc);
 
-      const answerResp = await fetch(`${AVTR_HOST}/offer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...NGROK_HDR },
-        body: JSON.stringify({
-          sdp:           pc.localDescription.sdp,
-          type:          "offer",
-          avatar_id:     selectedAvatar,
-          background_id: selectedBg,
-          engine: {
-            type:    "custom",
-            content: speechText,
-            topic:   topic || "",
-            speed,
-          },
-        }),
+      const offerBody = JSON.stringify({
+        sdp:           pc.localDescription.sdp,
+        type:          "offer",
+        avatar_id:     selectedAvatar,
+        background_id: selectedBg,
+        engine: {
+          type:    "custom",
+          content: speechText,
+          topic:   topic || "",
+          speed,
+        },
       });
+
+      // stopSession()'s pc.close() above only *starts* the previous
+      // session's WebRTC teardown — the avatar server needs a brief moment
+      // to actually detect the closed connection and free its
+      // one-session-at-a-time slot. Retry a few times on 409 instead of
+      // failing immediately, since that race is normal and short-lived.
+      let answerResp;
+      const maxOfferAttempts = 5;
+      for (let attempt = 1; attempt <= maxOfferAttempts; attempt++) {
+        answerResp = await fetch(`${AVTR_HOST}/offer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...NGROK_HDR },
+          body: offerBody,
+        });
+        if (answerResp.status !== 409 || attempt === maxOfferAttempts) break;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
       if (!answerResp.ok) {
         const txt = await answerResp.text().catch(() => "");
         throw new Error(`Offer rejected (${answerResp.status}): ${txt}`);
