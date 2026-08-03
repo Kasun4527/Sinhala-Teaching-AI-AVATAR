@@ -20,7 +20,6 @@ jobs:
           sparse-checkout: |
             /*
             !/backend/documents_unicode/
-            !/backend/chroma_db/
             !/backend/images/
           sparse-checkout-cone-mode: false
 
