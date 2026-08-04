@@ -54,6 +54,13 @@ from agents.progress_agent import (
     save_post_quiz_result
 )
 
+from agents.review_agent import (
+    list_delivered_content,
+    get_delivered_content_for_topic,
+    save_practice_quiz_result,
+    list_practice_quiz_results,
+)
+
 from agents.dashboard_agent import (
     get_all_students,
     get_student_subjects,
@@ -122,6 +129,17 @@ class QuizSubmission(BaseModel):
     student_id: str
     level: Optional[str] = None
     quiz_questions: Optional[list] = None    # ← personalization: quiz text for difficulty tracking
+
+
+# Practice-quiz submission — separate from QuizSubmission because this flow
+# never touches student_progress_collection/BKT (see agents/review_agent.py).
+class PracticeQuizSubmission(BaseModel):
+    subject: str
+    lesson: str
+    topic: str
+    student_id: str
+    quiz_questions: list
+    student_answers: list
 
 
 # Bug #10: Single answer submission model for per-answer online learning
@@ -362,6 +380,53 @@ async def submit_single_answer(data: SingleAnswerSubmission):
 def get_lesson(subject: str, lesson: str, topic: str, level: str):
     content = generate_content(subject, lesson, topic, level)
     return {"content": content}
+
+
+# ── Past lessons review + on-demand practice quiz ──────────────────────────
+# Separate from the pre/post-quiz flow: these never write to
+# student_progress_collection, so they can't affect topic_unlocked/mastery/BKT.
+
+@app.get("/past-lessons/")
+def past_lessons(student_id: str, subject: str = None):
+    return {"topics": list_delivered_content(student_id, subject)}
+
+
+@app.get("/past-lessons/content/")
+def past_lesson_content(student_id: str, subject: str, lesson: str, topic: str):
+    record = get_delivered_content_for_topic(student_id, subject, lesson, topic)
+    if not record:
+        raise HTTPException(status_code=404, detail="No delivered content found for this topic.")
+    return record
+
+
+@app.get("/practice-quiz/")
+def practice_quiz(student_id: str, subject: str, lesson: str, topic: str):
+    record = get_delivered_content_for_topic(student_id, subject, lesson, topic)
+    if not record:
+        raise HTTPException(status_code=404, detail="No delivered content found for this topic.")
+    quiz = generate_quiz(subject, lesson, topic, record["level"], "practice", context=record["content"])
+    return {"quiz": quiz}
+
+
+@app.post("/practice-quiz/submit/")
+def submit_practice_quiz(data: PracticeQuizSubmission):
+    correct_answers = [q.get("answer") for q in data.quiz_questions]
+    result = save_practice_quiz_result(
+        student_id=data.student_id,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=None,
+        quiz_questions=data.quiz_questions,
+        student_answers=data.student_answers,
+        correct_answers=correct_answers,
+    )
+    return result
+
+
+@app.get("/practice-quiz/results/")
+def practice_quiz_results(student_id: str, subject: str = None, lesson: str = None, topic: str = None):
+    return {"results": list_practice_quiz_results(student_id, subject, lesson, topic)}
 
 
 @app.post("/explain-content/")

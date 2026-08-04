@@ -108,6 +108,27 @@ export default function Sidebar({ subject: activeSub = null }) {
               fontSize: 13, fontWeight: pathname === "/dashboard" ? 600 : 400,
             }}>Dashboard</span>
           </div>
+
+          <div
+            onClick={() => router.push("/past-lessons")}
+            onMouseEnter={() => setHoveredItem("past-lessons")}
+            onMouseLeave={() => setHoveredItem(null)}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "9px 10px", borderRadius: 10, cursor: "pointer",
+              backgroundColor: pathname === "/past-lessons"
+                ? "rgba(37,99,235,0.15)"
+                : hoveredItem === "past-lessons" ? "rgba(255,255,255,0.04)" : "transparent",
+              borderLeft: pathname === "/past-lessons" ? "3px solid #2563eb" : "3px solid transparent",
+              transition: "all 0.15s",
+            }}
+          >
+            <span style={{ color: pathname === "/past-lessons" ? "#2563eb" : "#475569", fontSize: 15 }}>⟲</span>
+            <span style={{
+              color: pathname === "/past-lessons" ? "#e2e8f0" : "#94a3b8",
+              fontSize: 13, fontWeight: pathname === "/past-lessons" ? 600 : 400,
+            }}>Past Lessons</span>
+          </div>
         </div>
 
         <div style={{ margin: "6px 10px", borderTop: "1px solid #1e293b" }} />

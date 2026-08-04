@@ -120,6 +120,7 @@ function ResultPageContent() {
   const type    = searchParams.get("type");
   const grade   = searchParams.get("grade") || "";
   const isPost  = type === "post";
+  const isPractice = type === "practice";
 
   useEffect(() => {
     if (!localStorage.getItem("token")) router.push("/login");
@@ -133,7 +134,9 @@ function ResultPageContent() {
     ? score >= 6
       ? { text: "Excellent work! You've mastered this topic.", cta: "Next Topic" }
       : { text: "Keep going — review the lesson and try again.", cta: "Review Lesson" }
-    : { text: "Your personalised lesson has been prepared based on your result.", cta: "Start Lesson" };
+    : isPractice
+      ? { text: "Here's how you did on this practice quiz.", cta: "" }
+      : { text: "Your personalised lesson has been prepared based on your result.", cta: "Start Lesson" };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
@@ -167,7 +170,7 @@ function ResultPageContent() {
             </div>
 
             <h1 style={{ fontFamily: "'Raleway', sans-serif", fontSize: 38, fontWeight: 700, color: "#f1f5f9", margin: "0 0 10px", letterSpacing: "0.01em", lineHeight: 1.15 }}>
-              {isPost ? "Post Quiz Result" : "Pre Quiz Result"}
+              {isPost ? "Post Quiz Result" : isPractice ? "Practice Quiz Result" : "Pre Quiz Result"}
             </h1>
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, margin: "0 0 24px", lineHeight: 1.7 }}>
               {message.text}
@@ -275,7 +278,7 @@ function ResultPageContent() {
                     </svg>
                   </div>
                   <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.09em" }}>Quiz</p>
-                  <p style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 20, fontWeight: 800, color: NAVY, lineHeight: 1.2 }}>{isPost ? "Post" : "Pre"}</p>
+                  <p style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 20, fontWeight: 800, color: NAVY, lineHeight: 1.2 }}>{isPost ? "Post" : isPractice ? "Practice" : "Pre"}</p>
                   <span style={{
                     display: "inline-block", marginTop: 8,
                     background: `${cfg.hue}12`, border: `1px solid ${cfg.hue}30`,
@@ -311,6 +314,41 @@ function ResultPageContent() {
                     <path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
+              )}
+
+              {isPractice && (
+                <>
+                  <button
+                    onClick={() => router.push(`/lesson?topic=${topic}&level=${level}&subject=${subject}&lesson=${lesson}&mode=review`)}
+                    style={{
+                      width: "100%", padding: "15px",
+                      background: `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})`,
+                      color: "white", border: "none", borderRadius: 14,
+                      fontSize: 15, fontWeight: 700, cursor: "pointer",
+                      boxShadow: `0 8px 24px ${cfg.hue}45`,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    Review Lesson Content
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => router.push(`/quiz?topic=${topic}&level=${level}&type=practice&subject=${subject}&lesson=${lesson}`)}
+                    style={{
+                      width: "100%", padding: "14px",
+                      background: "white", color: cfg.hue,
+                      border: `1.5px solid ${cfg.hue}40`, borderRadius: 14,
+                      fontSize: 14, fontWeight: 700, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    Retake Practice Quiz
+                  </button>
+                </>
               )}
 
               {isPost && score >= 6 && (

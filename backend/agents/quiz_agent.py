@@ -270,13 +270,16 @@ def extract_json(text):
 # =========================
 # QUIZ GENERATOR (PRE / POST)
 # =========================
-def generate_quiz(subject, lesson, topic, level, quiz_type):
+def generate_quiz(subject, lesson, topic, level, quiz_type, context=None):
     print("\n[DEBUG] Quiz Generation Started")
 
     URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
 
-    # ✅ Fetch vector DB context
-    context = get_relevant_context(subject, lesson, topic, k=6, use_vector_ranking=True)
+    # ✅ Fetch vector DB context, unless the caller already supplied context
+    # directly (e.g. practice quizzes generated from a student's previously
+    # delivered lesson content rather than a fresh retrieval).
+    if context is None:
+        context = get_relevant_context(subject, lesson, topic, k=6, use_vector_ranking=True)
 
     # Fallback if context is empty
     if not context or context.strip() == "":
