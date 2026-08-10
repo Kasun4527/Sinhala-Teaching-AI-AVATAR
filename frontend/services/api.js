@@ -68,3 +68,27 @@ export const getEnrollments = (studentId) =>
 // Bug #10: Per-answer online learning submission
 export const submitSingleAnswer = (data) =>
   axios.post(`${API}/submit-answer/`, data);
+
+// Past-lessons review + on-demand practice quiz (never touches BKT/mastery)
+export const getPastLessons = (studentId, subject) =>
+  axios.get(`${API}/past-lessons/`, {
+    params: { student_id: studentId, subject },
+  });
+
+export const getPastLessonContent = (studentId, subject, lesson, topic) =>
+  axios.get(`${API}/past-lessons/content/`, {
+    params: { student_id: studentId, subject, lesson, topic },
+  });
+
+export const getPracticeQuiz = (studentId, subject, lesson, topic) =>
+  axios.get(`${API}/practice-quiz/`, {
+    params: { student_id: studentId, subject, lesson, topic },
+  });
+
+export const submitPracticeQuiz = (data) =>
+  axios.post(`${API}/practice-quiz/submit/`, data);
+
+export const getPracticeQuizResults = (studentId, subject, lesson, topic) =>
+  axios.get(`${API}/practice-quiz/results/`, {
+    params: { student_id: studentId, subject, lesson, topic },
+  });

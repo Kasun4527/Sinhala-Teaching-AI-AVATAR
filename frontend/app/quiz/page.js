@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
-import { getErrorMessage, getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer } from "@/services/api";
+import { getErrorMessage, getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer, getPracticeQuiz, submitPracticeQuiz } from "@/services/api";
 
 const NAVY = "#0f172a";
 
@@ -131,18 +131,23 @@ function QuizPageContent() {
   const cfg    = SUBJECT_CFG[subject] || DEFAULT_CFG;
   const accent = cfg.hue;
   const isPost = type === "post";
+  const isPractice = type === "practice";
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
+    const studentId = localStorage.getItem("student_id");
     if (!subject || !lesson || !topic) { setLoading(false); return; }
+    if (isPractice && !studentId) { setLoading(false); return; }
 
     const fetchQuiz = async () => {
       try {
         setError(""); setLoading(true);
         const res  = isPost
           ? await getPostQuiz(subject, lesson, topic, level)
-          : await getPreQuiz(subject, lesson, topic);
+          : isPractice
+            ? await getPracticeQuiz(studentId, subject, lesson, topic)
+            : await getPreQuiz(subject, lesson, topic);
         const data = res?.data || {};
         const generatedQuiz = data.quiz || data || { questions: [] };
         if (data?.quiz?.error) setError(getErrorMessage(data.quiz.error, "Quiz generator returned an error."));
@@ -171,6 +176,12 @@ function QuizPageContent() {
         const res = await submitPostQuiz(payload);
         if (res?.data?.content) localStorage.setItem("lesson_content", res.data.content);
         router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=post&subject=${subject}&lesson=${lesson}&grade=${encodeURIComponent(grade)}`);
+      } else if (isPractice) {
+        const res = await submitPracticeQuiz({
+          subject, lesson, topic, student_id: studentId,
+          quiz_questions: quiz.questions, student_answers: answers,
+        });
+        router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.score_level || "Beginner"}&topic=${topic}&type=practice&subject=${subject}&lesson=${lesson}`);
       } else {
         const res = await submitPreQuiz(payload);
         localStorage.setItem("lesson_content", res?.data?.content || "");
@@ -185,7 +196,7 @@ function QuizPageContent() {
   if (loading) return (
     <LoadingScreen
       subject={subject} cfg={cfg}
-      title={isPost ? "Preparing Post Quiz..." : "Preparing Pre Quiz..."}
+      title={isPost ? "Preparing Post Quiz..." : isPractice ? "Preparing Practice Quiz..." : "Preparing Pre Quiz..."}
       subtitle={`Generating questions for "${topic}"`}
     />
   );
@@ -247,7 +258,7 @@ function QuizPageContent() {
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32 }}>
               <div>
                 <h1 style={{ fontFamily: "'Raleway', sans-serif", fontSize: 36, fontWeight: 700, color: "#f1f5f9", margin: "0 0 8px", letterSpacing: "0.01em" }}>
-                  {isPost ? "Post Lesson Quiz" : "Pre Lesson Quiz"}
+                  {isPost ? "Post Lesson Quiz" : isPractice ? "Practice Quiz" : "Pre Lesson Quiz"}
                 </h1>
                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, margin: 0 }}>
                   {quiz.questions.length} questions &middot; Answer all before submitting
@@ -323,8 +334,9 @@ function QuizPageContent() {
                             onClick={() => {
                               const a = [...answers]; a[i] = opt; setAnswers(a);
                               // Bug #10: Fire per-answer online learning update (non-blocking)
+                              // Practice quizzes must never feed BKT/mastery — skip entirely.
                               const studentId = localStorage.getItem("student_id");
-                              if (studentId && q.answer) {
+                              if (studentId && q.answer && !isPractice) {
                                 submitSingleAnswer({
                                   student_id: studentId,
                                   subject, lesson, topic,

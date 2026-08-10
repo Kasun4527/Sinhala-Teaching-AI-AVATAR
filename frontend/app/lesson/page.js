@@ -56,6 +56,8 @@ function LessonPageContent() {
   const lesson = searchParams.get("lesson");
   const topic = searchParams.get("topic");
   const level = searchParams.get("level") || "Beginner";
+  const mode = searchParams.get("mode") || "live";
+  const isReview = mode === "review";
 
   const [content, setContent] = useState("");
   const [avatarSpeech, setAvatarSpeech] = useState("");
@@ -446,16 +448,14 @@ function LessonPageContent() {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
     if (!topic) return;
-    const savedContent = localStorage.getItem("lesson_content");
-    if (savedContent) {
-      setContent(savedContent);
-      localStorage.removeItem("lesson_content");
+    const processContent = (lessonText) => {
+      setContent(lessonText);
 
       // Extract plain paragraphs (same logic as contentParas useMemo)
       // so backend can generate one explanation per paragraph
-      const disp = savedContent.includes("\n---\n")
-        ? savedContent.split("\n---\n").slice(1).join("\n---\n").trim()
-        : savedContent;
+      const disp = lessonText.includes("\n---\n")
+        ? lessonText.split("\n---\n").slice(1).join("\n---\n").trim()
+        : lessonText;
       const isHdg = (t) => {
         if (!t || t.length > 160) return false;
         if (/^\d+[\.\)]\s/.test(t)) return false;
@@ -484,22 +484,84 @@ function LessonPageContent() {
       const j = buf.join(" ").trim();
       if (j && !/^(\d+[\.\)]|•|●|-)\s/.test(j)) paras.push(j);
 
-      fetch(`${BACKEND}/explain-content/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: savedContent, paragraphs: paras }),
-      })
+      // The explain-content call hits an external fine-tuned model that's
+      // occasionally slow/flaky rather than consistently down — one retry
+      // before accepting the raw-content fallback avoids the avatar
+      // silently reading unexplained text just because of a transient
+      // hiccup. The backend now reports `explained: false` when it had to
+      // fall back internally, so a 200 response isn't automatically trusted.
+      const fetchExplanation = (attempt = 1) => {
+        fetch(`${BACKEND}/explain-content/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: lessonText, paragraphs: paras }),
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.explained === false && attempt === 1) {
+              console.warn("[Avatar] explanation failed, retrying once...");
+              fetchExplanation(2);
+              return;
+            }
+            if (data.explained === false) {
+              console.warn("[Avatar] explanation still unavailable after retry — avatar will read raw content.");
+            }
+            setAvatarSpeech(data.explanation || lessonText);
+            setSpeechReady(true);
+          })
+          .catch(() => {
+            if (attempt === 1) {
+              console.warn("[Avatar] explain-content request failed, retrying once...");
+              fetchExplanation(2);
+              return;
+            }
+            console.warn("[Avatar] explain-content failed twice — avatar will read raw content.");
+            setAvatarSpeech(lessonText);
+            setSpeechReady(true);
+          });
+      };
+      fetchExplanation();
+    };
+
+    if (isReview) {
+      // Review mode: fetch the EXACT originally-delivered content — never
+      // localStorage, never a fresh /get-lesson/ regeneration.
+      const studentId = localStorage.getItem("student_id");
+      if (!studentId || !subject || !lesson) return;
+      fetch(
+        `${BACKEND}/past-lessons/content/?student_id=${encodeURIComponent(studentId)}&subject=${encodeURIComponent(subject)}&lesson=${encodeURIComponent(lesson)}&topic=${encodeURIComponent(topic)}`
+      )
         .then(r => r.json())
         .then(data => {
-          setAvatarSpeech(data.explanation || savedContent);
-          setSpeechReady(true);
+          if (data.content) processContent(data.content);
         })
-        .catch(() => {
-          setAvatarSpeech(savedContent);
-          setSpeechReady(true);
+        .catch(err => {
+          console.error("[Lesson] review content fetch failed:", err);
+        });
+      return;
+    }
+
+    const savedContent = localStorage.getItem("lesson_content");
+    if (savedContent) {
+      localStorage.removeItem("lesson_content");
+      processContent(savedContent);
+    } else if (subject && lesson) {
+      // Refresh case: the quiz flow hands content over via localStorage and
+      // it's consumed (removed) on first load, so a hard refresh lands here
+      // with nothing saved. Re-fetch the lesson from the backend instead of
+      // sitting on the loading spinner forever.
+      fetch(
+        `${BACKEND}/get-lesson/?subject=${encodeURIComponent(subject)}&lesson=${encodeURIComponent(lesson)}&topic=${encodeURIComponent(topic)}&level=${encodeURIComponent(level)}`
+      )
+        .then(r => r.json())
+        .then(data => {
+          if (data.content) processContent(data.content);
+        })
+        .catch(err => {
+          console.error("[Lesson] content re-fetch failed:", err);
         });
     }
-  }, [topic, level]);
+  }, [topic, level, isReview]);
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'Source Sans 3', sans-serif" }}>
@@ -715,7 +777,7 @@ function LessonPageContent() {
               </div>
 
               {/* Footer CTA */}
-              {content && (
+              {content && !isReview && (
                 <div style={{
                   padding: "16px 36px 20px",
                   borderTop: "1px solid #f1f5f9",
@@ -741,6 +803,39 @@ function LessonPageContent() {
                     }}
                   >
                     Finish &amp; Take Quiz
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {content && isReview && (
+                <div style={{
+                  padding: "16px 36px 20px",
+                  borderTop: "1px solid #f1f5f9",
+                  background: `linear-gradient(135deg, ${accent}06 0%, #f8fafc 100%)`,
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: `linear-gradient(135deg, ${cfg.dark}, ${accent})` }} />
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                      Reviewing past content — want to test yourself?
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => router.push(`/quiz?topic=${topic}&level=${level}&type=practice&subject=${subject}&lesson=${lesson}`)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 8,
+                      padding: "10px 22px",
+                      background: `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
+                      color: "white", border: "none", borderRadius: 10,
+                      fontSize: 13, fontWeight: 700, cursor: "pointer",
+                      boxShadow: `0 4px 16px ${accent}45`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    Take a Practice Quiz
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>

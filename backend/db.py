@@ -22,6 +22,14 @@ engagement_collection = db["engagement_sessions"]
 qa_collection = db["student_qa"]
 youtube_watch_collection = db["youtube_watch_sessions"]
 email_tokens_collection = db["email_verification_tokens"]
+# Topics added via the admin PDF-ingestion pipeline, merged into the static
+# frontend curriculum at load time so they show up for students to select.
+curriculum_topics_collection = db["curriculum_topics"]
+
+# Practice-quiz attempts generated from a student's past delivered_content
+# (review flow). Deliberately separate from student_progress_collection —
+# this must never feed topic_unlocked/mastery/BKT.
+practice_quiz_results_collection = db["practice_quiz_results"]
 
 # ── Personalization Collections (PC-BKT + BKT-LSTM) ─────────────────────────
 
@@ -52,5 +60,9 @@ def ensure_indexes():
     )
     kmeans_models_col.create_index(
         [("model_version", ASCENDING)], unique=True
+    )
+    practice_quiz_results_collection.create_index(
+        [("student_id", ASCENDING), ("subject", ASCENDING), ("lesson", ASCENDING),
+         ("topic", ASCENDING), ("created_at", ASCENDING)]
     )
     print("[DB] Personalization indexes ensured.")

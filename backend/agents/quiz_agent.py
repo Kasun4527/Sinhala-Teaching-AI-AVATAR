@@ -32,6 +32,52 @@ def _is_english_contaminated(question):
     return (latin_count / total) > _ENGLISH_CONTAMINATION_THRESHOLD
 
 
+# The source textbook content contains references to its own numbered
+# figures/diagrams (e.g. "රූපය 5.36"). The quiz UI is text-only and never
+# displays any of those images, so a question whose options are themselves
+# just figure labels (e.g. "5.37 රූපය") is unanswerable no matter how
+# well-formed it otherwise is — the student has nothing to compare them
+# against.
+_FIGURE_REFERENCE = re.compile(r'රූප')
+
+
+def _is_figure_reference_question(question):
+    """True if most of a question's options are just numbered figure/diagram
+    labels rather than substantive answer text."""
+    options = question.get("options") or []
+    if not options:
+        return False
+    figure_like = sum(
+        1 for opt in options if isinstance(opt, str) and _FIGURE_REFERENCE.search(opt)
+    )
+    return figure_like >= max(2, len(options) // 2)
+
+
+# A second, distinct failure mode: the *question text itself* points at a
+# lettered position in a source diagram (e.g. "A-A1 ප්‍රදේශයේ...", "AB
+# රේඛාවේ...") rather than the options being figure labels. The answer
+# options can look perfectly normal here — the question is unanswerable
+# because identifying "what's at point A-A1" requires seeing the diagram,
+# which the text-only quiz UI never shows.
+_HYPHENATED_DIAGRAM_LABEL = re.compile(r'\b[A-Z][A-Za-z0-9]{0,2}-[A-Z][A-Za-z0-9]{0,2}\b')
+_DIAGRAM_POSITION_WORDS = "ප්‍රදේශ|ලක්ෂ්‍ය|කොටස|සලකුණ|රේඛාව|කිරණ|බින්දුව"
+_LABEL_BEFORE_POSITION_WORD = re.compile(
+    r'\b[A-Z]{1,3}[0-9]?\s*(?=(' + _DIAGRAM_POSITION_WORDS + r'))'
+)
+
+
+def _references_diagram_label(question):
+    """True if the question text references a lettered diagram position
+    (e.g. "A-A1", "AB රේඛාවේ") rather than asking about the content directly."""
+    q_text = question.get("question", "")
+    if not isinstance(q_text, str):
+        return False
+    return bool(
+        _HYPHENATED_DIAGRAM_LABEL.search(q_text)
+        or _LABEL_BEFORE_POSITION_WORD.search(q_text)
+    )
+
+
 def normalize_quiz_questions(result):
     questions = result.get("questions")
     if not isinstance(questions, list):
@@ -49,6 +95,14 @@ def normalize_quiz_questions(result):
 
         if _is_english_contaminated(question):
             print(f"[WARNING] Dropping English-contaminated question: {question.get('question', '')[:60]}")
+            continue
+
+        if _is_figure_reference_question(question):
+            print(f"[WARNING] Dropping unanswerable figure-reference question: {question.get('question', '')[:60]}")
+            continue
+
+        if _references_diagram_label(question):
+            print(f"[WARNING] Dropping unanswerable diagram-label question: {question.get('question', '')[:60]}")
             continue
 
         shuffled_options = [option for option in options if option]
@@ -216,13 +270,16 @@ def extract_json(text):
 # =========================
 # QUIZ GENERATOR (PRE / POST)
 # =========================
-def generate_quiz(subject, lesson, topic, level, quiz_type):
+def generate_quiz(subject, lesson, topic, level, quiz_type, context=None):
     print("\n[DEBUG] Quiz Generation Started")
 
     URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
 
-    # ✅ Fetch vector DB context
-    context = get_relevant_context(subject, lesson, topic, k=6, use_vector_ranking=True)
+    # ✅ Fetch vector DB context, unless the caller already supplied context
+    # directly (e.g. practice quizzes generated from a student's previously
+    # delivered lesson content rather than a fresh retrieval).
+    if context is None:
+        context = get_relevant_context(subject, lesson, topic, k=6, use_vector_ranking=True)
 
     # Fallback if context is empty
     if not context or context.strip() == "":
@@ -239,10 +296,23 @@ def generate_quiz(subject, lesson, topic, level, quiz_type):
     # Explicitly forbids English — the fine-tuned model occasionally
     # code-switches mid-answer without this reminder.
     language_rule = "ප්‍රශ්නය, විකල්ප සහ පිළිතුර සම්පූර්ණයෙන්ම සිංහල භාෂාවෙන් පමණක් ලියන්න. ඉංග්‍රීසි වචන හෝ අකුරු කිසිසේත් භාවිත නොකරන්න."
+    # The source textbook content references its own numbered figures/diagrams
+    # (e.g. "රූපය 5.36") and lettered diagram positions (e.g. "A-A1
+    # ප්‍රදේශයේ..."), but the quiz UI is text-only and never shows any image —
+    # a question that depends on seeing a figure, or identifying a lettered
+    # point/region within one, is unanswerable regardless of how normal the
+    # options look. This is a mitigation, not a guarantee;
+    # _is_figure_reference_question() and _references_diagram_label() in
+    # normalize_quiz_questions() are the deterministic backstop.
+    no_figures_rule = (
+        "රූප, රූප සටහන් හෝ රූප අංක ගැන ප්‍රශ්න අසන්න එපා — සිසුවාට කිසිදු රූපයක් පෙන්වන්නේ නැති බැවින්, "
+        "ලිඛිත කරුණු පමණක් ඇසුරින් ප්‍රශ්න සකසන්න. රූප සටහන්වල ලකුණු කර ඇති අකුරු (A, B, A-A1 වැනි) හෝ ඒවායින් "
+        "දැක්වෙන ප්‍රදේශ/ලක්ෂ්‍ය ගැන ප්‍රශ්න අසන්නත් එපා."
+    )
     if quiz_type == "pre":
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න. {language_rule}"
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}"
     else:
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න. {language_rule}"
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}"
 
     # STEP 2: Build input prompt with context
     input_text = f"""Context:
@@ -272,7 +342,10 @@ Format:
         "max_new_tokens": 2000,
     }
 
+    TARGET_QUESTION_COUNT = 10
     max_retries = 3
+    best_result = None  # most complete attempt seen, in case none hit the full target count
+
     for attempt in range(1, max_retries + 1):
         print(f"\n[DEBUG] Quiz generation attempt {attempt}/{max_retries}...")
         try:
@@ -289,6 +362,8 @@ Format:
             except Exception as parse_error:
                 print(f"Model response was not valid JSON (Attempt {attempt}): {parse_error}")
                 if attempt == max_retries:
+                    if best_result:
+                        return best_result
                     return {
                         "questions": [],
                         "error": "Model response was not valid JSON."
@@ -299,14 +374,31 @@ Format:
             print(f"\nRAW RESPONSE (Attempt {attempt}):\n", raw_content)
 
             result = extract_json(raw_content)
+            question_count = len(result.get("questions") or [])
 
-            if not result.get("questions"):
+            if question_count == 0:
                 print(f"Invalid quiz format on attempt {attempt}.")
                 if attempt == max_retries:
+                    if best_result:
+                        return best_result
                     return {
                         "questions": [],
                         "error": result.get("error", "Quiz generator returned no questions.")
                     }
+                continue
+
+            # Remember the most complete attempt so far — if no attempt ever
+            # reaches the full target count, this is what we fall back to
+            # instead of failing outright or silently returning a short quiz
+            # from whichever attempt happened to run last.
+            if best_result is None or question_count > len(best_result.get("questions") or []):
+                best_result = result
+
+            if question_count < TARGET_QUESTION_COUNT:
+                print(f"Only {question_count}/{TARGET_QUESTION_COUNT} questions on attempt {attempt}, retrying...")
+                if attempt == max_retries:
+                    print(f"Falling back to best attempt: {len(best_result.get('questions') or [])} questions")
+                    return best_result
                 continue
 
             print("Quiz generated successfully", result)
@@ -315,6 +407,8 @@ Format:
         except Exception as e:
             print(f"Error calling model on attempt {attempt}: {e}")
             if attempt == max_retries:
+                if best_result:
+                    return best_result
                 return {"questions": [], "error": f"Error calling model: {e}"}
             continue
 
