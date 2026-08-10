@@ -129,6 +129,27 @@ export default function Sidebar({ subject: activeSub = null }) {
               fontSize: 13, fontWeight: pathname === "/past-lessons" ? 600 : 400,
             }}>Past Lessons</span>
           </div>
+
+          <div
+            onClick={() => router.push("/improvements")}
+            onMouseEnter={() => setHoveredItem("improvements")}
+            onMouseLeave={() => setHoveredItem(null)}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "9px 10px", borderRadius: 10, cursor: "pointer",
+              backgroundColor: pathname === "/improvements"
+                ? "rgba(37,99,235,0.15)"
+                : hoveredItem === "improvements" ? "rgba(255,255,255,0.04)" : "transparent",
+              borderLeft: pathname === "/improvements" ? "3px solid #2563eb" : "3px solid transparent",
+              transition: "all 0.15s",
+            }}
+          >
+            <span style={{ color: pathname === "/improvements" ? "#2563eb" : "#475569", fontSize: 15 }}>↑</span>
+            <span style={{
+              color: pathname === "/improvements" ? "#e2e8f0" : "#94a3b8",
+              fontSize: 13, fontWeight: pathname === "/improvements" ? 600 : 400,
+            }}>Improvements</span>
+          </div>
         </div>
 
         <div style={{ margin: "6px 10px", borderTop: "1px solid #1e293b" }} />
