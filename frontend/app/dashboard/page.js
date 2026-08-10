@@ -99,7 +99,6 @@ export default function StudentDashboard() {
   const [enrolling, setEnrolling]   = useState(false);
   const [enrollErr, setEnrollErr]   = useState("");
   const [grade, setGrade]           = useState(0);
-  const [improvement, setImprovement] = useState(null);
   const [needsTeacherCode, setNeedsTeacherCode] = useState(false);
   const [teacherCodeInput, setTeacherCodeInput] = useState("");
   const [teacherCodeStatus, setTeacherCodeStatus] = useState({ saving: false, error: "" });
@@ -109,14 +108,6 @@ export default function StudentDashboard() {
     if (!token) { router.push("/login"); return; }
     setName(localStorage.getItem("name") || "Student");
     setNeedsTeacherCode(!localStorage.getItem("teacher_id"));
-
-    const studentId = localStorage.getItem("student_id");
-    if (studentId) {
-      fetch(`${BACKEND}/progress-improvement?student_id=${encodeURIComponent(studentId)}`)
-        .then((res) => res.json())
-        .then((data) => setImprovement(data))
-        .catch(() => setImprovement(null));
-    }
   }, []);
 
   const submitTeacherCode = async () => {
@@ -278,71 +269,6 @@ export default function StudentDashboard() {
           </div>
 
           <div style={{ height: 1, background: "linear-gradient(90deg, #e2e8f0, transparent)", marginBottom: 36, position: "relative", zIndex: 1 }} />
-
-          {/* Your Improvement (pre-quiz → post-quiz) */}
-          {improvement && improvement.count > 0 && (
-            <div style={{
-              background: "white", border: "1.5px solid #e8edf2", borderRadius: 18,
-              padding: "24px 28px", marginBottom: 36, position: "relative", zIndex: 1,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-            }}>
-              <h3 style={{ margin: "0 0 4px", fontFamily: "'Raleway', sans-serif", fontSize: 20, fontWeight: 700, color: NAVY }}>
-                Your Improvement
-              </h3>
-              <p style={{ margin: "0 0 20px", fontSize: 13, color: "#94a3b8" }}>
-                How much your scores improved from pre-quiz to post-quiz, across all subjects
-              </p>
-
-              <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 22px", minWidth: 140 }}>
-                  <p style={{
-                    margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1,
-                    color: improvement.average_improvement > 0 ? "#059669" : improvement.average_improvement < 0 ? "#dc2626" : "#64748b",
-                  }}>
-                    {improvement.average_improvement > 0 ? "+" : ""}{improvement.average_improvement}
-                  </p>
-                  <p style={{ margin: "6px 0 0", fontSize: 11, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    Avg. Improvement
-                  </p>
-                </div>
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 22px", minWidth: 140 }}>
-                  <p style={{ margin: 0, fontSize: 28, fontWeight: 800, lineHeight: 1, color: NAVY }}>{improvement.count}</p>
-                  <p style={{ margin: "6px 0 0", fontSize: 11, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    Topics Compared
-                  </p>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {improvement.topics.slice(-5).reverse().map((t, i) => {
-                  const delta = t.improvement;
-                  const dColor = delta > 0 ? "#059669" : delta < 0 ? "#dc2626" : "#64748b";
-                  const dBg = delta > 0 ? "#ecfdf5" : delta < 0 ? "#fef2f2" : "#f1f5f9";
-                  return (
-                    <div key={i} style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "10px 14px", borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0",
-                    }}>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: NAVY, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {t.topic}
-                        </p>
-                        <p style={{ margin: "2px 0 0", fontSize: 11, color: "#94a3b8" }}>
-                          {t.subject} &middot; {t.initial_quiz_marks} &rarr; {t.final_quiz_marks}
-                        </p>
-                      </div>
-                      <span style={{
-                        background: dBg, color: dColor, fontWeight: 700, fontSize: 12,
-                        padding: "4px 12px", borderRadius: 20, flexShrink: 0, marginLeft: 12,
-                      }}>
-                        {delta > 0 ? "+" : ""}{delta}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Cards grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(295px, 1fr))", gap: 20, position: "relative", zIndex: 1 }}>

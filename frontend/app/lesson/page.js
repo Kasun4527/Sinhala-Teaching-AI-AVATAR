@@ -56,6 +56,8 @@ function LessonPageContent() {
   const lesson = searchParams.get("lesson");
   const topic = searchParams.get("topic");
   const level = searchParams.get("level") || "Beginner";
+  const mode = searchParams.get("mode") || "live";
+  const isReview = mode === "review";
 
   const [content, setContent] = useState("");
   const [avatarSpeech, setAvatarSpeech] = useState("");
@@ -521,6 +523,24 @@ function LessonPageContent() {
       fetchExplanation();
     };
 
+    if (isReview) {
+      // Review mode: fetch the EXACT originally-delivered content — never
+      // localStorage, never a fresh /get-lesson/ regeneration.
+      const studentId = localStorage.getItem("student_id");
+      if (!studentId || !subject || !lesson) return;
+      fetch(
+        `${BACKEND}/past-lessons/content/?student_id=${encodeURIComponent(studentId)}&subject=${encodeURIComponent(subject)}&lesson=${encodeURIComponent(lesson)}&topic=${encodeURIComponent(topic)}`
+      )
+        .then(r => r.json())
+        .then(data => {
+          if (data.content) processContent(data.content);
+        })
+        .catch(err => {
+          console.error("[Lesson] review content fetch failed:", err);
+        });
+      return;
+    }
+
     const savedContent = localStorage.getItem("lesson_content");
     if (savedContent) {
       localStorage.removeItem("lesson_content");
@@ -541,7 +561,7 @@ function LessonPageContent() {
           console.error("[Lesson] content re-fetch failed:", err);
         });
     }
-  }, [topic, level]);
+  }, [topic, level, isReview]);
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'Source Sans 3', sans-serif" }}>
@@ -757,7 +777,7 @@ function LessonPageContent() {
               </div>
 
               {/* Footer CTA */}
-              {content && (
+              {content && !isReview && (
                 <div style={{
                   padding: "16px 36px 20px",
                   borderTop: "1px solid #f1f5f9",
@@ -783,6 +803,39 @@ function LessonPageContent() {
                     }}
                   >
                     Finish &amp; Take Quiz
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {content && isReview && (
+                <div style={{
+                  padding: "16px 36px 20px",
+                  borderTop: "1px solid #f1f5f9",
+                  background: `linear-gradient(135deg, ${accent}06 0%, #f8fafc 100%)`,
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: `linear-gradient(135deg, ${cfg.dark}, ${accent})` }} />
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                      Reviewing past content — want to test yourself?
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => router.push(`/quiz?topic=${topic}&level=${level}&type=practice&subject=${subject}&lesson=${lesson}`)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 8,
+                      padding: "10px 22px",
+                      background: `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
+                      color: "white", border: "none", borderRadius: 10,
+                      fontSize: 13, fontWeight: 700, cursor: "pointer",
+                      boxShadow: `0 4px 16px ${accent}45`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    Take a Practice Quiz
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
