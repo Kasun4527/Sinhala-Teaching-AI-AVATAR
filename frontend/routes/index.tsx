@@ -1,8 +1,6 @@
-"use client";
-
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Sparkles,
   PlayCircle,
@@ -27,19 +25,29 @@ import {
   Gamepad2,
   ChevronRight,
 } from "lucide-react";
+import heroVideo from "@/assets/hero-bg.mp4.asset.json";
 
-// ---------------------------------------------------------------------------
-// Ported from frontend/routes/index.tsx (the TanStack Start page Lovable
-// generated) into a Next.js App Router page. Changes from the original:
-//   - `motion/react` -> `framer-motion` (already installed here)
-//   - the Route/createFileRoute + heroVideo.asset.json import (Lovable's
-//     private CDN pointer, TanStack-only) -> a plain local video path
-//   - in-page-only anchor CTAs -> real /login, /signup, /select-role routes
-// Design tokens (bg-background, text-physics, surface-card, font-display,
-// …) are unchanged and come from the `.theme-aiguru` scope registered in
-// app/globals.css.
-// ---------------------------------------------------------------------------
-const HERO_VIDEO_SRC = "/videos/hero-bg.mp4";
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "AI Guru — Sinhala AI Avatar Teacher for A/L Students" },
+      {
+        name: "description",
+        content:
+          "AI Guru is Sri Lanka's first AI avatar teacher: adaptive Sinhala-medium lessons in Physics, Chemistry, Biology, Maths, Economics and Buddhism.",
+      },
+      { property: "og:title", content: "AI Guru — Sinhala AI Avatar Teacher" },
+      {
+        property: "og:description",
+        content:
+          "Adaptive Sinhala-medium lessons powered by a hybrid PC-BKT + LSTM engine and a native Sinhala voice avatar.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: Landing,
+});
 
 const NAV_LINKS = [
   { label: "Home", href: "#home" },
@@ -81,7 +89,7 @@ const WHY_CHOOSE = [
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const } },
 };
 
 const stagger = {
@@ -89,7 +97,7 @@ const stagger = {
   show: { opacity: 1, transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
 };
 
-export default function HomePage() {
+function Landing() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
   const [videoErrored, setVideoErrored] = useState(false);
@@ -102,7 +110,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="theme-aiguru relative min-h-screen overflow-x-hidden bg-background text-foreground">
+    <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
       {/* ambient glows */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="glow-ambient absolute -left-40 top-10 h-96 w-96 rounded-full bg-primary/25 blur-[140px]" />
@@ -137,16 +145,16 @@ export default function HomePage() {
           </div>
 
           <div className="hidden items-center gap-2 md:flex">
-            <Link href="/select-role" className="rounded-full px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+            <a href="#about" className="rounded-full px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
               Sign in
-            </Link>
-            <Link
-              href="/signup"
+            </a>
+            <a
+              href="#subjects"
               className="group flex items-center gap-1.5 rounded-full bg-[image:var(--gradient-hero)] px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
             >
               Get Started
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+            </a>
           </div>
 
           <button
@@ -176,20 +184,13 @@ export default function HomePage() {
                   {link.label}
                 </a>
               ))}
-              <Link
-                href="/select-role"
-                onClick={() => setMenuOpen(false)}
-                className="block rounded-2xl px-5 py-3.5 text-base font-semibold text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/signup"
+              <a
+                href="#subjects"
                 onClick={() => setMenuOpen(false)}
                 className="mt-2 block rounded-2xl bg-[image:var(--gradient-hero)] px-5 py-3.5 text-center text-base font-semibold text-primary-foreground"
               >
                 Get Started Free
-              </Link>
+              </a>
             </motion.div>
           )}
         </AnimatePresence>
@@ -207,7 +208,7 @@ export default function HomePage() {
               onError={() => setVideoErrored(true)}
               className="h-full w-full object-cover [filter:brightness(0.95)_contrast(1.05)_saturate(1.2)]"
             >
-              <source src={HERO_VIDEO_SRC} type="video/mp4" />
+              <source src={heroVideo.url} type="video/mp4" />
             </video>
           ) : (
             <div className="h-full w-full bg-[image:var(--gradient-surface)]" />
@@ -230,7 +231,7 @@ export default function HomePage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
             </span>
-            Sri Lanka&apos;s First AI Avatar Teacher
+            Sri Lanka's First AI Avatar Teacher
           </motion.div>
 
           <motion.h1 variants={fadeUp} className="mt-6 max-w-4xl text-5xl font-bold leading-[1.05] sm:text-6xl lg:text-7xl">
@@ -244,14 +245,14 @@ export default function HomePage() {
           </motion.p>
 
           <motion.div variants={fadeUp} className="mt-10 flex flex-wrap gap-4">
-            <Link
-              href="/signup"
+            <a
+              href="#subjects"
               className="group flex h-14 items-center gap-2 rounded-full bg-[image:var(--gradient-hero)] px-8 text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
             >
               <Sparkles className="h-5 w-5" />
               Start Your Journey
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-            </Link>
+            </a>
             <button
               onClick={() => setDemoOpen(true)}
               className="flex h-14 items-center gap-3 rounded-full border border-border bg-secondary/40 px-8 text-base font-semibold backdrop-blur-md transition-colors hover:bg-secondary/70"
@@ -388,19 +389,19 @@ export default function HomePage() {
             at your perfect pace.
           </p>
           <div className="relative mt-10 flex flex-wrap justify-center gap-4">
-            <Link
-              href="/signup"
+            <a
+              href="#subjects"
               className="flex h-14 items-center gap-2 rounded-full bg-[image:var(--gradient-hero)] px-8 text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
             >
               <Sparkles className="h-5 w-5" />
               Start Learning Free
-            </Link>
-            <Link
-              href="/select-role"
+            </a>
+            <a
+              href="#how-it-works"
               className="flex h-14 items-center rounded-full border border-border bg-secondary/40 px-8 text-base font-semibold hover:bg-secondary/70"
             >
               Sign In
-            </Link>
+            </a>
           </div>
         </div>
       </section>
@@ -416,7 +417,7 @@ export default function HomePage() {
               <span className="font-display text-lg font-bold">AI Guru</span>
             </div>
             <p className="mt-4 text-sm text-muted-foreground">
-              Sri Lanka&apos;s first AI Avatar teaching platform. Revolutionizing Sinhala medium
+              Sri Lanka's first AI Avatar teaching platform. Revolutionizing Sinhala medium
               education with predictive, personalized artificial intelligence.
             </p>
           </div>
@@ -454,13 +455,7 @@ export default function HomePage() {
               >
                 <X className="h-5 w-5" />
               </button>
-              {!videoErrored ? (
-                <video src={HERO_VIDEO_SRC} controls autoPlay className="aspect-video w-full" />
-              ) : (
-                <div className="flex aspect-video w-full items-center justify-center text-muted-foreground">
-                  Demo video unavailable.
-                </div>
-              )}
+              <video src={heroVideo.url} controls autoPlay className="aspect-video w-full" />
             </motion.div>
           </motion.div>
         )}
