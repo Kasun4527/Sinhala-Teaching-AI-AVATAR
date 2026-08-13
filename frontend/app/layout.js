@@ -1,8 +1,9 @@
-import "./globals.css";
+﻿import "./globals.css";
+import FluidMistyCursor from "../components/FluidMistyCursor";
 
 export const metadata = {
-  title: "IDS Platform",
-  description: "Intelligent Distance Learning System",
+  title: "AI Guru — Sinhala AI Avatar Teacher",
+  description: "Sri Lanka's first AI Avatar teaching platform — personalized Sinhala-medium lessons in Physics, Chemistry, Biology, Maths, Economics and Buddhism.",
 };
 
 export default function RootLayout({ children }) {
@@ -10,11 +11,19 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;500;600&family=Raleway:wght@300;400;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/*
+          WebGL Navier-Stokes fluid cursor — fixed canvas overlay.
+          pointer-events-none ensures it NEVER blocks clicks or taps.
+          z-50 places it above page content but below modals (z-[100]).
+        */}
+        <FluidMistyCursor />
+        {children}
+      </body>
     </html>
   );
 }
