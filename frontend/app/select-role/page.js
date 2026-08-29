@@ -9,7 +9,7 @@ function ParticleNetwork({ color }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    let W = canvas.width  = canvas.offsetWidth;
+    let W = canvas.width = canvas.offsetWidth;
     let H = canvas.height = canvas.offsetHeight;
 
     const CONNECT_DIST = 120;
@@ -24,7 +24,6 @@ function ParticleNetwork({ color }) {
     const draw = () => {
       ctx.clearRect(0, 0, W, H);
 
-      // Draw connecting lines
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
@@ -42,7 +41,6 @@ function ParticleNetwork({ color }) {
         }
       }
 
-      // Draw dots
       for (const p of particles) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -82,20 +80,26 @@ export default function LandingPage() {
   if (!mounted) return null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", overflow: "hidden" }}>
+    <div style={{
+      display: "flex",
+      minHeight: "100vh",
+      width: "100vw",
+      overflow: "hidden",
+      fontFamily: "'Poppins', sans-serif",
+      /* ENTIRE PAGE BACKGROUND: Dark on left, reducing/fading into solid dark blue on the right */
+      background: "linear-gradient(to right, #020617 35%, #1e3a8a 85%, #1d4ed8 100%)"
+    }}>
 
-      {/* Left Dark Panel */}
+      {/* Left Panel */}
       <div style={{
         width: "50%",
-        backgroundColor: "#0a0f1e",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
         padding: "40px 48px",
         overflow: "hidden",
       }}>
-
-        {/* Logo */}
+        {/* Logo (restored to original) */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{
             background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
@@ -114,21 +118,21 @@ export default function LandingPage() {
         {/* Center Content */}
         <div>
           <p style={{
-            color: "#3b82f6", fontSize: 11, fontWeight: 700,
+            color: "#60a5fa", fontSize: 11, fontWeight: 700,
             letterSpacing: "0.2em", textTransform: "uppercase",
             marginBottom: 16
           }}>
             Welcome to
           </p>
           <h1 style={{
-            fontFamily: "'Playfair Display', serif",
+            fontFamily: "'Poppins', sans-serif",
             fontSize: 42, fontWeight: 700, color: "white",
             lineHeight: 1.2, marginBottom: 20
           }}>
             Adaptive Learning Platform
           </h1>
           <p style={{
-            color: "#475569", fontSize: 15, lineHeight: 1.7,
+            color: "#94a3b8", fontSize: 15, lineHeight: 1.7,
             maxWidth: 420
           }}>
             A personalized learning experience powered by AI — tailored to your level, your pace, your goals.
@@ -138,11 +142,11 @@ export default function LandingPage() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 32 }}>
             {["AI-Powered", "Adaptive", "Progress Tracking", "Multi-Level"].map((f) => (
               <span key={f} style={{
-                backgroundColor: "rgba(37,99,235,0.12)",
-                color: "#60a5fa",
+                backgroundColor: "rgba(37,99,235,0.2)",
+                color: "#93c5fd",
                 padding: "5px 14px", borderRadius: 20,
                 fontSize: 12, fontWeight: 500,
-                border: "1px solid rgba(37,99,235,0.2)"
+                border: "1px solid rgba(37,99,235,0.3)"
               }}>
                 {f}
               </span>
@@ -152,33 +156,31 @@ export default function LandingPage() {
 
         {/* Bottom Subjects */}
         <div>
-          <p style={{ color: "#1e293b", fontSize: 11, marginBottom: 10, letterSpacing: "0.1em" }}>
+          <p style={{ color: "#94a3b8", fontSize: 11, marginBottom: 10, letterSpacing: "0.1em" }}>
             AVAILABLE SUBJECTS
           </p>
           <div style={{ display: "flex", gap: 16 }}>
             {[
-              { name: "Physics", color: "#2563eb" },
-              { name: "Chemistry", color: "#16a34a" },
-              { name: "Biology", color: "#059669" },
-              { name: "Maths", color: "#9333ea" },
+              { name: "Physics", color: "#60a5fa" },
+              { name: "Chemistry", color: "#4ade80" },
+              { name: "Biology", color: "#34d399" },
+              { name: "Maths", color: "#c084fc" },
             ].map((s) => (
               <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{
                   width: 6, height: 6, borderRadius: "50%",
                   backgroundColor: s.color
                 }} />
-                <span style={{ color: "#334155", fontSize: 12 }}>{s.name}</span>
+                <span style={{ color: "#cbd5e1", fontSize: 12 }}>{s.name}</span>
               </div>
             ))}
           </div>
         </div>
-
       </div>
 
       {/* Right Panel */}
       <div style={{
         width: "50%",
-        backgroundColor: "#f8fafc",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -186,17 +188,17 @@ export default function LandingPage() {
         position: "relative",
         overflow: "hidden",
       }}>
-        <ParticleNetwork color="#2563eb" />
+        <ParticleNetwork color="#ffffff" />
 
         <div style={{ width: "100%", maxWidth: 380, position: "relative", zIndex: 1 }}>
 
           <h2 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 32, fontWeight: 700, color: "#0f172a", marginBottom: 6
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: 32, fontWeight: 700, color: "white", marginBottom: 6
           }}>
             Get Started
           </h2>
-          <p style={{ color: "#94a3b8", fontSize: 14, marginBottom: 32 }}>
+          <p style={{ color: "#bfdbfe", fontSize: 14, marginBottom: 32 }}>
             Select your role to continue
           </p>
 
@@ -209,32 +211,33 @@ export default function LandingPage() {
               onMouseEnter={() => setHoveredRole("student")}
               onMouseLeave={() => setHoveredRole(null)}
               style={{
-                backgroundColor: hoveredRole === "student" ? "#eff6ff" : "white",
-                border: `2px solid ${hoveredRole === "student" ? "#2563eb" : "#e2e8f0"}`,
+                backgroundColor: hoveredRole === "student" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
+                border: `2px solid ${hoveredRole === "student" ? "#60a5fa" : "rgba(255,255,255,0.1)"}`,
+                backdropFilter: "blur(10px)",
                 borderRadius: 14, padding: "20px 20px",
                 cursor: "pointer", transition: "all 0.2s ease",
-                boxShadow: hoveredRole === "student" ? "0 8px 24px rgba(37,99,235,0.1)" : "0 1px 4px rgba(0,0,0,0.04)",
+                boxShadow: hoveredRole === "student" ? "0 8px 24px rgba(0,0,0,0.2)" : "0 1px 4px rgba(0,0,0,0.1)",
                 display: "flex", alignItems: "center", gap: 16
               }}
             >
               <div style={{
                 width: 48, height: 48, borderRadius: 12,
-                backgroundColor: hoveredRole === "student" ? "#2563eb" : "#f1f5f9",
+                backgroundColor: hoveredRole === "student" ? "#2563eb" : "rgba(255,255,255,0.1)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 flexShrink: 0, transition: "all 0.2s", fontSize: 22
               }}>
                 👨‍🎓
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ color: "#0f172a", fontWeight: 600, fontSize: 15, margin: 0 }}>
+                <p style={{ color: "white", fontWeight: 600, fontSize: 15, margin: 0 }}>
                   Student
                 </p>
-                <p style={{ color: "#94a3b8", fontSize: 12, margin: 0, marginTop: 2 }}>
+                <p style={{ color: "#bfdbfe", fontSize: 12, margin: 0, marginTop: 2 }}>
                   Access your learning dashboard
                 </p>
               </div>
               <span style={{
-                color: hoveredRole === "student" ? "#2563eb" : "#cbd5e1",
+                color: hoveredRole === "student" ? "#93c5fd" : "rgba(255,255,255,0.3)",
                 fontSize: 18, transition: "color 0.2s"
               }}>→</span>
             </div>
@@ -245,17 +248,18 @@ export default function LandingPage() {
               onMouseEnter={() => setHoveredRole("admin")}
               onMouseLeave={() => setHoveredRole(null)}
               style={{
-                backgroundColor: hoveredRole === "admin" ? "#0f172a" : "white",
-                border: `2px solid ${hoveredRole === "admin" ? "#0f172a" : "#e2e8f0"}`,
+                backgroundColor: hoveredRole === "admin" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
+                border: `2px solid ${hoveredRole === "admin" ? "#60a5fa" : "rgba(255,255,255,0.1)"}`,
+                backdropFilter: "blur(10px)",
                 borderRadius: 14, padding: "20px 20px",
                 cursor: "pointer", transition: "all 0.2s ease",
-                boxShadow: hoveredRole === "admin" ? "0 8px 24px rgba(0,0,0,0.15)" : "0 1px 4px rgba(0,0,0,0.04)",
+                boxShadow: hoveredRole === "admin" ? "0 8px 24px rgba(0,0,0,0.2)" : "0 1px 4px rgba(0,0,0,0.1)",
                 display: "flex", alignItems: "center", gap: 16
               }}
             >
               <div style={{
                 width: 48, height: 48, borderRadius: 12,
-                backgroundColor: hoveredRole === "admin" ? "#1e293b" : "#f1f5f9",
+                backgroundColor: hoveredRole === "admin" ? "#2563eb" : "rgba(255,255,255,0.1)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 flexShrink: 0, transition: "all 0.2s", fontSize: 22
               }}>
@@ -263,20 +267,20 @@ export default function LandingPage() {
               </div>
               <div style={{ flex: 1 }}>
                 <p style={{
-                  color: hoveredRole === "admin" ? "white" : "#0f172a",
+                  color: "white",
                   fontWeight: 600, fontSize: 15, margin: 0
                 }}>
                   Administrator
                 </p>
                 <p style={{
-                  color: hoveredRole === "admin" ? "#64748b" : "#94a3b8",
+                  color: "#bfdbfe",
                   fontSize: 12, margin: 0, marginTop: 2
                 }}>
                   Manage students and analytics
                 </p>
               </div>
               <span style={{
-                color: hoveredRole === "admin" ? "#64748b" : "#cbd5e1",
+                color: hoveredRole === "admin" ? "#93c5fd" : "rgba(255,255,255,0.3)",
                 fontSize: 18, transition: "color 0.2s"
               }}>→</span>
             </div>
@@ -285,7 +289,7 @@ export default function LandingPage() {
 
           {/* Footer note */}
           <p style={{
-            textAlign: "center", color: "#cbd5e1",
+            textAlign: "center", color: "#94a3b8",
             fontSize: 12, marginTop: 32
           }}>
             Powered by AI · Adaptive Learning Technology
