@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from agents.content_agent import generate_content
 from agents.explain_agent import generate_explanation, generate_paragraph_explanations
-from agents.quiz_agent import generate_quiz, evaluate_answers
+from agents.quiz_agent import generate_quiz, evaluate_answers, get_pooled_quiz
 from agents.adaptation_agent import decide_next_step
 from agents.student_agent import get_level
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +24,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection, curriculum_topics_collection
+from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection, curriculum_topics_collection, explain_cache_collection
 from services.email_service import send_verification_email, verify_token
 from models.User import User
 from auth.security import hash_password
@@ -238,7 +238,7 @@ async def align_audio(data: AlignRequest):
 def pre_quiz(subject: str, lesson: str, topic: str):
     print(f"Received pre-quiz request for {subject} - {lesson} - {topic}")
     try:
-        quiz = generate_quiz(subject, lesson, topic, "Beginner", "pre")
+        quiz = get_pooled_quiz(subject, lesson, topic, "Beginner", "pre")
         return {"quiz": quiz}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -283,7 +283,7 @@ async def submit_pre_quiz(data: QuizSubmission):
 @app.get("/post-quiz/")
 def post_quiz(subject: str, lesson: str, topic: str, level: str):
     try:
-        quiz = generate_quiz(subject, lesson, topic, level, "post")
+        quiz = get_pooled_quiz(subject, lesson, topic, level, "post")
         return {"quiz": quiz}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -431,16 +431,44 @@ def practice_quiz_results(student_id: str, subject: str = None, lesson: str = No
 
 @app.post("/explain-content/")
 def explain_content_route(data: dict):
+    import hashlib
+    import datetime as _dt
+
     content = data.get("content", "")
     paragraphs = data.get("paragraphs", [])
     if not content:
         raise HTTPException(status_code=400, detail="content is required")
+
+    # Same generated content (from the content_cache in content_agent.py, or
+    # coincidentally identical across students) shouldn't pay for a second
+    # LLM round-trip just to re-explain it. Keyed by a hash of the exact
+    # input rather than subject/lesson/topic/level, since this endpoint
+    # doesn't receive those — the content itself is what's actually reused.
+    cache_input = json.dumps({"content": content, "paragraphs": paragraphs}, ensure_ascii=False, sort_keys=True)
+    content_hash = hashlib.sha256(cache_input.encode("utf-8")).hexdigest()
+    cached = explain_cache_collection.find_one({"content_hash": content_hash})
+    if cached:
+        return cached["result"]
+
     if paragraphs:
         explanation_parts, explained = generate_paragraph_explanations(paragraphs)
         explanation = "\n\n".join(explanation_parts)
-        return {"explanation": explanation, "explanationParts": explanation_parts, "explained": explained}
-    explanation, explained = generate_explanation(content)
-    return {"explanation": explanation, "explained": explained}
+        result = {"explanation": explanation, "explanationParts": explanation_parts, "explained": explained}
+    else:
+        explanation, explained = generate_explanation(content)
+        result = {"explanation": explanation, "explained": explained}
+
+    # Only cache genuine successful explanations — never the raw-content
+    # fallback (explained: False) — so a transient failure doesn't get
+    # served as the permanent "explanation" for this content.
+    if result.get("explained"):
+        explain_cache_collection.update_one(
+            {"content_hash": content_hash},
+            {"$set": {"content_hash": content_hash, "result": result, "created_at": _dt.datetime.utcnow()}},
+            upsert=True,
+        )
+
+    return result
 
 
 @app.post("/generate-tts/")

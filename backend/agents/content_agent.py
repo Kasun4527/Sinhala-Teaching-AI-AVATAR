@@ -2,7 +2,9 @@ import json
 import os
 import re
 import requests
+from datetime import datetime
 from services.retriever import get_relevant_context
+from db import content_cache_collection
 
 FINETUNED_MODEL_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
 
@@ -85,6 +87,23 @@ _HALLUCINATED_IMAGE_REF = re.compile(
 def _strip_hallucinated_image_refs(text: str) -> str:
     return _HALLUCINATED_IMAGE_REF.sub('', text).strip()
 
+
+# The model frequently emits numbered list items 2+ inline within the same
+# line instead of starting each on its own line (item 1 is often unnumbered,
+# or marked with a stray "*" instead of "1."). The frontend only splits
+# paragraphs on real line breaks — it has no Markdown/list parser — so a list
+# with no line breaks between its items renders as one run-on paragraph
+# instead of a list. This inserts a line break before every embedded "N. "
+# marker that isn't already at the start of a line. The `\.\s+` (period
+# followed by whitespace) requirement keeps this from matching decimals like
+# "3.5 seconds", which have no space after the period.
+_INLINE_LIST_ITEM = re.compile(r'(?<!\n)\s+(\d{1,2}\.)\s+')
+
+
+def _normalize_inline_numbered_lists(text: str) -> str:
+    return _INLINE_LIST_ITEM.sub(lambda m: f"\n{m.group(1)} ", text)
+
+
 # Base instruction text matches the fine-tuning dataset exactly — the model was
 # trained on these three fixed instructions, one per mastery level. The
 # language-purity clause is appended on top of that (not part of the original
@@ -128,6 +147,19 @@ def _group_paragraphs_for_rewrite(paragraphs: list) -> list:
 
 
 def generate_content(subject, lesson, topic, level):
+
+    # Content only ever varies by (subject, lesson, topic, level) — not by
+    # student — so a different student landing on a combination that's
+    # already been generated can reuse it instead of triggering another LLM
+    # call. Only successful, fully-rewritten generations are cached (see the
+    # cache-write below) — fallback/degraded outputs are deliberately never
+    # cached so a transient model failure doesn't get "stuck" as the answer
+    # for everyone.
+    cache_key = {"subject": subject, "lesson": lesson, "topic": topic, "level": level}
+    cached = content_cache_collection.find_one(cache_key)
+    if cached:
+        print(f"[DEBUG] Content cache hit for {cache_key}")
+        return cached["content"]
 
     context = get_relevant_context(subject, lesson, topic, k=4, max_length=None)
 
@@ -196,9 +228,21 @@ def generate_content(subject, lesson, topic, level):
             if _has_foreign_script(answer):
                 print(f"[WARNING] Dropping garbled generation (foreign script detected) for chunk {text_i}")
             answer = g["clean_input"]
+        answer = _normalize_inline_numbered_lists(answer)
         if g["image_tags"]:
             answer = f"{answer}\n\n{chr(10).join(g['image_tags'])}"
         blocks.append(answer)
         text_i += 1
 
-    return "\n\n".join(blocks)
+    final_content = "\n\n".join(blocks)
+
+    # Cache only on this success path — never the raw-context/exception
+    # fallbacks above — so a bad generation doesn't permanently poison the
+    # cache for every future student who hits this same combination.
+    content_cache_collection.update_one(
+        cache_key,
+        {"$set": {**cache_key, "content": final_content, "created_at": datetime.utcnow()}},
+        upsert=True,
+    )
+
+    return final_content
