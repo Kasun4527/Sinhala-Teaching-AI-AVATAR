@@ -3,7 +3,9 @@ import os
 import re
 import random
 import requests
+from datetime import datetime
 from services.retriever import get_relevant_context
+from db import quiz_pool_collection
 
 
 # Sinhala Unicode block — used to tell genuine Sinhala content apart from
@@ -439,3 +441,35 @@ def evaluate_answers(student_answers, correct_answers):
         "score": percentage,
         "level": level
     }
+
+
+# =========================
+# POOLED QUIZ CACHE (pre/post-quiz only — practice quizzes are generated
+# from a specific student's saved content via context=, and must NOT go
+# through this shared pool)
+# =========================
+QUIZ_POOL_SIZE = 5
+
+
+def get_pooled_quiz(subject, lesson, topic, level, quiz_type, pool_size=QUIZ_POOL_SIZE):
+    """Serve a quiz for (subject, lesson, topic, level, quiz_type) from a
+    small shared pool instead of generating fresh on every request. Once the
+    pool reaches `pool_size` variants, requests are served instantly from a
+    random existing one; until then, each request lazily generates and adds
+    one more variant to the pool. This trades some question variety (the
+    same ~5 variants repeat across students on a topic) for cutting most
+    requests down to a fast DB read instead of an LLM call."""
+    key = {"subject": subject, "lesson": lesson, "topic": topic, "level": level, "quiz_type": quiz_type}
+    existing = list(quiz_pool_collection.find(key))
+
+    if len(existing) >= pool_size:
+        print(f"[DEBUG] Quiz pool hit for {key} ({len(existing)}/{pool_size} variants)")
+        return random.choice(existing)["quiz"]
+
+    print(f"[DEBUG] Quiz pool miss for {key} ({len(existing)}/{pool_size} variants) — generating")
+    quiz = generate_quiz(subject, lesson, topic, level, quiz_type)
+    # Don't grow the pool with a failed/empty generation — just return it
+    # as-is for this request without persisting it as a reusable variant.
+    if quiz.get("questions"):
+        quiz_pool_collection.insert_one({**key, "quiz": quiz, "created_at": datetime.utcnow()})
+    return quiz
