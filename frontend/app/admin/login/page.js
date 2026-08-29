@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { loginUser, getErrorMessage } from "@/services/api";
-import { loginUser } from "@/services/api";
 
 function ParticleNetwork({ color }) {
   const canvasRef = useRef(null);

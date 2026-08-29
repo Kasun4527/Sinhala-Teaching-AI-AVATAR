@@ -16,6 +16,14 @@
       "cwd": "D:\\UOR-FOE\\Semester 7\\Undergraduate Project\\Sinhala-Teaching-AI-AVATAR\\Sinhala-Teaching-AI-AVATAR\\backend",
       "port": 8000,
       "autoPort": false
+    },
+    {
+      "name": "avatar-mobile",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web"],
+      "cwd": "D:\\UOR-FOE\\Semester 7\\Undergraduate Project\\Sinhala-Teaching-AI-AVATAR\\Sinhala-Teaching-AI-AVATAR\\Avatar Mobile frontend",
+      "port": 8081,
+      "autoPort": false
     }
   ]
 }
