@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { loginUser } from "@/services/api";
+import { loginUser, getErrorMessage } from "@/services/api";
 
 function ParticleNetwork({ color }) {
   const canvasRef = useRef(null);
@@ -98,9 +98,12 @@ export default function LoginPage() {
       else localStorage.removeItem("teacher_id");
       router.push("/dashboard");
     } catch (err) {
-      const detail = err?.response?.data?.detail || "Login failed";
-      if (err?.response?.status === 403) { setUnverified(true); }
-      else { setError(detail); }
+      const detail = getErrorMessage(err, "Login failed");
+      if (err?.response?.status === 403) {
+        setUnverified(true);
+      } else {
+        setError(detail);
+      }
     } finally {
       setLoading(false);
     }

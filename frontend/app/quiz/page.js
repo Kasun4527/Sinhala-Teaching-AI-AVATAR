@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
-import { getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer, getPracticeQuiz, submitPracticeQuiz } from "@/services/api";
+import { getErrorMessage, getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer, getPracticeQuiz, submitPracticeQuiz } from "@/services/api";
 
 const NAVY = "#0f172a";
 
@@ -150,13 +150,13 @@ function QuizPageContent() {
             : await getPreQuiz(subject, lesson, topic);
         const data = res?.data || {};
         const generatedQuiz = data.quiz || data || { questions: [] };
-        if (data?.quiz?.error) setError(data.quiz.error);
+        if (data?.quiz?.error) setError(getErrorMessage(data.quiz.error, "Quiz generator returned an error."));
         if (!generatedQuiz?.questions?.length && !generatedQuiz?.error)
           setError("Quiz generator returned no questions.");
         setQuiz(generatedQuiz);
         setAnswers([]);
       } catch (err) {
-        setError(err?.response?.data?.detail || err?.message || "Quiz generation failed.");
+        setError(getErrorMessage(err, "Quiz generation failed."));
         setQuiz({ questions: [] });
       } finally {
         setLoading(false);

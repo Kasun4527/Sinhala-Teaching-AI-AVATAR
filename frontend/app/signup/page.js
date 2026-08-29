@@ -51,7 +51,7 @@ function ParticleNetwork({ color }) {
   }, [color]);
   return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
 }
-import { signupUser } from "@/services/api";
+import { signupUser, getErrorMessage } from "@/services/api";
 
 const PASSWORD_RULES = [
   { id: "len",     label: "At least 8 characters",       test: (p) => p.length >= 8 },
@@ -86,7 +86,7 @@ export default function SignupPage() {
       await signupUser({ ...rest, teacher_code: teacherCode.trim() || null, role: "student" });
       setDone(true);
     } catch (err) {
-      setError(err?.response?.data?.detail || "Signup failed");
+      setError(getErrorMessage(err, "Signup failed"));
     } finally {
       setLoading(false);
     }

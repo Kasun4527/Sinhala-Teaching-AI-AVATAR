@@ -1,24 +1,133 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* These resets must live in @layer base -- Tailwind v4 utilities are
+   emitted in a higher-priority CSS cascade layer, so an unlayered star
+   selector setting padding to 0 here would silently beat every padding,
+   gap and margin utility class in the app regardless of source order
+   (this is what was happening: colors, radius and fonts worked, but
+   every spacing utility did not). */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: #f8fafc;
+  }
 }
 
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  overflow-x: hidden;
+/* ---------------------------------------------------------------------
+ * "AI Guru" design system — ported from Lovable (frontend/styles.css /
+ * frontend/routes/index.tsx). Class names match Lovable's exactly
+ * (bg-background, text-physics, surface-card, font-display, …) so the
+ * landing page JSX can be used almost verbatim. Only the underlying
+ * token VALUES are scoped to `.theme-aiguru` (the landing page's root
+ * element) rather than `:root`/`body`, so this never touches the
+ * site-wide theme used by other routes (dashboard, login, quiz, etc.).
+ * --------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-physics: var(--subject-physics);
+  --color-chemistry: var(--subject-chemistry);
+  --color-biology: var(--subject-biology);
+  --color-maths: var(--subject-maths);
+  --color-economics: var(--subject-economics);
+  --color-buddhism: var(--subject-buddhism);
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
-body {
-  font-family: 'Source Sans 3', sans-serif;
-  background: #f8fafc;
+.theme-aiguru {
+  --background: oklch(0.16 0.03 265);
+  --foreground: oklch(0.97 0.005 250);
+  --card: oklch(0.21 0.035 265);
+  --card-foreground: oklch(0.97 0.005 250);
+  --primary: oklch(0.62 0.19 258);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.26 0.04 265);
+  --secondary-foreground: oklch(0.97 0.005 250);
+  --muted: oklch(0.26 0.04 265);
+  --muted-foreground: oklch(0.72 0.03 258);
+  --accent: oklch(0.75 0.16 165);
+  --accent-foreground: oklch(0.18 0.03 265);
+  --border: oklch(1 0 0 / 12%);
+
+  --subject-physics: oklch(0.65 0.18 255);
+  --subject-chemistry: oklch(0.75 0.14 205);
+  --subject-biology: oklch(0.74 0.16 162);
+  --subject-maths: oklch(0.65 0.2 300);
+  --subject-economics: oklch(0.73 0.17 60);
+  --subject-buddhism: oklch(0.67 0.19 15);
+
+  --gradient-hero: linear-gradient(135deg, oklch(0.62 0.19 258), oklch(0.75 0.15 200), oklch(0.74 0.16 162));
+  --gradient-surface: linear-gradient(160deg, oklch(0.22 0.04 265 / 0.9), oklch(0.17 0.03 265 / 0.6));
+  --shadow-glow: 0 0 60px -12px oklch(0.62 0.19 258 / 0.55);
+  --shadow-elegant: 0 24px 60px -24px oklch(0.1 0.03 265 / 0.9);
+
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
-.font-display {
-  font-family: 'Playfair Display', serif;
+.theme-aiguru * {
+  border-color: var(--color-border);
+}
+
+.theme-aiguru h1,
+.theme-aiguru h2,
+.theme-aiguru h3,
+.theme-aiguru h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.75; }
+}
+
+@utility text-gradient {
+  background-image: var(--gradient-hero);
+  background-size: 200% 200%;
+  animation: gradient-x 8s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility surface-card {
+  background-image: var(--gradient-surface);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(16px);
+}
+
+@utility glow-ambient {
+  animation: glow-pulse 6s ease-in-out infinite;
 }

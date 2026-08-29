@@ -5,7 +5,7 @@
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "D:\\UOR\\7th sem\\FYP\\AI AVATAR\\adaptive-learning-ai\\frontend",
+      "cwd": "D:\\UOR-FOE\\Semester 7\\Undergraduate Project\\Sinhala-Teaching-AI-AVATAR\\Sinhala-Teaching-AI-AVATAR\\frontend",
       "port": 3000,
       "autoPort": false
     },
@@ -13,8 +13,16 @@
       "name": "backend",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "uvicorn", "main:app", "--reload", "--port", "8000"],
-      "cwd": "D:\\UOR\\7th sem\\FYP\\AI AVATAR\\adaptive-learning-ai\\backend",
+      "cwd": "D:\\UOR-FOE\\Semester 7\\Undergraduate Project\\Sinhala-Teaching-AI-AVATAR\\Sinhala-Teaching-AI-AVATAR\\backend",
       "port": 8000,
+      "autoPort": false
+    },
+    {
+      "name": "avatar-mobile",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web"],
+      "cwd": "D:\\UOR-FOE\\Semester 7\\Undergraduate Project\\Sinhala-Teaching-AI-AVATAR\\Sinhala-Teaching-AI-AVATAR\\Avatar Mobile frontend",
+      "port": 8081,
       "autoPort": false
     }
   ]

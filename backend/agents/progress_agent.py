@@ -115,6 +115,10 @@ def save_post_quiz_result(student_id, subject, lesson, topic, score,
     if bkt_level is not None:
         update_fields["bkt_level"] = bkt_level
 
+    # upsert=True: without a matching pre-quiz record for this exact
+    # student+subject+lesson+topic, update_one would otherwise match
+    # nothing and silently discard the post-quiz result — the student
+    # would see their score on screen but it would never be saved.
     student_progress_collection.update_one(
         {
             "student_id": student_id,
@@ -122,7 +126,8 @@ def save_post_quiz_result(student_id, subject, lesson, topic, score,
             "lesson": lesson,
             "topic": topic
         },
-        {"$set": update_fields}
+        {"$set": update_fields},
+        upsert=True
     )
 
     return {"topic_unlocked": unlocked}

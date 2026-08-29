@@ -508,7 +508,10 @@ def signup(user: User):
 
     user_dict = user.dict()
     user_dict["password"] = hash_password(user.password)
-    user_dict["is_verified"] = False
+    # Parents skip email verification entirely — there's no web verification
+    # flow surfaced to them, so requiring it would just permanently block
+    # mobile parent signup.
+    user_dict["is_verified"] = (user.role == "parent")
 
     teacher_code = user_dict.pop("teacher_code", None)
     if user.role == "student" and teacher_code:
@@ -516,15 +519,21 @@ def signup(user: User):
 
     users_collection.insert_one(user_dict)
 
-    try:
-        send_verification_email(user.email, user.name)
-    except Exception as e:
-        import traceback
-        print(f"[Signup] Email send failed: {e}")
-        traceback.print_exc()
-        # Don't block signup if email fails — user can request resend later
+    if user.role != "parent":
+        try:
+            send_verification_email(user.email, user.name)
+        except Exception as e:
+            import traceback
+            print(f"[Signup] Email send failed: {e}")
+            traceback.print_exc()
+            # Don't block signup if email fails — user can request resend later
 
-    return {"message": "Account created. Please check your email to verify your account."}
+    message = (
+        "Account created. You can log in now."
+        if user.role == "parent"
+        else "Account created. Please check your email to verify your account."
+    )
+    return {"message": message}
 
 
 @app.get("/auth/verify-email")
@@ -578,7 +587,9 @@ def login(data: dict):
     if not verify_password(data["password"], user["password"]):
         raise HTTPException(status_code=401, detail="Invalid password")
 
-    if not user.get("is_verified", False):
+    # Parents are exempt from email verification (see /auth/signup) — this
+    # also covers parent accounts created before that exemption existed.
+    if not user.get("is_verified", False) and user.get("role") != "parent":
         raise HTTPException(status_code=403, detail="Please verify your email before logging in. Check your inbox for the verification link.")
 
     token = jwt.encode(
@@ -640,6 +651,22 @@ def test_email_connection():
 def admin_get_students(teacher_id: str = None):
     students = get_all_students(teacher_id)
     return {"students": students}
+
+
+# ✅ Look up a single student's name by their own id — /admin/students only
+# returns students scoped to a teacher_id, with no by-id lookup mode. Used
+# by the mobile parent dashboard to resolve a student ID (entered manually
+# at parent signup, since there's no parent↔child link stored anywhere)
+# to a real name.
+@app.get("/admin/student-lookup")
+def admin_student_lookup(student_id: str):
+    try:
+        student = users_collection.find_one({"_id": ObjectId(student_id), "role": "student"})
+    except Exception:
+        student = None
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return {"name": student["name"], "email": student["email"]}
 
 
 # ✅ Get all subjects a student has activity in
