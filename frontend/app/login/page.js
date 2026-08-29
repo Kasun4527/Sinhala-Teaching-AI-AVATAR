@@ -25,7 +25,6 @@ function ParticleNetwork({ color }) {
     const draw = () => {
       ctx.clearRect(0, 0, W, H);
 
-      // Draw connecting lines
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
@@ -43,7 +42,6 @@ function ParticleNetwork({ color }) {
         }
       }
 
-      // Draw dots
       for (const p of particles) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -77,6 +75,86 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [unverified, setUnverified] = useState(false);
   const [resendStatus, setResendStatus] = useState(""); // "" | "sending" | "sent" | "error"
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailPlaceholder, setEmailPlaceholder] = useState("");
+  const [passwordPlaceholder, setPasswordPlaceholder] = useState("");
+
+  // Typewriter effect for the email placeholder
+  useEffect(() => {
+    const phrases = ["you@example.com", "student@school.edu", "learner@aiguru.lk", "name@domain.com"];
+    let currentIndex = 0;
+    let currentText = "";
+    let isDeleting = false;
+    let timeoutId;
+
+    const type = () => {
+      const fullText = phrases[currentIndex];
+      
+      if (isDeleting) {
+        currentText = fullText.substring(0, currentText.length - 1);
+      } else {
+        currentText = fullText.substring(0, currentText.length + 1);
+      }
+      
+      setEmailPlaceholder(currentText + (isDeleting ? "" : "|"));
+
+      let typingSpeed = isDeleting ? 40 : 120; // Type speed
+
+      if (!isDeleting && currentText === fullText) {
+        typingSpeed = 2000; // Pause when fully typed
+        isDeleting = true;
+        setEmailPlaceholder(currentText); // Remove cursor when paused
+      } else if (isDeleting && currentText === "") {
+        isDeleting = false;
+        currentIndex = (currentIndex + 1) % phrases.length;
+        typingSpeed = 500; // Pause before typing next phrase
+      }
+
+      timeoutId = setTimeout(type, typingSpeed);
+    };
+
+    timeoutId = setTimeout(type, 1000);
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Typewriter effect for the password placeholder
+  useEffect(() => {
+    const phrases = ["••••••••", "your secret password", "Enter password", "••••••••••"];
+    let currentIndex = 0;
+    let currentText = "";
+    let isDeleting = false;
+    let timeoutId;
+
+    const type = () => {
+      const fullText = phrases[currentIndex];
+      
+      if (isDeleting) {
+        currentText = fullText.substring(0, currentText.length - 1);
+      } else {
+        currentText = fullText.substring(0, currentText.length + 1);
+      }
+      
+      setPasswordPlaceholder(currentText + (isDeleting ? "" : "|"));
+
+      let typingSpeed = isDeleting ? 40 : 120; // Type speed
+
+      if (!isDeleting && currentText === fullText) {
+        typingSpeed = 2000; // Pause when fully typed
+        isDeleting = true;
+        setPasswordPlaceholder(currentText); // Remove cursor when paused
+      } else if (isDeleting && currentText === "") {
+        isDeleting = false;
+        currentIndex = (currentIndex + 1) % phrases.length;
+        typingSpeed = 500; // Pause before typing next phrase
+      }
+
+      timeoutId = setTimeout(type, typingSpeed);
+    };
+
+    // Stagger the start slightly so it doesn't type exactly at the same time as email
+    timeoutId = setTimeout(type, 1800);
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setUnverified(false); setError(""); };
 
@@ -122,11 +200,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ 
+      display: "flex", 
+      minHeight: "100vh", 
+      position: "relative",
+      fontFamily: "'Poppins', sans-serif",
+      background: "linear-gradient(to right, #020617 35%, #1e3a8a 85%, #1d4ed8 100%)",
+      overflow: "hidden"
+    }}>
 
-      {/* Left Dark Panel */}
+      {/* Left Panel */}
       <div style={{
-        width: "45%", backgroundColor: "#0f172a",
+        width: "45%",
         display: "flex", flexDirection: "column",
         justifyContent: "center", padding: "60px 48px"
       }}>
@@ -134,68 +219,98 @@ export default function LoginPage() {
           display: "flex", alignItems: "center", gap: 10, marginBottom: 64
         }}>
           <div style={{
-            backgroundColor: "#2563eb", width: 36, height: 36,
-            borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center"
+            background: "linear-gradient(135deg, #2563eb, #1d4ed8)", width: 36, height: 36,
+            borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 4px 12px rgba(37,99,235,0.4)"
           }}>
             <span style={{ color: "white", fontWeight: 700, fontSize: 12 }}>IDS</span>
           </div>
-          <span style={{ color: "white", fontWeight: 600, fontSize: 14 }}>IDS Platform</span>
+          <span style={{ color: "white", fontWeight: 600, fontSize: 14 }}>Intelligent Distance System</span>
         </div>
 
-        <p style={{ color: "#3b82f6", fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>
+        <p style={{ color: "#60a5fa", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>
           Student Portal
         </p>
         <h1 style={{
-          fontFamily: "'Playfair Display', serif",
+          fontFamily: "'Poppins', sans-serif",
           fontSize: 38, fontWeight: 700, color: "white",
           lineHeight: 1.2, marginBottom: 16
         }}>
           Continue Your Learning Journey
         </h1>
-        <p style={{ color: "#64748b", fontSize: 15, lineHeight: 1.6 }}>
+        <p style={{ color: "#94a3b8", fontSize: 15, lineHeight: 1.6 }}>
           Sign in to access your personalized lessons, quizzes, and progress tracking.
         </p>
       </div>
 
+      {/* Center Image Graphic */}
+      <div style={{
+        position: "absolute",
+        left: "45%", 
+        bottom: 0,
+        transform: "translateX(-50%)",
+        height: "85vh",
+        zIndex: 10,
+        pointerEvents: "none",
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+      }}>
+        <img 
+          src="/login_page.png" 
+          alt="Student Graphic" 
+          style={{ height: "100%", width: "auto", objectFit: "contain", objectPosition: "bottom" }} 
+        />
+      </div>
+
       {/* Right Form Panel */}
       <div style={{
-        flex: 1, backgroundColor: "#f8fafc",
+        flex: 1, 
         display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "48px", position: "relative", overflow: "hidden"
+        padding: "48px", position: "relative"
       }}>
-        <ParticleNetwork color="#2563eb" />
+        <ParticleNetwork color="#ffffff" />
 
-        <div style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
+        <div 
+          className="transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(37,99,235,0.15)]"
+          style={{ 
+          width: "100%", maxWidth: 400, position: "relative", zIndex: 1,
+          backgroundColor: "rgba(255,255,255,0.05)",
+          backdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: 20,
+          padding: "40px"
+        }}>
 
           <h2 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 28, fontWeight: 700, color: "#0f172a", marginBottom: 6
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: 28, fontWeight: 700, color: "white", marginBottom: 6
           }}>
             Welcome back
           </h2>
-          <p style={{ color: "#94a3b8", fontSize: 14, marginBottom: 32 }}>
+          <p style={{ color: "#bfdbfe", fontSize: 14, marginBottom: 32 }}>
             Sign in to your student account
           </p>
 
           {error && (
-            <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: 13, padding: "12px 16px", borderRadius: 10, marginBottom: 20 }}>
+            <div style={{ backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#fca5a5", fontSize: 13, padding: "12px 16px", borderRadius: 10, marginBottom: 20 }}>
               {error}
             </div>
           )}
 
           {unverified && (
-            <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
-              <p style={{ margin: "0 0 8px", color: "#92400e", fontSize: 13, fontWeight: 600 }}>Email not verified</p>
-              <p style={{ margin: "0 0 12px", color: "#78350f", fontSize: 13, lineHeight: 1.6 }}>
+            <div style={{ backgroundColor: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+              <p style={{ margin: "0 0 8px", color: "#fcd34d", fontSize: 13, fontWeight: 600 }}>Email not verified</p>
+              <p style={{ margin: "0 0 12px", color: "#fde68a", fontSize: 13, lineHeight: 1.6 }}>
                 Please check your inbox and click the verification link before logging in.
               </p>
               {resendStatus === "sent" ? (
-                <p style={{ margin: 0, color: "#16a34a", fontSize: 13, fontWeight: 500 }}>✓ Verification email resent — check your inbox.</p>
+                <p style={{ margin: 0, color: "#86efac", fontSize: 13, fontWeight: 500 }}>✓ Verification email resent — check your inbox.</p>
               ) : (
                 <button
                   onClick={handleResend}
                   disabled={resendStatus === "sending"}
-                  style={{ background: "none", border: "none", padding: 0, color: "#b45309", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+                  style={{ background: "none", border: "none", padding: 0, color: "#fbbf24", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
                 >
                   {resendStatus === "sending" ? "Sending…" : resendStatus === "error" ? "Failed — try again" : "Resend verification email"}
                 </button>
@@ -204,41 +319,52 @@ export default function LoginPage() {
           )}
 
           <div style={{ marginBottom: 20 }}>
-            <label style={{ color: "#475569", fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>
+            <label style={{ color: "#e2e8f0", fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>
               Email Address
             </label>
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              placeholder="you@example.com"
-              style={{
-                width: "100%", padding: "12px 16px",
-                border: "1.5px solid #e2e8f0", borderRadius: 10,
-                fontSize: 14, outline: "none", backgroundColor: "white",
-                color: "#0f172a", boxSizing: "border-box"
-              }}
-            />
+            <div className="relative group transition-all duration-300 focus-within:-translate-y-1 focus-within:scale-[1.02] focus-within:shadow-[0_10px_40px_rgba(59,130,246,0.2)] rounded-xl">
+              <input
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder={emailPlaceholder}
+                className="w-full px-4 py-3 border border-white/20 rounded-xl text-sm outline-none bg-white/10 text-white backdrop-blur-sm transition-all duration-300 focus:border-blue-400 focus:bg-white/20"
+              />
+            </div>
           </div>
 
           <div style={{ marginBottom: 28 }}>
-            <label style={{ color: "#475569", fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>
+            <label style={{ color: "#e2e8f0", fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>
               Password
             </label>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder="Enter your password"
-              style={{
-                width: "100%", padding: "12px 16px",
-                border: "1.5px solid #e2e8f0", borderRadius: 10,
-                fontSize: 14, outline: "none", backgroundColor: "white",
-                color: "#0f172a", boxSizing: "border-box"
-              }}
-            />
+            <div className="relative group transition-all duration-300 focus-within:-translate-y-1 focus-within:scale-[1.02] focus-within:shadow-[0_10px_40px_rgba(59,130,246,0.2)] rounded-xl">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder={passwordPlaceholder}
+                className="w-full px-4 py-3 border border-white/20 rounded-xl text-sm outline-none bg-white/10 text-white backdrop-blur-sm transition-all duration-300 focus:border-blue-400 focus:bg-white/20 pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <button
@@ -246,7 +372,7 @@ export default function LoginPage() {
             disabled={loading}
             style={{
               width: "100%", padding: "13px",
-              backgroundColor: loading ? "#93c5fd" : "#2563eb",
+              backgroundColor: loading ? "#93c5fd" : "#3b82f6",
               color: "white", border: "none", borderRadius: 10,
               fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
               transition: "background 0.2s"
@@ -259,7 +385,7 @@ export default function LoginPage() {
             Don't have an account?{" "}
             <span
               onClick={() => router.push("/signup")}
-              style={{ color: "#2563eb", cursor: "pointer", fontWeight: 500 }}
+              style={{ color: "#93c5fd", cursor: "pointer", fontWeight: 600 }}
             >
               Sign up
             </span>
@@ -268,7 +394,7 @@ export default function LoginPage() {
           <p style={{ textAlign: "center", marginTop: 12 }}>
             <span
               onClick={() => router.push("/")}
-              style={{ color: "#94a3b8", fontSize: 12, cursor: "pointer" }}
+              style={{ color: "#64748b", fontSize: 12, cursor: "pointer" }}
             >
               ← Back to home
             </span>
