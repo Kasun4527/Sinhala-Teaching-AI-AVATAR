@@ -10,7 +10,7 @@ function ParticleNetwork({ color }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    let W = canvas.width  = canvas.offsetWidth;
+    let W = canvas.width = canvas.offsetWidth;
     let H = canvas.height = canvas.offsetHeight;
 
     const CONNECT_DIST = 120;
@@ -89,13 +89,13 @@ export default function LoginPage() {
 
     const type = () => {
       const fullText = phrases[currentIndex];
-      
+
       if (isDeleting) {
         currentText = fullText.substring(0, currentText.length - 1);
       } else {
         currentText = fullText.substring(0, currentText.length + 1);
       }
-      
+
       setEmailPlaceholder(currentText + (isDeleting ? "" : "|"));
 
       let typingSpeed = isDeleting ? 40 : 120; // Type speed
@@ -127,13 +127,13 @@ export default function LoginPage() {
 
     const type = () => {
       const fullText = phrases[currentIndex];
-      
+
       if (isDeleting) {
         currentText = fullText.substring(0, currentText.length - 1);
       } else {
         currentText = fullText.substring(0, currentText.length + 1);
       }
-      
+
       setPasswordPlaceholder(currentText + (isDeleting ? "" : "|"));
 
       let typingSpeed = isDeleting ? 40 : 120; // Type speed
@@ -200,9 +200,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ 
-      display: "flex", 
-      minHeight: "100vh", 
+    <div style={{
+      display: "flex",
+      minHeight: "100vh",
       position: "relative",
       fontFamily: "'Poppins', sans-serif",
       background: "linear-gradient(to right, #020617 35%, #1e3a8a 85%, #1d4ed8 100%)",
@@ -246,41 +246,41 @@ export default function LoginPage() {
       {/* Center Image Graphic */}
       <div style={{
         position: "absolute",
-        left: "45%", 
+        left: "45%",
         bottom: 0,
         transform: "translateX(-50%)",
-        height: "85vh",
+        height: "80vh",
         zIndex: 10,
         pointerEvents: "none",
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
       }}>
-        <img 
-          src="/login_page.png" 
-          alt="Student Graphic" 
-          style={{ height: "100%", width: "auto", objectFit: "contain", objectPosition: "bottom" }} 
+        <img
+          src="/login_page.png"
+          alt="Student Graphic"
+          style={{ height: "100%", width: "auto", objectFit: "contain", objectPosition: "bottom" }}
         />
       </div>
 
       {/* Right Form Panel */}
       <div style={{
-        flex: 1, 
+        flex: 1,
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "48px", position: "relative"
       }}>
         <ParticleNetwork color="#ffffff" />
 
-        <div 
+        <div
           className="transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(37,99,235,0.15)]"
-          style={{ 
-          width: "100%", maxWidth: 400, position: "relative", zIndex: 1,
-          backgroundColor: "rgba(255,255,255,0.05)",
-          backdropFilter: "blur(10px)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: 20,
-          padding: "40px"
-        }}>
+          style={{
+            width: "100%", maxWidth: 400, position: "relative", zIndex: 1,
+            backgroundColor: "rgba(255,255,255,0.05)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 20,
+            padding: "40px"
+          }}>
 
           <h2 style={{
             fontFamily: "'Poppins', sans-serif",
