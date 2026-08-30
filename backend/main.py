@@ -734,6 +734,24 @@ def admin_get_students(teacher_id: str = None):
     return {"students": students}
 
 
+@app.get("/admin/safety-alerts")
+def admin_get_safety_alerts(teacher_id: str = None, limit: int = 50):
+    """Fetch recent safety-flag incidents for the teacher's admin dashboard.
+
+    If teacher_id is provided, only flags linked to that teacher's students
+    are returned. Otherwise, all flags are returned (for superadmin use).
+    """
+    from services.content_guard import get_safety_alerts
+    alerts = get_safety_alerts(teacher_id=teacher_id, limit=limit)
+    # Convert datetime objects to ISO strings for JSON serialization.
+    for a in alerts:
+        if "created_at" in a and a["created_at"]:
+            a["created_at"] = a["created_at"].isoformat()
+        if "reviewed_at" in a and a["reviewed_at"]:
+            a["reviewed_at"] = a["reviewed_at"].isoformat()
+    return {"alerts": alerts, "count": len(alerts)}
+
+
 # ✅ Look up a single student's name by their own id — /admin/students only
 # returns students scoped to a teacher_id, with no by-id lookup mode. Used
 # by the mobile parent dashboard to resolve a student ID (entered manually

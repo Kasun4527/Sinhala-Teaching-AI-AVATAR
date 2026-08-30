@@ -2,6 +2,7 @@ import json
 import os
 import re
 import requests
+from services.content_guard import check_output
 
 FINETUNED_MODEL_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
 
@@ -49,9 +50,16 @@ def generate_paragraph_explanations(paragraphs: list) -> tuple[list, bool]:
     if not cleaned:
         return [], True
 
+    # Layer 1 — Safety guardrail appended to every explanation instruction.
+    safety_instruction = (
+        "පහත ඡේදය පැහැදිලි කරන්න. "
+        "ආරක්ෂිත නීති: ලිංගික, ප්‍රචණ්ඩකාරී, ස්වයං-හානිකර, මත්ද්‍රව්‍ය, "
+        "හෝ වයස්ගත නොවන අන්තර්ගතයක් කිසිසේත් ජනනය නොකරන්න. "
+        "ඔබ අධ්‍යාපනික ගුරුවරයෙකි — පාසල් සිසුන්ට සුදුසු අන්තර්ගතය පමණක් ලබා දෙන්න."
+    )
     payload = {
         "items": [
-            {"instruction": "පහත ඡේදය පැහැදිලි කරන්න.", "input": content}
+            {"instruction": safety_instruction, "input": content}
             for content in cleaned
         ],
         "max_new_tokens": 5000,
@@ -61,10 +69,17 @@ def generate_paragraph_explanations(paragraphs: list) -> tuple[list, bool]:
         data = _post_with_retry(payload, timeout=180)
         answers = data.get("answers", [])
         print(f"[ExplainAgent] batch of {len(cleaned)} explanation(s) returned")
-        return [
-            answers[i].strip() if i < len(answers) and answers[i].strip() else cleaned[i]
-            for i in range(len(cleaned))
-        ], True
+        # Layer 3a — Output safety filter on each explanation.
+        safe_answers = []
+        for i in range(len(cleaned)):
+            answer = answers[i].strip() if i < len(answers) and answers[i].strip() else cleaned[i]
+            safety = check_output(answer, context={"agent": "explain_agent"})
+            if safety["safe"]:
+                safe_answers.append(answer)
+            else:
+                print(f"[ContentGuard] ⚠️ Explanation {i} flagged — using original")
+                safe_answers.append(cleaned[i])
+        return safe_answers, True
     except Exception as e:
         print(f"[ExplainAgent] batch model call failed after retry: {e} — returning original content for all pairs")
         return cleaned, False
@@ -76,8 +91,15 @@ def generate_explanation(content: str) -> tuple[str, bool]:
     generate_paragraph_explanations() for what explained=False means."""
     clean_content = _clean(content)
 
+    # Layer 1 — Safety guardrail appended to explanation instruction.
+    safety_instruction = (
+        "පහත ඡේදය පැහැදිලි කරන්න. "
+        "ආරක්ෂිත නීති: ලිංගික, ප්‍රචණ්ඩකාරී, ස්වයං-හානිකර, මත්ද්‍රව්‍ය, "
+        "හෝ වයස්ගත නොවන අන්තර්ගතයක් කිසිසේත් ජනනය නොකරන්න. "
+        "ඔබ අධ්‍යාපනික ගුරුවරයෙකි — පාසල් සිසුන්ට සුදුසු අන්තර්ගතය පමණක් ලබා දෙන්න."
+    )
     payload = {
-        "instruction": "පහත ඡේදය පැහැදිලි කරන්න.",
+        "instruction": safety_instruction,
         "input": clean_content,
         "max_new_tokens": 5000,
     }
@@ -87,6 +109,11 @@ def generate_explanation(content: str) -> tuple[str, bool]:
         explanation = data.get("answer", "") or data.get("response", "")
         print(f"[ExplainAgent] explanation length: {len(explanation)} chars")
         if explanation.strip():
+            # Layer 3a — Output safety filter on single explanation.
+            safety = check_output(explanation.strip(), context={"agent": "explain_agent"})
+            if not safety["safe"]:
+                print(f"[ContentGuard] ⚠️ Single explanation flagged — returning original")
+                return clean_content, False
             return explanation.strip(), True
         return clean_content, False
     except Exception as e:
