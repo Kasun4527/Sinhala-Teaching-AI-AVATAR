@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
+import QuizReview from "@/components/QuizReview";
 
 function FloatingPattern({ color }) {
   const canvasRef = useRef(null);
@@ -122,8 +123,19 @@ function ResultPageContent() {
   const isPost  = type === "post";
   const isPractice = type === "practice";
 
+  const [reviewData, setReviewData] = useState(null);
+
   useEffect(() => {
     if (!localStorage.getItem("token")) router.push("/login");
+
+    const dataStr = localStorage.getItem("quiz_review_data");
+    if (dataStr) {
+      try {
+        setReviewData(JSON.parse(dataStr));
+      } catch (e) {
+        console.error("Failed to parse quiz review data");
+      }
+    }
   }, []);
 
   const cfg    = SUBJECT_CFG[subject] || DEFAULT_CFG;
@@ -385,6 +397,9 @@ function ResultPageContent() {
               </button>
             </div>
 
+            {/* Detailed Quiz Review Section */}
+            {reviewData && <QuizReview data={reviewData} cfg={cfg} />}
+            
           </div>
         </div>
       </main>
