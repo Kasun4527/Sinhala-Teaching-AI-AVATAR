@@ -121,7 +121,7 @@ export default function HomePage() {
             <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[image:var(--gradient-hero)] shadow-[var(--shadow-glow)]">
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </span>
-            <span className="font-display text-lg font-bold tracking-tight">AI Guru</span>
+            <span className="font-display text-lg font-bold tracking-tight">SUBHASA</span>
           </a>
 
           <div className="hidden items-center md:flex">
@@ -327,7 +327,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <p className="text-xs font-semibold tracking-[0.3em] text-accent">THE PROCESS</p>
           <h2 className="mt-4 text-4xl font-bold sm:text-5xl">
-            How <span className="text-gradient">AI Guru</span> Works
+            How <span className="text-gradient">Subhasa</span> Works
           </h2>
 
           <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -384,7 +384,7 @@ export default function HomePage() {
           <div className="glow-ambient pointer-events-none absolute -bottom-24 right-10 h-72 w-72 rounded-full bg-accent/30 blur-[120px]" />
           <h2 className="relative text-4xl font-bold sm:text-5xl">Ready to Learn Smarter?</h2>
           <p className="relative mx-auto mt-4 max-w-xl text-muted-foreground">
-            Join AI Guru today. Let your personal Avatar teacher guide you to mastery — in Sinhala,
+            Join Subhasa today. Let your personal Avatar teacher guide you to mastery — in Sinhala,
             at your perfect pace.
           </p>
           <div className="relative mt-10 flex flex-wrap justify-center gap-4">
@@ -413,7 +413,7 @@ export default function HomePage() {
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[image:var(--gradient-hero)]">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
               </span>
-              <span className="font-display text-lg font-bold">AI Guru</span>
+              <span className="font-display text-lg font-bold">Subhasa</span>
             </div>
             <p className="mt-4 text-sm text-muted-foreground">
               Sri Lanka&apos;s first AI Avatar teaching platform. Revolutionizing Sinhala medium
@@ -421,7 +421,7 @@ export default function HomePage() {
             </p>
           </div>
           <div className="text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} AI Guru. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Subhasa. All rights reserved.</p>
             <p className="mt-2 flex items-center gap-2">
               <BrainCircuit className="h-4 w-4 text-accent" />
               Built with Hybrid PC-BKT + LSTM Engine

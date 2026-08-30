@@ -11,41 +11,7 @@ const ENGAGEMENT_SERVER = process.env.NEXT_PUBLIC_ENGAGEMENT_URL || "http://loca
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 function FloatingPattern({ color }) {
-  const canvasRef = useRef(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const chars = "0123456789ABCDEFabcdefijklmnopqrstuvwxyz+-=><[]{}|/\\".split("");
-    let W = canvas.width  = canvas.offsetWidth;
-    let H = canvas.height = canvas.offsetHeight;
-    const particles = Array.from({ length: 120 }, () => ({
-      x: Math.random() * W, y: Math.random() * H,
-      char: chars[Math.floor(Math.random() * chars.length)],
-      size: 9 + Math.random() * 8,
-      speed: 0.18 + Math.random() * 0.32,
-      opacity: 0.85 + Math.random() * 0.35,
-      drift: (Math.random() - 0.5) * 0.15,
-    }));
-    let raf;
-    const draw = () => {
-      ctx.clearRect(0, 0, W, H);
-      for (const p of particles) {
-        ctx.font = `${p.size}px monospace`;
-        ctx.fillStyle = color + Math.round(p.opacity * 255).toString(16).padStart(2, "0");
-        ctx.fillText(p.char, p.x, p.y);
-        p.y += p.speed; p.x += p.drift;
-        if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; p.char = chars[Math.floor(Math.random() * chars.length)]; }
-        if (p.x < -20 || p.x > W + 20) p.x = Math.random() * W;
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-    const onResize = () => { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; };
-    window.addEventListener("resize", onResize);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
-  }, [color]);
-  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
+  return null;
 }
 
 function LessonPageContent() {
@@ -264,21 +230,21 @@ function LessonPageContent() {
   };
 
   const SUBJECT_CFG = {
-    Physics:              { hue: "#2563eb", dark: "#1e3a8a" },
-    Chemistry:            { hue: "#0891b2", dark: "#164e63" },
-    Biology:              { hue: "#059669", dark: "#064e3b" },
-    Maths:                { hue: "#7c3aed", dark: "#3b0764" },
-    "ආර්ථික විද්‍යාව":   { hue: "#b45309", dark: "#78350f" },
-    "බුද්ධ ධර්මය":       { hue: "#c026d3", dark: "#701a75" },
+    Physics: { hue: "#2563eb", dark: "#1e3a8a" },
+    Chemistry: { hue: "#0891b2", dark: "#164e63" },
+    Biology: { hue: "#059669", dark: "#064e3b" },
+    Maths: { hue: "#7c3aed", dark: "#3b0764" },
+    "ආර්ථික විද්‍යාව": { hue: "#b45309", dark: "#78350f" },
+    "බුද්ධ ධර්මය": { hue: "#c026d3", dark: "#701a75" },
   };
-  const cfg    = SUBJECT_CFG[subject] || { hue: "#2563eb", dark: "#1e3a8a" };
+  const cfg = SUBJECT_CFG[subject] || { hue: "#2563eb", dark: "#1e3a8a" };
   const accent = cfg.hue;
-  const NAVY   = "#0f172a";
+  const NAVY = "#0f172a";
 
   const levelConfig = {
-    Advanced:     { bg: "#f5f3ff", color: "#7c3aed", border: "#c4b5fd" },
+    Advanced: { bg: "#f5f3ff", color: "#7c3aed", border: "#c4b5fd" },
     Intermediate: { bg: "#fffbeb", color: "#d97706", border: "#fde68a" },
-    Beginner:     { bg: "#f0fdf4", color: "#16a34a", border: "#6ee7b7" },
+    Beginner: { bg: "#f0fdf4", color: "#16a34a", border: "#6ee7b7" },
   };
   const lc = levelConfig[level] || levelConfig["Beginner"];
 
@@ -358,7 +324,7 @@ function LessonPageContent() {
             osc.start(ctx.currentTime + delay);
             osc.stop(ctx.currentTime + delay + 0.5);
           });
-        } catch (_) {}
+        } catch (_) { }
         setTimeout(() => {
           alertCooldownRef.current = false;
         }, 30000); // 30s cooldown
@@ -398,7 +364,7 @@ function LessonPageContent() {
         video.srcObject = stream;
         video.muted = true;
         video.playsInline = true;
-        video.play().catch(() => {});
+        video.play().catch(() => { });
         engVideoRef.current = video;
         engIntervalRef.current = setInterval(captureAndSend, FRAME_INTERVAL_MS);
       })
@@ -567,23 +533,29 @@ function LessonPageContent() {
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'Source Sans 3', sans-serif" }}>
       <Sidebar subject={subject} />
 
-      <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", height: "100vh", background: "#f8fafc" }}>
+      <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", height: "100vh", background: "linear-gradient(to right, #020617 0%, #0f172a 55%, #1e3a8a 85%, #1d4ed8 100%)" }}>
 
         {/* ── HERO ── */}
         <div style={{
           position: "relative", overflow: "hidden", flexShrink: 0,
-          background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark} 55%, ${accent} 100%)`,
+          background: "transparent",
           padding: "36px 52px 32px",
         }}>
           {/* Blueprint grid — matches dashboard */}
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+          <div style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
             backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
-            backgroundSize: "48px 48px" }} />
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+            backgroundSize: "48px 48px"
+          }} />
+          <div style={{
+            position: "absolute", inset: 0, pointerEvents: "none",
             backgroundImage: "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
-            backgroundSize: "12px 12px" }} />
-          <div style={{ position: "absolute", top: -60, right: -40, width: 280, height: 280, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(147,197,253,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
+            backgroundSize: "12px 12px"
+          }} />
+          <div style={{
+            position: "absolute", top: -60, right: -40, width: 280, height: 280, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(147,197,253,0.18) 0%, transparent 70%)", pointerEvents: "none"
+          }} />
 
           <div style={{ position: "relative" }}>
             {/* Breadcrumb */}
@@ -638,8 +610,8 @@ function LessonPageContent() {
                 {(() => {
                   const scoreColor = engScore === null ? "#94a3b8"
                     : engScore >= 75 ? "#22c55e"
-                    : engScore >= 50 ? "#f59e0b"
-                    : "#ef4444";
+                      : engScore >= 50 ? "#f59e0b"
+                        : "#ef4444";
                   return (
                     <div style={{
                       display: "flex", alignItems: "center", gap: 8,
@@ -709,11 +681,15 @@ function LessonPageContent() {
                 position: "relative", overflow: "hidden",
               }}>
                 {/* faint dot grid inside header */}
-                <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+                <div style={{
+                  position: "absolute", inset: 0, pointerEvents: "none",
                   backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
-                  backgroundSize: "22px 22px" }} />
-                <div style={{ position: "absolute", top: -40, right: -30, width: 160, height: 160, borderRadius: "50%",
-                  background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+                  backgroundSize: "22px 22px"
+                }} />
+                <div style={{
+                  position: "absolute", top: -40, right: -30, width: 160, height: 160, borderRadius: "50%",
+                  background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)", pointerEvents: "none"
+                }} />
 
                 <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -726,7 +702,7 @@ function LessonPageContent() {
                       flexShrink: 0, backdropFilter: "blur(4px)",
                     }}>
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M4 5h12M4 9h8M4 13h10M4 17h6" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                        <path d="M4 5h12M4 9h8M4 13h10M4 17h6" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
                       </svg>
                     </div>
                     <div>
@@ -804,7 +780,7 @@ function LessonPageContent() {
                   >
                     Finish &amp; Take Quiz
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
                 </div>
@@ -837,7 +813,7 @@ function LessonPageContent() {
                   >
                     Take a Practice Quiz
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M2.5 7h9M7 3l4 4-4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
                 </div>
@@ -857,7 +833,7 @@ function LessonPageContent() {
           recog.lang = "si-LK";
           recog.interimResults = false;
           recog.onstart = () => setListening(true);
-          recog.onend   = () => setListening(false);
+          recog.onend = () => setListening(false);
           recog.onresult = (e) => {
             const text = e.results[0][0].transcript;
             setQuestion(text);
@@ -914,8 +890,8 @@ function LessonPageContent() {
                       boxShadow: `0 4px 10px ${accent}40`,
                     }}>
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M8 2a5 5 0 0 1 5 5c0 2.1-1.3 3.9-3.1 4.7L8 14l-1.9-2.3A5 5 0 0 1 3 7a5 5 0 0 1 5-5z" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/>
-                        <circle cx="8" cy="7" r="1.2" fill="white"/>
+                        <path d="M8 2a5 5 0 0 1 5 5c0 2.1-1.3 3.9-3.1 4.7L8 14l-1.9-2.3A5 5 0 0 1 3 7a5 5 0 0 1 5-5z" stroke="white" strokeWidth="1.4" strokeLinejoin="round" />
+                        <circle cx="8" cy="7" r="1.2" fill="white" />
                       </svg>
                     </div>
                     <div>
@@ -948,8 +924,8 @@ function LessonPageContent() {
                       }}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <rect x="5" y="1" width="6" height="9" rx="3" stroke="white" strokeWidth="1.5"/>
-                        <path d="M2 8a6 6 0 0 0 12 0M8 14v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                        <rect x="5" y="1" width="6" height="9" rx="3" stroke="white" strokeWidth="1.5" />
+                        <path d="M2 8a6 6 0 0 0 12 0M8 14v2" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
                       </svg>
                     </button>
                     <input
@@ -1004,7 +980,7 @@ function LessonPageContent() {
                         }}
                       >
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                          <polygon points="2,1 11,6 2,11" fill="white"/>
+                          <polygon points="2,1 11,6 2,11" fill="white" />
                         </svg>
                         Hear from Avatar
                       </button>
@@ -1029,8 +1005,8 @@ function LessonPageContent() {
               }}
             >
               {qaOpen
-                ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4l10 10M14 4L4 14" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
-                : <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="10" height="13" rx="3" stroke="white" strokeWidth="1.6"/><path d="M3 10a8 8 0 0 0 15 0" stroke="white" strokeWidth="1.6" strokeLinecap="round"/><path d="M10 15v3" stroke="white" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4l10 10M14 4L4 14" stroke="white" strokeWidth="2" strokeLinecap="round" /></svg>
+                : <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="10" height="13" rx="3" stroke="white" strokeWidth="1.6" /><path d="M3 10a8 8 0 0 0 15 0" stroke="white" strokeWidth="1.6" strokeLinecap="round" /><path d="M10 15v3" stroke="white" strokeWidth="1.6" strokeLinecap="round" /></svg>
               }
             </button>
             <style>{`@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.7;transform:scale(1.08)} }`}</style>

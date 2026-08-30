@@ -5,8 +5,22 @@ import { useMergedCurriculum, findSubjectIn } from "@/data/useCurriculum";
 import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
+import CursorGlow from "@/components/CursorGlow";
+import { SparklesCore } from "@/components/ui/sparkles";
+import Navbar from "@/components/Navbar";
+import { Atom, FlaskConical, Dna, Sigma, Leaf, BookOpen, Microscope } from "lucide-react";
 
 const NAVY = "#0f172a";
+
+const SUBJECT_ICON = {
+  Physics:              Atom,
+  Chemistry:            FlaskConical,
+  Biology:              Dna,
+  Maths:                Sigma,
+  "ආර්ථික විද්‍යාව":   BookOpen,
+  "බුද්ධ ධර්මය":       Leaf,
+  "විද්‍යාව":           Microscope,
+};
 
 function ParticleNetwork({ color }) {
   const canvasRef = useRef(null);
@@ -114,26 +128,33 @@ function TopicsPageContent() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
       <Sidebar subject={subject} />
+      <CursorGlow color={cfg.hue} opacity={0.08} size={900} />
 
-      <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "linear-gradient(to bottom, #020617 0%, #020617 250px, #1e3a8a 550px, #ffffff 950px)" }}>
+
+        <div style={{ padding: "48px 60px 0", position: "relative", zIndex: 20 }}>
+          <Navbar />
+        </div>
 
         {/* ── HERO ── */}
         <div style={{
           position: "relative", overflow: "hidden",
-          background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark} 55%, ${cfg.hue} 100%)`,
-          padding: "52px 60px 48px",
+          padding: "24px 60px 24px",
         }}>
-          {/* Blueprint grid — matches dashboard */}
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
-            backgroundSize: "48px 48px" }} />
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
-            backgroundSize: "12px 12px" }} />
-          <div style={{ position: "absolute", top: -80, right: -60, width: 360, height: 360, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(147,197,253,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
+          {/* Sparkles Effect */}
+          <div style={{ position: "absolute", inset: 0 }}>
+            <SparklesCore
+              id="tsparticles-hero-topics"
+              background="transparent"
+              minSize={0.6}
+              maxSize={1.4}
+              particleDensity={100}
+              className="w-full h-full"
+              particleColor="#FFFFFF"
+            />
+          </div>
 
-          <div style={{ position: "relative" }}>
+          <div style={{ position: "relative", zIndex: 10 }}>
             {/* Back button */}
             <button
               onClick={() => router.push(`/sub-lesson?subject=${subject}&grade=${encodeURIComponent(grade)}`)}
@@ -191,24 +212,25 @@ function TopicsPageContent() {
         </div>
 
         {/* ── BODY ── */}
-        <div style={{ padding: "44px 60px 72px", position: "relative" }}>
-          <ParticleNetwork color={cfg.hue} />
-
+        <div style={{ padding: "12px 60px 72px", position: "relative" }}>
 
           {/* Section header */}
-          <div style={{ marginBottom: 28, paddingBottom: 18, borderBottom: "2px solid #e2e8f0", position: "relative", zIndex: 1 }}>
-            <h2 style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 22, fontWeight: 700, color: NAVY, letterSpacing: "0.03em" }}>
-              {lesson}
-            </h2>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>
-              {topics.length} topic{topics.length !== 1 ? "s" : ""} — click any topic to start with a pre-quiz
-            </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingTop: 14, paddingBottom: 14, borderTop: "1px solid rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.15)", position: "relative", zIndex: 1 }}>
+            <div>
+              <h2 style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 22, fontWeight: 700, color: "white", letterSpacing: "0.03em" }}>
+                {lesson}
+              </h2>
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>
+                {topics.length} topic{topics.length !== 1 ? "s" : ""} — click any topic to start with a pre-quiz
+              </p>
+            </div>
           </div>
 
           {/* Topics list */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "relative", zIndex: 1 }}>
             {topics.map((topic, i) => {
               const isH = hovered === i;
+              const Icon = SUBJECT_ICON[subject] || BookOpen;
               return (
                 <div
                   key={i}
@@ -218,17 +240,28 @@ function TopicsPageContent() {
                   onMouseEnter={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
                   style={{
-                    background: "white",
+                    position: "relative",
+                    background: isH ? `linear-gradient(to right, ${cfg.bg}, #ffffff)` : "linear-gradient(to right, #f8fafc, #ffffff)",
                     border: `1.5px solid ${isH ? cfg.hue + "55" : "#e8edf2"}`,
                     borderRadius: 14, overflow: "hidden", cursor: "pointer",
                     boxShadow: isH
-                      ? `0 12px 36px rgba(0,0,0,0.08), 0 0 0 1px ${cfg.hue}12`
-                      : "0 1px 4px rgba(0,0,0,0.04)",
+                      ? `0 12px 36px rgba(0,0,0,0.15), 0 0 0 1px ${cfg.hue}25`
+                      : "0 4px 16px rgba(0,0,0,0.06)",
                     transform: isH ? "translateX(4px)" : "translateX(0)",
-                    transition: "all 0.2s cubic-bezier(.22,.61,.36,1)",
+                    transition: "all 0.3s cubic-bezier(.22,.61,.36,1)",
                     display: "flex", alignItems: "stretch",
                   }}
                 >
+                  {/* Watermark Icon */}
+                  <div style={{
+                    position: "absolute", top: -10, right: 10,
+                    opacity: isH ? 0.08 : 0.02,
+                    transform: isH ? "scale(1.1) rotate(15deg)" : "scale(1) rotate(0deg)",
+                    transition: "all 0.5s cubic-bezier(.22,.61,.36,1)",
+                    pointerEvents: "none"
+                  }}>
+                    <Icon size={80} color={cfg.hue} />
+                  </div>
                   {/* Left accent bar */}
                   <div style={{
                     width: 4, flexShrink: 0,
@@ -253,7 +286,7 @@ function TopicsPageContent() {
 
                     {/* Topic name */}
                     <p style={{
-                      flex: 1, margin: 0,
+                      flex: 1, margin: 0, position: "relative", zIndex: 2,
                       fontSize: 15, fontWeight: 600, color: isH ? NAVY : "#334155",
                       transition: "color 0.2s",
                     }}>
@@ -262,7 +295,7 @@ function TopicsPageContent() {
 
                     {/* CTA chip */}
                     <div style={{
-                      display: "flex", alignItems: "center", gap: 7, flexShrink: 0,
+                      display: "flex", alignItems: "center", gap: 7, flexShrink: 0, position: "relative", zIndex: 2,
                       background: isH ? `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})` : cfg.bg,
                       border: `1.5px solid ${isH ? "transparent" : cfg.ring}`,
                       color: isH ? "white" : cfg.hue,

@@ -3,43 +3,10 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
+import Navbar from "@/components/Navbar";
 
 function FloatingPattern({ color }) {
-  const canvasRef = useRef(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const chars = "0123456789ABCDEFabcdefijklmnopqrstuvwxyz+-=><[]{}|/\\".split("");
-    let W = canvas.width  = canvas.offsetWidth;
-    let H = canvas.height = canvas.offsetHeight;
-    const particles = Array.from({ length: 120 }, () => ({
-      x: Math.random() * W, y: Math.random() * H,
-      char: chars[Math.floor(Math.random() * chars.length)],
-      size: 9 + Math.random() * 8,
-      speed: 0.18 + Math.random() * 0.32,
-      opacity: 0.35 + Math.random() * 0.30,
-      drift: (Math.random() - 0.5) * 0.15,
-    }));
-    let raf;
-    const draw = () => {
-      ctx.clearRect(0, 0, W, H);
-      for (const p of particles) {
-        ctx.font = `${p.size}px monospace`;
-        ctx.fillStyle = color + Math.round(p.opacity * 255).toString(16).padStart(2, "0");
-        ctx.fillText(p.char, p.x, p.y);
-        p.y += p.speed; p.x += p.drift;
-        if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; p.char = chars[Math.floor(Math.random() * chars.length)]; }
-        if (p.x < -20 || p.x > W + 20) p.x = Math.random() * W;
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-    const onResize = () => { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; };
-    window.addEventListener("resize", onResize);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
-  }, [color]);
-  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
+  return null;
 }
 
 const NAVY = "#0f172a";
@@ -139,17 +106,21 @@ function ResultPageContent() {
       : { text: "Your personalised lesson has been prepared based on your result.", cta: "Start Lesson" };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "linear-gradient(to right, #020617 0%, #0f172a 55%, #1e3a8a 85%, #1d4ed8 100%)", fontFamily: "'Source Sans 3', sans-serif" }}>
       <Sidebar />
 
       <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+      
+        <div style={{ padding: "24px 60px 0" }}>
+          <Navbar />
+        </div>
 
         {/* ── HERO (score ring lives here) ── */}
         <div style={{
           position: "relative", overflow: "hidden",
-          background: `linear-gradient(145deg, ${NAVY} 0%, ${sc.dark} 55%, ${sc.color} 100%)`,
-          padding: "56px 60px 52px",
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 48,
+          background: "transparent",
+          padding: "24px 60px 24px",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32,
         }}>
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.28,
             backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
@@ -169,10 +140,10 @@ function ResultPageContent() {
               ))}
             </div>
 
-            <h1 style={{ fontFamily: "'Raleway', sans-serif", fontSize: 38, fontWeight: 700, color: "#f1f5f9", margin: "0 0 10px", letterSpacing: "0.01em", lineHeight: 1.15 }}>
+            <h1 style={{ fontFamily: "'Raleway', sans-serif", fontSize: 34, fontWeight: 700, color: "#f1f5f9", margin: "0 0 6px", letterSpacing: "0.01em", lineHeight: 1.15 }}>
               {isPost ? "Post Quiz Result" : isPractice ? "Practice Quiz Result" : "Pre Quiz Result"}
             </h1>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, margin: "0 0 24px", lineHeight: 1.7 }}>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, margin: "0 0 16px", lineHeight: 1.7 }}>
               {message.text}
             </p>
 
@@ -196,18 +167,28 @@ function ResultPageContent() {
         </div>
 
         {/* ── BODY ── */}
-        <div style={{ padding: "44px 60px 72px", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", overflow: "hidden" }}>
+        <div style={{ padding: "16px 60px 32px", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", overflow: "hidden" }}>
           <FloatingPattern color={sc.color} />
           <div style={{ width: "100%", maxWidth: 600, position: "relative", zIndex: 1 }}>
 
             {/* Info cards row */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 32 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
               {/* Score card */}
               <div style={{
                 background: "white", borderRadius: 18, overflow: "hidden",
                 border: `1.5px solid ${sc.ring}`,
                 boxShadow: `0 4px 20px ${sc.color}14`,
-              }}>
+                transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
+                e.currentTarget.style.boxShadow = `0 12px 28px ${sc.color}25`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0) scale(1)";
+                e.currentTarget.style.boxShadow = `0 4px 20px ${sc.color}14`;
+              }}
+              >
                 <div style={{ height: 4, background: `linear-gradient(90deg, ${sc.dark}, ${sc.color})` }} />
                 <div style={{ padding: "20px 22px" }}>
                   <div style={{
@@ -234,7 +215,17 @@ function ResultPageContent() {
                 background: "white", borderRadius: 18, overflow: "hidden",
                 border: `1.5px solid ${lc.border}`,
                 boxShadow: `0 4px 20px ${lc.color}14`,
-              }}>
+                transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
+                e.currentTarget.style.boxShadow = `0 12px 28px ${lc.color}25`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0) scale(1)";
+                e.currentTarget.style.boxShadow = `0 4px 20px ${lc.color}14`;
+              }}
+              >
                 <div style={{ height: 4, background: `linear-gradient(90deg, ${lc.dark}, ${lc.color})` }} />
                 <div style={{ padding: "20px 22px" }}>
                   <div style={{
@@ -264,7 +255,17 @@ function ResultPageContent() {
                 background: "white", borderRadius: 18, overflow: "hidden",
                 border: "1.5px solid #e2e8f0",
                 boxShadow: "0 4px 20px rgba(0,0,0,0.04)",
-              }}>
+                transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
+                e.currentTarget.style.boxShadow = "0 12px 28px rgba(0,0,0,0.08)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0) scale(1)";
+                e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.04)";
+              }}
+              >
                 <div style={{ height: 4, background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})` }} />
                 <div style={{ padding: "20px 22px" }}>
                   <div style={{
@@ -290,7 +291,7 @@ function ResultPageContent() {
             </div>
 
             {/* Section divider */}
-            <div style={{ height: 1, background: "linear-gradient(90deg, #e2e8f0, transparent)", marginBottom: 28 }} />
+            <div style={{ height: 1, background: "linear-gradient(90deg, #e2e8f0, transparent)", marginBottom: 20 }} />
 
             {/* Action buttons */}
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -307,7 +308,10 @@ function ResultPageContent() {
                     boxShadow: `0 8px 24px ${cfg.hue}45`,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     letterSpacing: "0.02em",
+                    transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.03)"}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
                 >
                   {type === "pre" ? "Start Lesson" : "Review Lesson Again"}
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -328,7 +332,10 @@ function ResultPageContent() {
                       boxShadow: `0 8px 24px ${cfg.hue}45`,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                       letterSpacing: "0.02em",
+                      transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.03)"}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
                   >
                     Review Lesson Content
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -344,7 +351,10 @@ function ResultPageContent() {
                       fontSize: 14, fontWeight: 700, cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                       letterSpacing: "0.02em",
+                      transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.03)"}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
                   >
                     Retake Practice Quiz
                   </button>
@@ -362,7 +372,10 @@ function ResultPageContent() {
                     boxShadow: "0 8px 24px rgba(5,150,105,0.4)",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     letterSpacing: "0.02em",
+                    transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.03)"}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
                 >
                   Next Topic
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -378,7 +391,15 @@ function ResultPageContent() {
                   background: "white", color: "#64748b",
                   border: "1.5px solid #e2e8f0", borderRadius: 14,
                   fontSize: 14, fontWeight: 600, cursor: "pointer",
-                  transition: "border-color 0.15s",
+                  transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "scale(1.03)";
+                  e.currentTarget.style.borderColor = "#cbd5e1";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                  e.currentTarget.style.borderColor = "#e2e8f0";
                 }}
               >
                 Back to Dashboard
