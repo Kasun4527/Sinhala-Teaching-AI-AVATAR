@@ -96,6 +96,8 @@ export default function LoginPage() {
       localStorage.setItem("student_id", data.student_id);
       if (data.teacher_id) localStorage.setItem("teacher_id", data.teacher_id);
       else localStorage.removeItem("teacher_id");
+      if (data.education_level) localStorage.setItem("education_level", data.education_level);
+      else localStorage.removeItem("education_level");
       router.push("/dashboard");
     } catch (err) {
       const detail = getErrorMessage(err, "Login failed");

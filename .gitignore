@@ -1,6 +1,8 @@
 # Next.js
 .next/
 node_modules/
+frontend/.next/
+frontend/node_modules/
 
 # Python / FastAPI
 backend/.env
@@ -13,6 +15,7 @@ backend/temp/
 mongodb_data/
 backend/mongodb_data/
 backend/.venv/
+.venv/
 
 # Engagement engine local venv (model weights under engagement_engine/models/ ARE tracked)
 engagement_engine/venv/

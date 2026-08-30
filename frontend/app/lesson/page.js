@@ -96,6 +96,13 @@ function LessonPageContent() {
   const maxScoreRef = useRef(0);
   const audioCtxRef = useRef(null);
 
+  // Taking Notes mode — pauses engagement tracking, keeps score high
+  const takingNotesRef = useRef(false);
+  const [takingNotes, setTakingNotes] = useState(false);
+
+  // Privacy notice
+  const [showPrivacyNotice, setShowPrivacyNotice] = useState(true);
+
   // Detect if a line looks like a heading.
   // Works for both English and Sinhala — relies on structure, not character set.
   const isHeading = (line) => {
@@ -372,6 +379,16 @@ function LessonPageContent() {
     const canvasCtx = canvas.getContext("2d");
 
     const captureAndSend = async () => {
+      // When student is taking notes, skip frame capture and inject a high score
+      if (takingNotesRef.current) {
+        applyStats({
+          state: "Taking Notes 📝", score: 100,
+          emotion: "Focused", emo_conf: 1.0, ear: 0.3, mar: 0.0,
+          drowsy: false, yawning: false, head_direction: "Center",
+          phone_detected: false, looking_away: false, person_present: true,
+        });
+        return;
+      }
       const video = engVideoRef.current;
       if (!video || video.readyState < 2) return;
       canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -569,6 +586,48 @@ function LessonPageContent() {
 
       <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", height: "100vh", background: "#f8fafc" }}>
 
+        {/* ── Privacy Notice ── */}
+        {showPrivacyNotice && (
+          <div style={{
+            background: "linear-gradient(90deg, #0f172a, #1e293b)", padding: "12px 52px",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+            borderBottom: "1px solid #334155", flexShrink: 0,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <span style={{ fontSize: 16 }}>🔒</span>
+              </div>
+              <div>
+                <p style={{ margin: 0, color: "#e2e8f0", fontSize: 12, fontWeight: 600 }}>
+                  Privacy Notice — Camera Engagement Tracking
+                </p>
+                <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: 11, lineHeight: 1.5 }}>
+                  Your camera is used to monitor your engagement level during the lesson.
+                  <strong style={{ color: "#93c5fd" }}> No video or images are recorded or stored.</strong> All
+                  processing happens in real-time and data is discarded immediately after scoring. Your privacy is fully protected.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowPrivacyNotice(false)}
+              style={{
+                background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 8, padding: "6px 14px", color: "#94a3b8",
+                fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; e.currentTarget.style.color = "#e2e8f0"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#94a3b8"; }}
+            >
+              ✕ Dismiss
+            </button>
+          </div>
+        )}
+
         {/* ── HERO ── */}
         <div style={{
           position: "relative", overflow: "hidden", flexShrink: 0,
@@ -643,8 +702,10 @@ function LessonPageContent() {
                   return (
                     <div style={{
                       display: "flex", alignItems: "center", gap: 8,
-                      background: (engAlert || engPhoneDetected) ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.08)",
-                      border: `1px solid ${(engAlert || engPhoneDetected) ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.14)"}`,
+                      background: takingNotes ? "rgba(59,130,246,0.15)"
+                        : (engAlert || engPhoneDetected) ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.08)",
+                      border: `1px solid ${takingNotes ? "rgba(59,130,246,0.4)"
+                        : (engAlert || engPhoneDetected) ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.14)"}`,
                       borderRadius: 100, padding: "5px 14px",
                       transition: "all 0.3s",
                     }}>
@@ -661,9 +722,14 @@ function LessonPageContent() {
                           📱 Phone Detected
                         </span>
                       )}
-                      {engAlert && (
+                      {engAlert && !takingNotes && (
                         <span style={{ color: "#f87171", fontSize: 11, fontWeight: 700, animation: "pulse 1s infinite" }}>
                           ⚠ Low
+                        </span>
+                      )}
+                      {takingNotes && (
+                        <span style={{ color: "#60a5fa", fontSize: 11, fontWeight: 700 }}>
+                          📝 Notes
                         </span>
                       )}
                     </div>
@@ -689,6 +755,10 @@ function LessonPageContent() {
               paragraphCount={contentParas.length}
               answerContent={avatarAnswer || undefined}
               onAnswerSpoken={() => setAvatarAnswer("")}
+              onPauseChange={(isPaused) => {
+                takingNotesRef.current = isPaused;
+                setTakingNotes(isPaused);
+              }}
             />
           </div>
 

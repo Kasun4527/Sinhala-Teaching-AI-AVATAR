@@ -90,6 +90,7 @@ export default function AdminLoginPage() {
       localStorage.setItem("role", data.role);
       localStorage.setItem("name", data.name);
       localStorage.setItem("student_id", data.student_id);
+      if (data.teacher_code) localStorage.setItem("teacher_code", data.teacher_code);
       router.push("/admin/dashboard");
     } catch (err) {
       setError(getErrorMessage(err, "Login failed"));

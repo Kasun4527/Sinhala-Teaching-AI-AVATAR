@@ -62,6 +62,13 @@ const SUBJECT = {
 };
 const DEFAULT_S = { abbr: "SU", hue: "#475569", bg: "#f8fafc", ring: "#cbd5e1", dark: "#1e293b" };
 
+// Grade → education-level mapping
+const GRADE_LEVEL = {
+  "11 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "OL",
+  "12 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "AL",
+  "13 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "AL",
+};
+
 function Chip({ children, style }) {
   return (
     <span style={{
@@ -102,13 +109,37 @@ export default function StudentDashboard() {
   const [needsTeacherCode, setNeedsTeacherCode] = useState(false);
   const [teacherCodeInput, setTeacherCodeInput] = useState("");
   const [teacherCodeStatus, setTeacherCodeStatus] = useState({ saving: false, error: "" });
+  const [educationLevel, setEducationLevel] = useState(null);
+  const [hasSetDefaultGrade, setHasSetDefaultGrade] = useState(false);
+  const [enrolledSubjects, setEnrolledSubjects] = useState([]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
+    if (!token) router.push("/login");
     setName(localStorage.getItem("name") || "Student");
     setNeedsTeacherCode(!localStorage.getItem("teacher_id"));
+    setEducationLevel(localStorage.getItem("education_level") || null);
+
+    // Fetch current enrollments so we know which subjects are already enrolled
+    const sid = localStorage.getItem("student_id");
+    if (sid) {
+      fetch(`${BACKEND}/enrollments?student_id=${encodeURIComponent(sid)}`)
+        .then(r => r.json())
+        .then(d => setEnrolledSubjects((d.subjects || []).map(s => s.subject)))
+        .catch(() => {});
+    }
   }, []);
+
+  useEffect(() => {
+    if (!hasSetDefaultGrade && curriculum.length > 0) {
+      const edLevel = localStorage.getItem("education_level") || null;
+      if (edLevel) {
+        const defaultIndex = curriculum.findIndex(g => GRADE_LEVEL[g.grade] === edLevel);
+        if (defaultIndex !== -1) setGrade(defaultIndex);
+      }
+      setHasSetDefaultGrade(true);
+    }
+  }, [curriculum, hasSetDefaultGrade]);
 
   const submitTeacherCode = async () => {
     const code = teacherCodeInput.trim();
@@ -124,8 +155,6 @@ export default function StudentDashboard() {
       if (!res.ok) throw new Error(data.detail || "Invalid code");
       localStorage.setItem("teacher_id", data.teacher_id);
       setNeedsTeacherCode(false);
-      // Reload so useMergedCurriculum (only fetches once on mount) picks up
-      // this teacher's content immediately instead of on next visit.
       window.location.reload();
     } catch (err) {
       setTeacherCodeStatus({ saving: false, error: err.message || "Invalid code" });
@@ -195,7 +224,6 @@ export default function StudentDashboard() {
         <div style={{ padding: "48px 60px 80px", position: "relative" }}>
           <FloatingPattern color={BLUE} />
 
-          {/* Teacher code prompt — shown until a teacher is linked */}
           {needsTeacherCode && (
             <div style={{
               background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 16,
@@ -276,11 +304,16 @@ export default function StudentDashboard() {
               const cfg = SUBJECT[item.subject] || DEFAULT_S;
               const isH = hovered === i;
               const tops = item.lessons?.reduce((a, l) => a + (l.topics?.length || 0), 0) || 0;
+              const gradeLevel = GRADE_LEVEL[current.grade];
+              const isLocked = educationLevel && gradeLevel && educationLevel !== gradeLevel;
 
               return (
                 <div
                   key={i}
-                  onClick={() => setPending({ ...item, grade: current.grade })}
+                  onClick={() => {
+                    const alreadyEnrolled = enrolledSubjects.includes(item.subject);
+                    setPending({ ...item, grade: current.grade, isLocked, gradeLevel, alreadyEnrolled });
+                  }}
                   onMouseEnter={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
                   style={{
@@ -292,21 +325,19 @@ export default function StudentDashboard() {
                       : "0 1px 4px rgba(0,0,0,0.04)",
                     transform: isH ? "translateY(-5px)" : "translateY(0)",
                     transition: "all 0.22s cubic-bezier(.22,.61,.36,1)",
+                    position: "relative",
                   }}
                 >
-                  {/* Top stripe */}
                   <div style={{ height: 5, background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})` }} />
 
-                  {/* Card header */}
                   <div style={{ padding: "22px 24px 16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                     <div style={{
                       width: 52, height: 52, borderRadius: 14,
-                      background: isH ? `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})` : cfg.bg,
-                      border: `1.5px solid ${isH ? "transparent" : cfg.ring}`,
+                      background: cfg.bg,
+                      border: `1.5px solid ${cfg.ring}`,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 13, fontWeight: 800, letterSpacing: "0.06em",
-                      color: isH ? "white" : cfg.hue,
-                      boxShadow: isH ? `0 6px 18px ${cfg.hue}45` : "none",
+                      color: cfg.hue,
                       transition: "all 0.22s", flexShrink: 0,
                     }}>
                       {cfg.abbr}
@@ -316,7 +347,6 @@ export default function StudentDashboard() {
                     </Chip>
                   </div>
 
-                  {/* Card body */}
                   <div style={{ padding: "0 24px 22px" }}>
                     <h3 style={{ margin: "0 0 4px", fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: NAVY }}>
                       {item.subject}
@@ -325,12 +355,10 @@ export default function StudentDashboard() {
                       {current.grade}{tops > 0 && <> &middot; {tops} topics</>}
                     </p>
 
-                    {/* Decorative progress bar */}
                     <div style={{ height: 3, background: "#f1f5f9", borderRadius: 99, marginBottom: 20 }}>
                       <div style={{
-                        height: "100%", borderRadius: 99, width: isH ? "70%" : "40%",
-                        background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})`,
-                        transition: "width 0.5s ease",
+                        height: "100%", borderRadius: 99, width: "40%",
+                        background: cfg.ring,
                       }} />
                     </div>
 
@@ -338,14 +366,13 @@ export default function StudentDashboard() {
                       <span style={{ fontSize: 13, fontWeight: 700, color: cfg.hue }}>Start Learning</span>
                       <div style={{
                         width: 34, height: 34, borderRadius: "50%",
-                        background: isH ? `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})` : cfg.bg,
-                        border: `1.5px solid ${isH ? "transparent" : cfg.ring}`,
+                        background: cfg.bg,
+                        border: `1.5px solid ${cfg.ring}`,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        boxShadow: isH ? `0 6px 16px ${cfg.hue}50` : "none",
                         transition: "all 0.22s",
                       }}>
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path d="M3 7h8M7 3l4 4-4 4" stroke={isH ? "white" : cfg.hue} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M3 7h8M7 3l4 4-4 4" stroke={cfg.hue} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       </div>
                     </div>
@@ -397,9 +424,21 @@ export default function StudentDashboard() {
               </div>
 
               <div style={{ padding: "26px 30px 30px" }}>
-                <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
-                  You are about to enrol in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Your progress will be tracked and lessons unlocked as you advance.
-                </p>
+                {pendingEnroll.isLocked ? (
+                  <div style={{ padding: "16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, marginBottom: 16 }}>
+                    <p style={{ margin: 0, color: "#b91c1c", fontSize: 14, fontWeight: 600, lineHeight: 1.6 }}>
+                      🔒 This subject is for {pendingEnroll.gradeLevel === "OL" ? "O/L" : "A/L"} students. Your account is registered as {educationLevel === "OL" ? "O/L" : "A/L"}.
+                    </p>
+                  </div>
+                ) : pendingEnroll.alreadyEnrolled ? (
+                  <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
+                    You are already enrolled in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Continue where you left off.
+                  </p>
+                ) : (
+                  <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
+                    You are about to enrol in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Your progress will be tracked and lessons unlocked as you advance.
+                  </p>
+                )}
 
                 {enrollErr && (
                   <div style={{ marginTop: 16, padding: "11px 16px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 13 }}>
@@ -430,7 +469,7 @@ export default function StudentDashboard() {
                         setEnrolling(true); setEnrollErr("");
                         const studentId = localStorage.getItem("student_id");
                         if (!studentId) throw new Error("Not logged in");
-                        await enrollSubject({ student_id: studentId, subject: pendingEnroll.subject, lessons: pendingEnroll.lessons || [] });
+                        await enrollSubject({ student_id: studentId, subject: pendingEnroll.subject, lessons: pendingEnroll.lessons || [], grade: pendingEnroll.grade || "" });
                         setPending(null);
                         router.push(`/sub-lesson?subject=${encodeURIComponent(pendingEnroll.subject)}&grade=${encodeURIComponent(pendingEnroll.grade || "")}`);
                       } catch (err) {
@@ -439,17 +478,17 @@ export default function StudentDashboard() {
                         setEnrolling(false);
                       }
                     }}
-                    disabled={enrolling}
+                    disabled={enrolling || pendingEnroll.isLocked}
                     style={{
                       flex: 2, padding: "13px 0", borderRadius: 12, border: "none",
-                      background: enrolling ? "#93c5fd" : `linear-gradient(135deg, ${BLUE_D}, ${BLUE})`,
+                      background: (enrolling || pendingEnroll.isLocked) ? "#94a3b8" : `linear-gradient(135deg, ${BLUE_D}, ${BLUE})`,
                       color: "white", fontWeight: 700, fontSize: 14,
-                      cursor: enrolling ? "not-allowed" : "pointer",
-                      boxShadow: enrolling ? "none" : `0 6px 20px ${BLUE}50`,
+                      cursor: (enrolling || pendingEnroll.isLocked) ? "not-allowed" : "pointer",
+                      boxShadow: (enrolling || pendingEnroll.isLocked) ? "none" : `0 6px 20px ${BLUE}50`,
                       transition: "all 0.2s",
                     }}
                   >
-                    {enrolling ? "Enrolling…" : "Enrol & Start Learning →"}
+                    {enrolling ? "Enrolling..." : pendingEnroll.isLocked ? "Locked" : pendingEnroll.alreadyEnrolled ? "Continue Learning →" : "Enrol & Continue →"}
                   </button>
                 </div>
               </div>

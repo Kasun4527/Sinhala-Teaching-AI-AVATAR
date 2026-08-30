@@ -78,7 +78,7 @@ export default function AdminDashboard() {
     const name = localStorage.getItem("name");
     if (role !== "admin") { router.push("/"); return; }
     setAdminName(name || "Admin");
-    setTeacherCode(localStorage.getItem("student_id") || "");
+    setTeacherCode(localStorage.getItem("teacher_code") || localStorage.getItem("student_id") || "");
     fetchStudents();
   }, []);
 

@@ -159,6 +159,7 @@ class EnrollmentSubmission(BaseModel):
     student_id: str
     subject: str
     lessons: list = Field(default_factory=list)
+    grade: str = ""  # e.g. "11 ශ්‍රේණිය" — used for education-level validation
 
 
 def normalize_enrolled_lessons(lessons):
@@ -487,10 +488,13 @@ async def generate_tts(data: dict):
 
 
 def _resolve_teacher_id(teacher_code: str) -> str:
-    """A teacher's own user id doubles as their "teacher code" — no
-    separate code needs generating/storing. Raises if it doesn't match a
-    real admin account, so a mistyped code fails loudly at signup rather
-    than silently leaving the student unassigned."""
+    """Look up a teacher by their human-readable teacher_code (e.g. 'TE482917').
+    Falls back to matching by _id for legacy codes that are raw ObjectIds."""
+    # Try human-readable code first
+    teacher = users_collection.find_one({"teacher_code": teacher_code, "role": "admin"})
+    if teacher:
+        return str(teacher["_id"])
+    # Fallback: legacy raw ObjectId codes
     try:
         teacher = users_collection.find_one({"_id": ObjectId(teacher_code), "role": "admin"})
     except Exception:
@@ -516,6 +520,19 @@ def signup(user: User):
     teacher_code = user_dict.pop("teacher_code", None)
     if user.role == "student" and teacher_code:
         user_dict["teacher_id"] = _resolve_teacher_id(teacher_code)
+
+    # Persist education_level for students (OL / AL); None for legacy
+    if user.role != "student":
+        user_dict.pop("education_level", None)
+
+    # Generate a human-readable teacher code for admin accounts
+    import random
+    if user.role == "admin":
+        while True:
+            code = f"TE{random.randint(100000, 999999)}"
+            if not users_collection.find_one({"teacher_code": code}):
+                break
+        user_dict["teacher_code"] = code
 
     users_collection.insert_one(user_dict)
 
@@ -604,6 +621,8 @@ def login(data: dict):
         "name": user["name"],
         "student_id": str(user["_id"]),
         "teacher_id": user.get("teacher_id"),  # null if not yet linked to a teacher
+        "education_level": user.get("education_level"),  # "OL" | "AL" | None (legacy)
+        "teacher_code": user.get("teacher_code"),  # e.g. "TE482917" for admins
     }
 
 
@@ -726,11 +745,29 @@ def sidebar_progress(student_id: str):
     return {"subjects": result}
 
 
+# Grade→education-level mapping for enrollment gating
+_OL_GRADES = {"11 ශ්‍රේණිය"}
+_AL_GRADES = {"12 ශ්‍රේණිය", "13 ශ්‍රේණිය"}
+
+
 @app.post("/enroll/")
 def enroll(data: EnrollmentSubmission):
 
     if not data.student_id or not data.subject:
         raise HTTPException(status_code=400, detail="student_id and subject required")
+
+    # ── Education-level guard ──────────────────────────────────────────
+    # Legacy accounts (education_level=None) are unrestricted.
+    try:
+        student = users_collection.find_one({"_id": ObjectId(data.student_id)})
+    except Exception:
+        student = None
+    level = student.get("education_level") if student else None
+    if level and data.grade:
+        if level == "OL" and data.grade not in _OL_GRADES:
+            raise HTTPException(status_code=403, detail="O/L students cannot enrol in A/L subjects")
+        if level == "AL" and data.grade not in _AL_GRADES:
+            raise HTTPException(status_code=403, detail="A/L students cannot enrol in O/L subjects")
 
     subject_entry = {
         "subject": data.subject,
