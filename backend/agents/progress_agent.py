@@ -6,7 +6,7 @@ from bson import ObjectId
 # SAVE PROGRESS AFTER PRE-QUIZ
 # =========================
 def save_pre_quiz_result(student_id, subject, lesson, topic, level, score,
-                        mastery=None, bkt_level=None):
+                        mastery=None, bkt_level=None, quiz_type="pre"):
     
     # Check if record already exists
     existing = student_progress_collection.find_one({
@@ -19,6 +19,7 @@ def save_pre_quiz_result(student_id, subject, lesson, topic, level, score,
     update_fields = {
         "level": level,
         "initial_quiz_marks": score,
+        "quiz_type": quiz_type,
         "updated_at": datetime.utcnow()
     }
     # Add BKT-derived fields if available
@@ -43,6 +44,7 @@ def save_pre_quiz_result(student_id, subject, lesson, topic, level, score,
         "topic": topic,
         "level": level,
         "initial_quiz_marks": score,
+        "quiz_type": quiz_type,
         "final_quiz_marks": None,
         "lesson_delivered": False,
         "topic_unlocked": False,

@@ -162,6 +162,13 @@ class EnrollmentSubmission(BaseModel):
     grade: str = ""  # e.g. "11 ශ්‍රේණිය" — used for education-level validation
 
 
+class SkipPreQuizRequest(BaseModel):
+    student_id: str
+    subject: str
+    lesson: str
+    topic: str
+
+
 def normalize_enrolled_lessons(lessons):
     normalized_lessons = []
 
@@ -243,6 +250,61 @@ def pre_quiz(subject: str, lesson: str, topic: str):
         return {"quiz": quiz}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Pre-quiz bypass: student self-selects Beginner level ─────────────────
+@app.post("/skip-pre-quiz/")
+async def skip_pre_quiz(data: SkipPreQuizRequest):
+    """
+    Allows a student to bypass the pre-quiz and start directly as a Beginner.
+    Initializes BKT at cold-start defaults (mastery=0.30) and generates
+    Beginner-level content without requiring quiz answers.
+    """
+    from services.bkt_service import DEFAULT_L0, make_skill_id, get_subject_transfer_L0
+
+    print(f"⏩ [SkipPreQuiz] {data.student_id} skipping pre-quiz for {data.subject}/{data.lesson}/{data.topic}")
+
+    # Use transfer L0 if student has prior subject history, otherwise cold-start default
+    initial_mastery = get_subject_transfer_L0(data.student_id, data.subject)
+    level = "Beginner"
+
+    # Generate Beginner-level content (uses cache if available)
+    content = await asyncio.to_thread(
+        generate_content,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level
+    )
+
+    # Save progress with quiz_type="skip" to distinguish from assessed students
+    save_pre_quiz_result(
+        student_id=data.student_id,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level,
+        score=0,
+        mastery=initial_mastery,
+        bkt_level=level,
+        quiz_type="skip"
+    )
+
+    save_delivered_content(
+        student_id=data.student_id,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level,
+        content=content
+    )
+
+    return {
+        "level": level,
+        "content": content,
+        "mastery": initial_mastery,
+        "score": 0
+    }
 
 
 @app.post("/submit-pre-quiz/")

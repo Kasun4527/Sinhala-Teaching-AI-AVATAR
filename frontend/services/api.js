@@ -35,6 +35,9 @@ export const getPreQuiz = (subject, lesson, topic) =>
 export const submitPreQuiz = (data) =>
   axios.post(`${API}/submit-pre-quiz/`, data);
 
+export const skipPreQuiz = (data) =>
+  axios.post(`${API}/skip-pre-quiz/`, data);
+
 export const getLesson = (subject, lesson, topic, level) => {
   console.log("🚀 SENDING:", { subject, lesson, topic, level });
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { getErrorMessage } from "@/services/api";
+import { getErrorMessage, signupUser } from "@/services/api";
 
 function ParticleNetwork({ color }) {
   const canvasRef = useRef(null);
@@ -52,7 +52,6 @@ function ParticleNetwork({ color }) {
   }, [color]);
   return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
 }
-import { signupUser } from "@/services/api";
 
 const PASSWORD_RULES = [
   { id: "len",     label: "At least 8 characters",        test: (p) => p.length >= 8 },
