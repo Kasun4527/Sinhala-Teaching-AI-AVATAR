@@ -24,8 +24,13 @@ export default function Navbar() {
       borderRadius: "20px",
       boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
     }}>
-      {/* Left side: Navigation Links */}
-      <div style={{ display: "flex", flex: 1, justifyContent: "space-evenly", alignItems: "center", paddingRight: "48px" }}>
+      {/* Logo */}
+      <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => router.push("/")}>
+        <img src="/logo.png" alt="Logo" style={{ height: "32px", width: "auto", objectFit: "contain" }} />
+      </div>
+
+      {/* Center: Navigation Links */}
+      <div style={{ display: "flex", flex: 1, justifyContent: "center", gap: "24px", alignItems: "center" }}>
         <button
           onClick={() => router.push("/")}
           style={{

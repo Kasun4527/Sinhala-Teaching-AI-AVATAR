@@ -27,6 +27,7 @@ import {
   Gamepad2,
   ChevronRight,
 } from "lucide-react";
+import { GlareCard } from "@/components/ui/glare-card";
 
 // ---------------------------------------------------------------------------
 // Ported from frontend/routes/index.tsx (the TanStack Start page Lovable
@@ -118,9 +119,7 @@ export default function HomePage() {
           }`}
         >
           <a href="#home" className="flex items-center gap-3 pl-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[image:var(--gradient-hero)] shadow-[var(--shadow-glow)]">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </span>
+            <img src="/logo.png" alt="SUBHASA" className="h-9 w-auto object-contain" />
             <span className="font-display text-lg font-bold tracking-tight">SUBHASA</span>
           </a>
 
@@ -300,24 +299,27 @@ export default function HomePage() {
 
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {SUBJECTS.map(({ name, sinhala, icon: Icon, color, tint, span }) => (
-            <motion.article
-              key={name}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className={`group surface-card relative overflow-hidden rounded-[1.75rem] p-7 transition-all hover:-translate-y-1 hover:shadow-[var(--shadow-glow)] ${span}`}
-            >
-              <div className={`absolute -right-12 -top-12 h-40 w-40 rounded-full ${tint} blur-2xl transition-opacity group-hover:opacity-100 opacity-70`} />
-              <span className={`relative flex h-12 w-12 items-center justify-center rounded-2xl ${tint}`}>
-                <Icon className={`h-6 w-6 ${color}`} />
-              </span>
-              <h3 className="relative mt-6 text-2xl font-bold">{name}</h3>
-              <p className="relative mt-1 text-sm text-muted-foreground">{sinhala}</p>
-              <span className={`relative mt-6 inline-flex items-center gap-1.5 text-sm font-semibold ${color}`}>
-                Explore Lessons
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </span>
-            </motion.article>
+            <div key={name} className={`${span}`}>
+              <GlareCard>
+                <motion.article
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className={`group surface-card relative overflow-hidden rounded-[1.75rem] p-7 transition-all hover:-translate-y-1 hover:shadow-[var(--shadow-glow)] h-full w-full`}
+                >
+                  <div className={`absolute -right-12 -top-12 h-40 w-40 rounded-full ${tint} blur-2xl transition-opacity group-hover:opacity-100 opacity-70`} />
+                  <span className={`relative flex h-12 w-12 items-center justify-center rounded-2xl ${tint}`}>
+                    <Icon className={`h-6 w-6 ${color}`} />
+                  </span>
+                  <h3 className="relative mt-6 text-2xl font-bold">{name}</h3>
+                  <p className="relative mt-1 text-sm text-muted-foreground">{sinhala}</p>
+                  <span className={`relative mt-6 inline-flex items-center gap-1.5 text-sm font-semibold ${color}`}>
+                    Explore Lessons
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </span>
+                </motion.article>
+              </GlareCard>
+            </div>
           ))}
         </div>
       </section>
