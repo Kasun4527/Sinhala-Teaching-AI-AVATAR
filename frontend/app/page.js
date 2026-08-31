@@ -28,6 +28,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { GlareCard } from "@/components/ui/glare-card";
+import { InfiniteMovingCards } from "@/components/ui/infinite-moving-cards";
 
 // ---------------------------------------------------------------------------
 // Ported from frontend/routes/index.tsx (the TanStack Start page Lovable
@@ -251,13 +252,13 @@ export default function HomePage() {
               Start Your Journey
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
             </Link>
-            <button
-              onClick={() => setDemoOpen(true)}
+            <a
+              href="#subjects"
               className="flex h-14 items-center gap-3 rounded-full border border-border bg-secondary/40 px-8 text-base font-semibold backdrop-blur-md transition-colors hover:bg-secondary/70"
             >
               <PlayCircle className="h-5 w-5 text-accent" />
-              Watch Demo
-            </button>
+              Subjects
+            </a>
           </motion.div>
         </motion.div>
       </section>
@@ -325,32 +326,31 @@ export default function HomePage() {
       </section>
 
       {/* How it works */}
-      <section id="how-it-works" className="relative border-y border-border bg-secondary/20 py-28">
+      <section id="how-it-works" className="relative border-y border-border/20 bg-secondary/20 py-28 overflow-hidden">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <p className="text-xs font-semibold tracking-[0.3em] text-accent">THE PROCESS</p>
           <h2 className="mt-4 text-4xl font-bold sm:text-5xl">
             How <span className="text-gradient">Subhasa</span> Works
           </h2>
 
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {STEPS.map(({ icon: Icon, step, title, desc, color }) => (
-              <motion.div
-                key={step}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="surface-card rounded-[1.75rem] p-7"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary/70">
-                    <Icon className={`h-6 w-6 ${color}`} />
-                  </span>
-                  <span className="font-display text-3xl font-bold text-muted-foreground/25">{step}</span>
+          <div className="mt-14">
+            <InfiniteMovingCards
+              items={STEPS}
+              direction="left"
+              speed="fast"
+              renderItem={({ icon: Icon, step, title, desc, color }) => (
+                <div className="surface-card rounded-[1.75rem] p-7 h-full flex flex-col justify-start">
+                  <div className="flex items-center justify-between">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary/70">
+                      <Icon className={`h-6 w-6 ${color}`} />
+                    </span>
+                    <span className="font-display text-3xl font-bold text-muted-foreground/25">{step}</span>
+                  </div>
+                  <h3 className="mt-6 text-lg font-semibold">{title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
                 </div>
-                <h3 className="mt-6 text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
-              </motion.div>
-            ))}
+              )}
+            />
           </div>
         </div>
       </section>
@@ -412,9 +412,7 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 sm:px-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="max-w-sm">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[image:var(--gradient-hero)]">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
-              </span>
+              <img src="/logo.png" alt="Subhasa" className="h-9 w-auto object-contain" />
               <span className="font-display text-lg font-bold">Subhasa</span>
             </div>
             <p className="mt-4 text-sm text-muted-foreground">
