@@ -179,6 +179,13 @@ function QuizPageContent() {
       const studentId = localStorage.getItem("student_id");
       // Bug #3 Fix: Send quiz_questions for difficulty tracking
       const payload = { subject, lesson, topic, level, student_answers: answers, correct_answers: correctAnswers, student_id: studentId, quiz_questions: quiz.questions };
+      
+      // Save data for the QuizReview component
+      localStorage.setItem("quiz_review_data", JSON.stringify({
+        questions: quiz.questions,
+        answers: answers
+      }));
+
       if (isPost) {
         const res = await submitPostQuiz(payload);
         if (res?.data?.content) localStorage.setItem("lesson_content", res.data.content);

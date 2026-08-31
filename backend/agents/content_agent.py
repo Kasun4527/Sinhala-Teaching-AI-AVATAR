@@ -2,7 +2,10 @@ import json
 import os
 import re
 import requests
+from datetime import datetime
 from services.retriever import get_relevant_context
+from services.content_guard import check_output
+from db import content_cache_collection
 
 FINETUNED_MODEL_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
 
@@ -85,6 +88,23 @@ _HALLUCINATED_IMAGE_REF = re.compile(
 def _strip_hallucinated_image_refs(text: str) -> str:
     return _HALLUCINATED_IMAGE_REF.sub('', text).strip()
 
+
+# The model frequently emits numbered list items 2+ inline within the same
+# line instead of starting each on its own line (item 1 is often unnumbered,
+# or marked with a stray "*" instead of "1."). The frontend only splits
+# paragraphs on real line breaks — it has no Markdown/list parser — so a list
+# with no line breaks between its items renders as one run-on paragraph
+# instead of a list. This inserts a line break before every embedded "N. "
+# marker that isn't already at the start of a line. The `\.\s+` (period
+# followed by whitespace) requirement keeps this from matching decimals like
+# "3.5 seconds", which have no space after the period.
+_INLINE_LIST_ITEM = re.compile(r'(?<!\n)\s+(\d{1,2}\.)\s+')
+
+
+def _normalize_inline_numbered_lists(text: str) -> str:
+    return _INLINE_LIST_ITEM.sub(lambda m: f"\n{m.group(1)} ", text)
+
+
 # Base instruction text matches the fine-tuning dataset exactly — the model was
 # trained on these three fixed instructions, one per mastery level. The
 # language-purity clause is appended on top of that (not part of the original
@@ -97,10 +117,20 @@ _LANGUAGE_RULE = (
     "එය වරහන් () ඇතුළත පමණක් යොදන්න — සම්පූර්ණ වාක්‍ය හෝ ඡේද ඉංග්‍රීසියෙන් නොලියන්න."
 )
 
+# Layer 1 — Safety guardrail clause appended to every LLM instruction.
+# Explicitly forbids sexual, violent, self-harm, drug, and age-inappropriate
+# content. This is a first line of defense — output filtering (Layer 3a)
+# provides the deterministic backstop.
+_SAFETY_RULE = (
+    " ආරක්ෂිත නීති: ලිංගික, ප්‍රචණ්ඩකාරී, ස්වයං-හානිකර, මත්ද්‍රව්‍ය, "
+    "හෝ වයස්ගත නොවන අන්තර්ගතයක් කිසිසේත් ජනනය නොකරන්න. "
+    "ඔබ අධ්‍යාපනික ගුරුවරයෙකි — පාසල් සිසුන්ට සුදුසු අන්තර්ගතය පමණක් ලබා දෙන්න."
+)
+
 LEVEL_INSTRUCTIONS = {
-    "Beginner": "පහත අන්තර්ගතය ආරම්භක (Beginner) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස සම්පූර්ණ කරුණු ඇතුළත් කර නැවත ලියන්න." + _LANGUAGE_RULE,
-    "Intermediate": "පහත අන්තර්ගතය මධ්‍යම (Intermediate) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස සම්පූර්ණ කරුණු ඇතුළත් කර නැවත ලියන්න." + _LANGUAGE_RULE,
-    "Advanced": "පහත අන්තර්ගතය උසස් (Advanced) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස විද්‍යාත්මක නිරවද්‍යතාවය සහ තාක්ෂණික පාරිභාෂිතය භාවිතා කරමින් නැවත ලියන්න." + _LANGUAGE_RULE,
+    "Beginner": "පහත අන්තර්ගතය ආරම්භක (Beginner) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස සම්පූර්ණ කරුණු ඇතුළත් කර නැවත ලියන්න." + _LANGUAGE_RULE + _SAFETY_RULE,
+    "Intermediate": "පහත අන්තර්ගතය මධ්‍යම (Intermediate) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස සම්පූර්ණ කරුණු ඇතුළත් කර නැවත ලියන්න." + _LANGUAGE_RULE + _SAFETY_RULE,
+    "Advanced": "පහත අන්තර්ගතය උසස් (Advanced) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස විද්‍යාත්මක නිරවද්‍යතාවය සහ තාක්ෂණික පාරිභාෂිතය භාවිතා කරමින් නැවත ලියන්න." + _LANGUAGE_RULE + _SAFETY_RULE,
 }
 
 
@@ -128,6 +158,19 @@ def _group_paragraphs_for_rewrite(paragraphs: list) -> list:
 
 
 def generate_content(subject, lesson, topic, level):
+
+    # Content only ever varies by (subject, lesson, topic, level) — not by
+    # student — so a different student landing on a combination that's
+    # already been generated can reuse it instead of triggering another LLM
+    # call. Only successful, fully-rewritten generations are cached (see the
+    # cache-write below) — fallback/degraded outputs are deliberately never
+    # cached so a transient model failure doesn't get "stuck" as the answer
+    # for everyone.
+    cache_key = {"subject": subject, "lesson": lesson, "topic": topic, "level": level}
+    cached = content_cache_collection.find_one(cache_key)
+    if cached:
+        print(f"[DEBUG] Content cache hit for {cache_key}")
+        return cached["content"]
 
     context = get_relevant_context(subject, lesson, topic, k=4, max_length=None)
 
@@ -196,9 +239,31 @@ def generate_content(subject, lesson, topic, level):
             if _has_foreign_script(answer):
                 print(f"[WARNING] Dropping garbled generation (foreign script detected) for chunk {text_i}")
             answer = g["clean_input"]
+        answer = _normalize_inline_numbered_lists(answer)
         if g["image_tags"]:
             answer = f"{answer}\n\n{chr(10).join(g['image_tags'])}"
         blocks.append(answer)
         text_i += 1
 
-    return "\n\n".join(blocks)
+    final_content = "\n\n".join(blocks)
+
+    # Layer 3a — Output safety filter: scan for harmful content before
+    # caching and returning to the student.
+    safety_result = check_output(final_content, context={
+        "agent": "content_agent",
+        "subject": subject, "lesson": lesson, "topic": topic,
+    })
+    if not safety_result["safe"]:
+        print(f"[ContentGuard] ⚠️ Content flagged — returning safe fallback")
+        return safety_result["cleaned_text"]
+
+    # Cache only on this success path — never the raw-context/exception
+    # fallbacks above — so a bad generation doesn't permanently poison the
+    # cache for every future student who hits this same combination.
+    content_cache_collection.update_one(
+        cache_key,
+        {"$set": {**cache_key, "content": final_content, "created_at": datetime.utcnow()}},
+        upsert=True,
+    )
+
+    return final_content

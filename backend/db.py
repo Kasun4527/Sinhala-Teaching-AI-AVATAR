@@ -31,6 +31,16 @@ curriculum_topics_collection = db["curriculum_topics"]
 # this must never feed topic_unlocked/mastery/BKT.
 practice_quiz_results_collection = db["practice_quiz_results"]
 
+# ── Generation caches ────────────────────────────────────────────────────────
+# LLM-generated content/explanations/quizzes are expensive and mostly a
+# function of (subject, lesson, topic, level) rather than the individual
+# student — caching by that key avoids redundant LLM calls when different
+# students land on the same combination. See agents/content_agent.py,
+# agents/quiz_agent.py's get_pooled_quiz(), and main.py's /explain-content/.
+content_cache_collection = db["content_cache"]
+explain_cache_collection = db["explain_cache"]
+quiz_pool_collection = db["quiz_pool"]
+
 # ── Personalization Collections (PC-BKT + BKT-LSTM) ─────────────────────────
 
 skill_mastery_col       = db["skill_mastery"]
@@ -39,6 +49,12 @@ interaction_logs_col    = db["interaction_logs"]
 student_clusters_col    = db["student_clusters"]
 problem_difficulty_col  = db["problem_difficulty"]
 kmeans_models_col       = db["kmeans_models"]
+
+# ── Safety Guardrails (LLM Content Guard) ────────────────────────────────────────
+# Audit log of input/output safety violations. Each document records what
+# was flagged, which student triggered it, and which teacher should be
+# alerted. Reviewed by teachers via the admin dashboard.
+safety_flags_collection = db["safety_flags"]
 
 
 def ensure_indexes():
@@ -64,5 +80,22 @@ def ensure_indexes():
     practice_quiz_results_collection.create_index(
         [("student_id", ASCENDING), ("subject", ASCENDING), ("lesson", ASCENDING),
          ("topic", ASCENDING), ("created_at", ASCENDING)]
+    )
+    content_cache_collection.create_index(
+        [("subject", ASCENDING), ("lesson", ASCENDING), ("topic", ASCENDING), ("level", ASCENDING)],
+        unique=True
+    )
+    explain_cache_collection.create_index(
+        [("content_hash", ASCENDING)], unique=True
+    )
+    quiz_pool_collection.create_index(
+        [("subject", ASCENDING), ("lesson", ASCENDING), ("topic", ASCENDING),
+         ("level", ASCENDING), ("quiz_type", ASCENDING)]
+    )
+    safety_flags_collection.create_index(
+        [("teacher_id", ASCENDING), ("created_at", ASCENDING)]
+    )
+    safety_flags_collection.create_index(
+        [("student_id", ASCENDING), ("created_at", ASCENDING)]
     )
     print("[DB] Personalization indexes ensured.")

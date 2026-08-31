@@ -72,15 +72,28 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [teacherCode, setTeacherCode] = useState("");
   const [codeCopied, setCodeCopied] = useState(false);
+  const [safetyAlerts, setSafetyAlerts] = useState([]);
+  const [showAlerts, setShowAlerts] = useState(false);
 
   useEffect(() => {
     const role = localStorage.getItem("role");
     const name = localStorage.getItem("name");
     if (role !== "admin") { router.push("/"); return; }
     setAdminName(name || "Admin");
-    setTeacherCode(localStorage.getItem("student_id") || "");
+    setTeacherCode(localStorage.getItem("teacher_code") || localStorage.getItem("student_id") || "");
     fetchStudents();
+    fetchSafetyAlerts();
   }, []);
+
+  const fetchSafetyAlerts = async () => {
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      const res = await axios.get(`${API}/admin/safety-alerts`, { params: { teacher_id: teacherId, limit: 50 } });
+      setSafetyAlerts(res.data.alerts || []);
+    } catch (err) {
+      console.error("Failed to load safety alerts", err);
+    }
+  };
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -337,6 +350,109 @@ export default function AdminDashboard() {
               {codeCopied ? "Copied!" : "Copy"}
             </button>
           </div>
+        </div>
+
+        {/* ── Safety Alerts ── */}
+        <div style={{
+          background: CARD, borderRadius: 14, border: `1px solid ${safetyAlerts.length > 0 ? "#ef4444" : BORDER}`,
+          padding: "16px 22px", marginBottom: 24,
+        }}>
+          <div
+            onClick={() => setShowAlerts(!showAlerts)}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              cursor: "pointer", userSelect: "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18 }}>🛡️</span>
+              <div>
+                <p style={{ color: TEXT, fontSize: 14, fontWeight: 700, margin: 0 }}>
+                  Safety Alerts
+                </p>
+                <p style={{ color: MUTED, fontSize: 11, margin: 0 }}>
+                  Content guardrail violations detected by the LLM safety system
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {safetyAlerts.length > 0 && (
+                <span style={{
+                  background: "#ef4444", color: "white", fontSize: 11, fontWeight: 700,
+                  padding: "3px 10px", borderRadius: 99, minWidth: 20, textAlign: "center",
+                }}>
+                  {safetyAlerts.length}
+                </span>
+              )}
+              <span style={{ color: MUTED, fontSize: 16, transition: "transform 0.2s", transform: showAlerts ? "rotate(180deg)" : "rotate(0)" }}>
+                ▼
+              </span>
+            </div>
+          </div>
+
+          {showAlerts && (
+            <div style={{ marginTop: 16, maxHeight: 400, overflowY: "auto" }}>
+              {safetyAlerts.length === 0 ? (
+                <p style={{ color: MUTED, fontSize: 12, textAlign: "center", padding: 20 }}>
+                  ✅ No safety incidents recorded. All systems operating normally.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {safetyAlerts.map((alert, i) => (
+                    <div key={i} style={{
+                      padding: "14px 16px", borderRadius: 10,
+                      background: "#0f172a", border: `1px solid ${alert.flag_type === "input_blocked" ? "#f97316" : "#ef4444"}`,
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
+                            background: alert.flag_type === "input_blocked" ? "rgba(249,115,22,0.15)" : "rgba(239,68,68,0.15)",
+                            color: alert.flag_type === "input_blocked" ? "#fb923c" : "#f87171",
+                            textTransform: "uppercase", letterSpacing: "0.05em",
+                          }}>
+                            {alert.flag_type === "input_blocked" ? "Input Blocked" : "Output Flagged"}
+                          </span>
+                          <span style={{ color: MUTED, fontSize: 10 }}>
+                            {alert.agent || "unknown agent"}
+                          </span>
+                        </div>
+                        <span style={{ color: MUTED, fontSize: 10 }}>
+                          {alert.created_at ? new Date(alert.created_at).toLocaleString() : "—"}
+                        </span>
+                      </div>
+                      <p style={{ color: TEXT2, fontSize: 12, margin: "0 0 4px", fontWeight: 600 }}>
+                        {alert.reason}
+                      </p>
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        {alert.student_id && (
+                          <span style={{ color: MUTED, fontSize: 11 }}>
+                            👤 Student: <span style={{ color: TEXT2 }}>{alert.student_id}</span>
+                          </span>
+                        )}
+                        {alert.subject && (
+                          <span style={{ color: MUTED, fontSize: 11 }}>
+                            📘 {alert.subject} → {alert.topic || alert.lesson || "—"}
+                          </span>
+                        )}
+                      </div>
+                      {alert.content_snippet && (
+                        <p style={{
+                          color: MUTED, fontSize: 11, margin: "8px 0 0",
+                          padding: "8px 10px", background: "rgba(255,255,255,0.02)",
+                          borderRadius: 6, border: `1px solid ${BORDER}`,
+                          fontFamily: "monospace", wordBreak: "break-all",
+                          maxHeight: 60, overflow: "hidden",
+                        }}>
+                          {alert.content_snippet}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Top stat row */}

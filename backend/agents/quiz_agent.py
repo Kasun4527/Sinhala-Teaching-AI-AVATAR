@@ -3,7 +3,10 @@ import os
 import re
 import random
 import requests
+from datetime import datetime
 from services.retriever import get_relevant_context
+from services.content_guard import check_output
+from db import quiz_pool_collection
 
 
 # Sinhala Unicode block — used to tell genuine Sinhala content apart from
@@ -309,10 +312,16 @@ def generate_quiz(subject, lesson, topic, level, quiz_type, context=None):
         "ලිඛිත කරුණු පමණක් ඇසුරින් ප්‍රශ්න සකසන්න. රූප සටහන්වල ලකුණු කර ඇති අකුරු (A, B, A-A1 වැනි) හෝ ඒවායින් "
         "දැක්වෙන ප්‍රදේශ/ලක්ෂ්‍ය ගැන ප්‍රශ්න අසන්නත් එපා."
     )
+    # Layer 1 — Safety guardrail: forbid harmful content in quiz generation.
+    safety_rule = (
+        " ආරක්ෂිත නීති: ලිංගික, ප්‍රචණ්ඩකාරී, ස්වයං-හානිකර, මත්ද්‍රව්‍ය, "
+        "හෝ වයස්ගත නොවන අන්තර්ගතයක් කිසිසේත් ජනනය නොකරන්න. "
+        "ඔබ අධ්‍යාපනික ගුරුවරයෙකි — පාසල් සිසුන්ට සුදුසු ප්‍රශ්න පමණක් සකසන්න."
+    )
     if quiz_type == "pre":
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}"
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. පහත context ඇසුරින් ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}{safety_rule}"
     else:
-        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}"
+        instruction = f"ඔබ {subject} පිළිබඳ ප්‍රවීණ ගුරුවරයෙකි. සිසුවාගේ {level} මට්ටම අනුව ප්‍රශ්නාවලියක් සකසන්න. {language_rule} {no_figures_rule}{safety_rule}"
 
     # STEP 2: Build input prompt with context
     input_text = f"""Context:
@@ -401,7 +410,22 @@ Format:
                     return best_result
                 continue
 
-            print("Quiz generated successfully", result)
+            print("Quiz generated successfully")
+
+            # Layer 3a — Output safety filter: scan each question for harmful content.
+            safe_questions = []
+            for q in result.get("questions", []):
+                q_text = f"{q.get('question', '')} {' '.join(q.get('options', []))} {q.get('answer', '')}"
+                safety = check_output(q_text, context={
+                    "agent": "quiz_agent",
+                    "subject": subject, "lesson": lesson, "topic": topic,
+                })
+                if safety["safe"]:
+                    safe_questions.append(q)
+                else:
+                    print(f"[ContentGuard] ⚠️ Removed flagged quiz question")
+            result["questions"] = safe_questions
+
             return result
 
         except Exception as e:
@@ -439,3 +463,35 @@ def evaluate_answers(student_answers, correct_answers):
         "score": percentage,
         "level": level
     }
+
+
+# =========================
+# POOLED QUIZ CACHE (pre/post-quiz only — practice quizzes are generated
+# from a specific student's saved content via context=, and must NOT go
+# through this shared pool)
+# =========================
+QUIZ_POOL_SIZE = 5
+
+
+def get_pooled_quiz(subject, lesson, topic, level, quiz_type, pool_size=QUIZ_POOL_SIZE):
+    """Serve a quiz for (subject, lesson, topic, level, quiz_type) from a
+    small shared pool instead of generating fresh on every request. Once the
+    pool reaches `pool_size` variants, requests are served instantly from a
+    random existing one; until then, each request lazily generates and adds
+    one more variant to the pool. This trades some question variety (the
+    same ~5 variants repeat across students on a topic) for cutting most
+    requests down to a fast DB read instead of an LLM call."""
+    key = {"subject": subject, "lesson": lesson, "topic": topic, "level": level, "quiz_type": quiz_type}
+    existing = list(quiz_pool_collection.find(key))
+
+    if len(existing) >= pool_size:
+        print(f"[DEBUG] Quiz pool hit for {key} ({len(existing)}/{pool_size} variants)")
+        return random.choice(existing)["quiz"]
+
+    print(f"[DEBUG] Quiz pool miss for {key} ({len(existing)}/{pool_size} variants) — generating")
+    quiz = generate_quiz(subject, lesson, topic, level, quiz_type)
+    # Don't grow the pool with a failed/empty generation — just return it
+    # as-is for this request without persisting it as a reusable variant.
+    if quiz.get("questions"):
+        quiz_pool_collection.insert_one({**key, "quiz": quiz, "created_at": datetime.utcnow()})
+    return quiz

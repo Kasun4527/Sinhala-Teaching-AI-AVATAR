@@ -68,7 +68,7 @@ function validatePassword(password) {
 
 export default function SignupPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", password: "", teacherCode: "" });
+  const [form, setForm] = useState({ name: "", education_level: "", email: "", password: "", teacherCode: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [pwFocused, setPwFocused] = useState(false);
@@ -84,7 +84,7 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const { teacherCode, ...rest } = form;
-      await signupUser({ ...rest, teacher_code: teacherCode.trim() || null, role: "student" });
+      await signupUser({ ...rest, teacher_code: teacherCode.trim() || null, education_level: form.education_level || null, role: "student" });
       setDone(true);
     } catch (err) {
       setError(getErrorMessage(err, "Signup failed"));
@@ -223,6 +223,55 @@ export default function SignupPage() {
 
           {[
             { label: "Full Name", name: "name", type: "text", placeholder: "Your full name" },
+          ].map((field) => (
+            <div key={field.name} style={{ marginBottom: 20 }}>
+              <label style={{ color: "#475569", fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>
+                {field.label}
+              </label>
+              <input
+                type={field.type}
+                name={field.name}
+                value={form[field.name]}
+                onChange={handleChange}
+                placeholder={field.placeholder}
+                style={{
+                  width: "100%", padding: "12px 16px",
+                  border: "1.5px solid #e2e8f0",
+                  borderRadius: 10, fontSize: 14, outline: "none",
+                  backgroundColor: "white", color: "#0f172a", boxSizing: "border-box"
+                }}
+              />
+            </div>
+          ))}
+
+          {/* Education Level Dropdown */}
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ color: "#475569", fontSize: 13, fontWeight: 500, display: "block", marginBottom: 6 }}>
+              Education Level
+            </label>
+            <select
+              name="education_level"
+              value={form.education_level}
+              onChange={handleChange}
+              style={{
+                width: "100%", padding: "12px 16px",
+                border: `1.5px solid ${!form.education_level && form.name ? "#fca5a5" : "#e2e8f0"}`,
+                borderRadius: 10, fontSize: 14, outline: "none",
+                backgroundColor: "white", color: form.education_level ? "#0f172a" : "#94a3b8",
+                boxSizing: "border-box", cursor: "pointer",
+                appearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 14px center",
+              }}
+            >
+              <option value="" disabled>Select your grade level</option>
+              <option value="OL">G.C.E. (O/L) — සාමාන්‍ය පෙළ</option>
+              <option value="AL">G.C.E. (A/L) — උසස් පෙළ</option>
+            </select>
+          </div>
+
+          {[
             { label: "Email Address", name: "email", type: "email", placeholder: "you@example.com" },
             { label: "Password", name: "password", type: "password", placeholder: "Create a strong password" },
             { label: "Teacher Code (optional)", name: "teacherCode", type: "text", placeholder: "Ask your teacher for their code" },
@@ -304,7 +353,7 @@ export default function SignupPage() {
 
           <button
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || !form.education_level}
             style={{
               width: "100%", padding: "13px",
               backgroundColor: loading ? "#93c5fd" : "#3b82f6",

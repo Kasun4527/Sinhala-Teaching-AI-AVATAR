@@ -24,6 +24,13 @@ const SUBJECT = {
 };
 const DEFAULT_S = { abbr: "SU", hue: "#64748b", dark: "#1e293b" };
 
+// Grade → education-level mapping
+const GRADE_LEVEL = {
+  "11 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "OL",
+  "12 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "AL",
+  "13 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "AL",
+};
+
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 function EnrolledCard({ item, onClick }) {
@@ -97,6 +104,9 @@ export default function StudentDashboard() {
   const [needsTeacherCode, setNeedsTeacherCode] = useState(false);
   const [teacherCodeInput, setTeacherCodeInput] = useState("");
   const [teacherCodeStatus, setTeacherCodeStatus] = useState({ saving: false, error: "" });
+  const [educationLevel, setEducationLevel] = useState(null);
+  const [hasSetDefaultGrade, setHasSetDefaultGrade] = useState(false);
+  const [enrolledSubjects, setEnrolledSubjects] = useState([]);
   const [enrolled, setEnrolled] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -121,11 +131,21 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
+    if (!token) router.push("/login");
 
     const studentId = localStorage.getItem("student_id");
     setName(localStorage.getItem("name") || "Student");
     setNeedsTeacherCode(!localStorage.getItem("teacher_id"));
+    setEducationLevel(localStorage.getItem("education_level") || null);
+
+    // Fetch current enrollments so we know which subjects are already enrolled
+    const sid = localStorage.getItem("student_id");
+    if (sid) {
+      fetch(`${BACKEND}/enrollments?student_id=${encodeURIComponent(sid)}`)
+        .then(r => r.json())
+        .then(d => setEnrolledSubjects((d.subjects || []).map(s => s.subject)))
+        .catch(() => { });
+    }
 
     const fetchEnrollments = async () => {
       if (!studentId) return;
@@ -140,6 +160,17 @@ export default function StudentDashboard() {
     };
     fetchEnrollments();
   }, [router]);
+
+  useEffect(() => {
+    if (!hasSetDefaultGrade && curriculum.length > 0) {
+      const edLevel = localStorage.getItem("education_level") || null;
+      if (edLevel) {
+        const defaultIndex = curriculum.findIndex(g => GRADE_LEVEL[g.grade] === edLevel);
+        if (defaultIndex !== -1) setGrade(defaultIndex);
+      }
+      setHasSetDefaultGrade(true);
+    }
+  }, [curriculum, hasSetDefaultGrade]);
 
   const submitTeacherCode = async () => {
     const code = teacherCodeInput.trim();
@@ -172,7 +203,7 @@ export default function StudentDashboard() {
       <Sidebar />
 
       <main style={{ flex: 1, padding: "48px", display: "flex", flexDirection: "column", gap: "48px", height: "100vh", overflowY: "auto", minWidth: 0 }}>
-        
+
         {/* Navigation Bar */}
         <Navbar />
 
@@ -353,11 +384,16 @@ export default function StudentDashboard() {
               const cfg = SUBJECT[item.subject] || DEFAULT_S;
               const isH = hovered === i;
               const tops = item.lessons?.reduce((a, l) => a + (l.topics?.length || 0), 0) || 0;
+              const gradeLevel = GRADE_LEVEL[current.grade];
+              const isLocked = educationLevel && gradeLevel && educationLevel !== gradeLevel;
 
               return (
                 <div
                   key={i}
-                  onClick={() => setPending({ ...item, grade: current.grade })}
+                  onClick={() => {
+                    const alreadyEnrolled = enrolledSubjects.includes(item.subject);
+                    setPending({ ...item, grade: current.grade, isLocked, gradeLevel, alreadyEnrolled });
+                  }}
                   onMouseEnter={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
                   className="group"
@@ -367,7 +403,8 @@ export default function StudentDashboard() {
                     borderRadius: 24, overflow: "hidden", cursor: "pointer", backdropFilter: "blur(10px)",
                     boxShadow: isH ? `0 20px 56px rgba(0,0,0,0.3)` : "0 4px 20px rgba(0,0,0,0.1)",
                     transform: isH ? "translateY(-5px)" : "translateY(0)",
-                    transition: "all 0.3s cubic-bezier(.22,.61,.36,1)",
+                    transition: "all 0.22s cubic-bezier(.22,.61,.36,1)",
+                    position: "relative",
                   }}
                 >
                   {/* Top stripe */}
@@ -397,6 +434,13 @@ export default function StudentDashboard() {
                     <p style={{ margin: "0 0 24px", fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>
                       {current.grade}{tops > 0 && <> &middot; {tops} topics</>}
                     </p>
+
+                    <div style={{ height: 3, background: "#f1f5f9", borderRadius: 99, marginBottom: 20 }}>
+                      <div style={{
+                        height: "100%", borderRadius: 99, width: "40%",
+                        background: cfg.ring,
+                      }} />
+                    </div>
 
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <span className="group-hover:text-blue-400 transition-colors" style={{ fontSize: 14, fontWeight: 700, color: "#cbd5e1" }}>Preview lesson</span>
@@ -457,10 +501,22 @@ export default function StudentDashboard() {
                 </div>
               </div>
 
-              <div style={{ padding: "32px" }}>
-                <p style={{ color: "#cbd5e1", fontSize: 16, lineHeight: 1.8, margin: 0 }}>
-                  You are about to enrol in <strong style={{ color: "white" }}>{pendingEnroll.subject}</strong>. Your progress will be tracked and lessons unlocked as you advance.
-                </p>
+              <div style={{ padding: "26px 30px 30px" }}>
+                {pendingEnroll.isLocked ? (
+                  <div style={{ padding: "16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, marginBottom: 16 }}>
+                    <p style={{ margin: 0, color: "#b91c1c", fontSize: 14, fontWeight: 600, lineHeight: 1.6 }}>
+                      🔒 This subject is for {pendingEnroll.gradeLevel === "OL" ? "O/L" : "A/L"} students. Your account is registered as {educationLevel === "OL" ? "O/L" : "A/L"}.
+                    </p>
+                  </div>
+                ) : pendingEnroll.alreadyEnrolled ? (
+                  <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
+                    You are already enrolled in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Continue where you left off.
+                  </p>
+                ) : (
+                  <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
+                    You are about to enrol in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Your progress will be tracked and lessons unlocked as you advance.
+                  </p>
+                )}
 
                 {enrollErr && (
                   <div style={{ marginTop: 20, padding: "14px 16px", borderRadius: 12, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#fca5a5", fontSize: 14 }}>
@@ -492,7 +548,7 @@ export default function StudentDashboard() {
                         setEnrolling(true); setEnrollErr("");
                         const studentId = localStorage.getItem("student_id");
                         if (!studentId) throw new Error("Not logged in");
-                        await enrollSubject({ student_id: studentId, subject: pendingEnroll.subject, lessons: pendingEnroll.lessons || [] });
+                        await enrollSubject({ student_id: studentId, subject: pendingEnroll.subject, lessons: pendingEnroll.lessons || [], grade: pendingEnroll.grade || "" });
                         setPending(null);
                         router.push(`/sub-lesson?subject=${encodeURIComponent(pendingEnroll.subject)}&grade=${encodeURIComponent(pendingEnroll.grade || "")}`);
                       } catch (err) {
@@ -501,18 +557,18 @@ export default function StudentDashboard() {
                         setEnrolling(false);
                       }
                     }}
-                    disabled={enrolling}
+                    disabled={enrolling || pendingEnroll.isLocked}
                     style={{
-                      flex: 2, padding: "14px 0", borderRadius: 14, border: "none",
-                      background: enrolling ? "#3b82f6" : `linear-gradient(135deg, ${BLUE_D}, ${BLUE})`,
-                      color: "white", fontWeight: 700, fontSize: 15,
-                      cursor: enrolling ? "not-allowed" : "pointer",
-                      boxShadow: enrolling ? "none" : `0 8px 24px rgba(59,130,246,0.4)`,
+                      flex: 2, padding: "13px 0", borderRadius: 12, border: "none",
+                      background: (enrolling || pendingEnroll.isLocked) ? "#94a3b8" : `linear-gradient(135deg, ${BLUE_D}, ${BLUE})`,
+                      color: "white", fontWeight: 700, fontSize: 14,
+                      cursor: (enrolling || pendingEnroll.isLocked) ? "not-allowed" : "pointer",
+                      boxShadow: (enrolling || pendingEnroll.isLocked) ? "none" : `0 6px 20px ${BLUE}50`,
                       transition: "all 0.2s",
                     }}
                     className={!enrolling ? "hover:scale-[1.02]" : ""}
                   >
-                    {enrolling ? "Enrolling…" : "Enrol & Start Learning →"}
+                    {enrolling ? "Enrolling..." : pendingEnroll.isLocked ? "Locked" : pendingEnroll.alreadyEnrolled ? "Continue Learning →" : "Enrol & Continue →"}
                   </button>
                 </div>
               </div>

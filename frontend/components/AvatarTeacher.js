@@ -12,7 +12,7 @@ const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 const FEMALE_AVATARS = ["camila", "caroline", "clara", "elena", "kate", "maria", "may", "olivia"];
 const DEFAULT_AVATAR = "kate";
 
-export default function AvatarTeacher({ content, topic, speechReady = true, onSentenceChange, paragraphCount = 1, answerContent, onAnswerSpoken }) {
+export default function AvatarTeacher({ content, topic, speechReady = true, onSentenceChange, paragraphCount = 1, answerContent, onAnswerSpoken, onPauseChange }) {
   const videoRef    = useRef(null);
   const pcRef       = useRef(null);
   const channelRef  = useRef(null);
@@ -129,6 +129,7 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
     const next = !paused;
     setPaused(next);
     sendCommand({ command: next ? "pause" : "resume" });
+    if (onPauseChange) onPauseChange(next);
   }
 
   async function waitForIceComplete(pc, ms = 8000) {
@@ -333,7 +334,7 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
                 borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer",
               }}
             >
-              {paused ? "▶ Resume" : "⏸ Pause"}
+              {paused ? "▶ Continue" : "📝 Taking Notes"}
             </button>
           )}
 

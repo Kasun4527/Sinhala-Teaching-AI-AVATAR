@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from agents.content_agent import generate_content
 from agents.explain_agent import generate_explanation, generate_paragraph_explanations
-from agents.quiz_agent import generate_quiz, evaluate_answers
+from agents.quiz_agent import generate_quiz, evaluate_answers, get_pooled_quiz
 from agents.adaptation_agent import decide_next_step
 from agents.student_agent import get_level
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +24,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection, curriculum_topics_collection
+from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection, curriculum_topics_collection, explain_cache_collection
 from services.email_service import send_verification_email, verify_token
 from models.User import User
 from auth.security import hash_password
@@ -159,6 +159,14 @@ class EnrollmentSubmission(BaseModel):
     student_id: str
     subject: str
     lessons: list = Field(default_factory=list)
+    grade: str = ""  # e.g. "11 ශ්‍රේණිය" — used for education-level validation
+
+
+class SkipPreQuizRequest(BaseModel):
+    student_id: str
+    subject: str
+    lesson: str
+    topic: str
 
 
 def normalize_enrolled_lessons(lessons):
@@ -238,10 +246,65 @@ async def align_audio(data: AlignRequest):
 def pre_quiz(subject: str, lesson: str, topic: str):
     print(f"Received pre-quiz request for {subject} - {lesson} - {topic}")
     try:
-        quiz = generate_quiz(subject, lesson, topic, "Beginner", "pre")
+        quiz = get_pooled_quiz(subject, lesson, topic, "Beginner", "pre")
         return {"quiz": quiz}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Pre-quiz bypass: student self-selects Beginner level ─────────────────
+@app.post("/skip-pre-quiz/")
+async def skip_pre_quiz(data: SkipPreQuizRequest):
+    """
+    Allows a student to bypass the pre-quiz and start directly as a Beginner.
+    Initializes BKT at cold-start defaults (mastery=0.30) and generates
+    Beginner-level content without requiring quiz answers.
+    """
+    from services.bkt_service import DEFAULT_L0, make_skill_id, get_subject_transfer_L0
+
+    print(f"⏩ [SkipPreQuiz] {data.student_id} skipping pre-quiz for {data.subject}/{data.lesson}/{data.topic}")
+
+    # Use transfer L0 if student has prior subject history, otherwise cold-start default
+    initial_mastery = get_subject_transfer_L0(data.student_id, data.subject)
+    level = "Beginner"
+
+    # Generate Beginner-level content (uses cache if available)
+    content = await asyncio.to_thread(
+        generate_content,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level
+    )
+
+    # Save progress with quiz_type="skip" to distinguish from assessed students
+    save_pre_quiz_result(
+        student_id=data.student_id,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level,
+        score=0,
+        mastery=initial_mastery,
+        bkt_level=level,
+        quiz_type="skip"
+    )
+
+    save_delivered_content(
+        student_id=data.student_id,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level,
+        content=content
+    )
+
+    return {
+        "level": level,
+        "content": content,
+        "mastery": initial_mastery,
+        "score": 0
+    }
 
 
 @app.post("/submit-pre-quiz/")
@@ -283,7 +346,7 @@ async def submit_pre_quiz(data: QuizSubmission):
 @app.get("/post-quiz/")
 def post_quiz(subject: str, lesson: str, topic: str, level: str):
     try:
-        quiz = generate_quiz(subject, lesson, topic, level, "post")
+        quiz = get_pooled_quiz(subject, lesson, topic, level, "post")
         return {"quiz": quiz}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -431,16 +494,44 @@ def practice_quiz_results(student_id: str, subject: str = None, lesson: str = No
 
 @app.post("/explain-content/")
 def explain_content_route(data: dict):
+    import hashlib
+    import datetime as _dt
+
     content = data.get("content", "")
     paragraphs = data.get("paragraphs", [])
     if not content:
         raise HTTPException(status_code=400, detail="content is required")
+
+    # Same generated content (from the content_cache in content_agent.py, or
+    # coincidentally identical across students) shouldn't pay for a second
+    # LLM round-trip just to re-explain it. Keyed by a hash of the exact
+    # input rather than subject/lesson/topic/level, since this endpoint
+    # doesn't receive those — the content itself is what's actually reused.
+    cache_input = json.dumps({"content": content, "paragraphs": paragraphs}, ensure_ascii=False, sort_keys=True)
+    content_hash = hashlib.sha256(cache_input.encode("utf-8")).hexdigest()
+    cached = explain_cache_collection.find_one({"content_hash": content_hash})
+    if cached:
+        return cached["result"]
+
     if paragraphs:
         explanation_parts, explained = generate_paragraph_explanations(paragraphs)
         explanation = "\n\n".join(explanation_parts)
-        return {"explanation": explanation, "explanationParts": explanation_parts, "explained": explained}
-    explanation, explained = generate_explanation(content)
-    return {"explanation": explanation, "explained": explained}
+        result = {"explanation": explanation, "explanationParts": explanation_parts, "explained": explained}
+    else:
+        explanation, explained = generate_explanation(content)
+        result = {"explanation": explanation, "explained": explained}
+
+    # Only cache genuine successful explanations — never the raw-content
+    # fallback (explained: False) — so a transient failure doesn't get
+    # served as the permanent "explanation" for this content.
+    if result.get("explained"):
+        explain_cache_collection.update_one(
+            {"content_hash": content_hash},
+            {"$set": {"content_hash": content_hash, "result": result, "created_at": _dt.datetime.utcnow()}},
+            upsert=True,
+        )
+
+    return result
 
 
 @app.post("/generate-tts/")
@@ -459,10 +550,13 @@ async def generate_tts(data: dict):
 
 
 def _resolve_teacher_id(teacher_code: str) -> str:
-    """A teacher's own user id doubles as their "teacher code" — no
-    separate code needs generating/storing. Raises if it doesn't match a
-    real admin account, so a mistyped code fails loudly at signup rather
-    than silently leaving the student unassigned."""
+    """Look up a teacher by their human-readable teacher_code (e.g. 'TE482917').
+    Falls back to matching by _id for legacy codes that are raw ObjectIds."""
+    # Try human-readable code first
+    teacher = users_collection.find_one({"teacher_code": teacher_code, "role": "admin"})
+    if teacher:
+        return str(teacher["_id"])
+    # Fallback: legacy raw ObjectId codes
     try:
         teacher = users_collection.find_one({"_id": ObjectId(teacher_code), "role": "admin"})
     except Exception:
@@ -488,6 +582,19 @@ def signup(user: User):
     teacher_code = user_dict.pop("teacher_code", None)
     if user.role == "student" and teacher_code:
         user_dict["teacher_id"] = _resolve_teacher_id(teacher_code)
+
+    # Persist education_level for students (OL / AL); None for legacy
+    if user.role != "student":
+        user_dict.pop("education_level", None)
+
+    # Generate a human-readable teacher code for admin accounts
+    import random
+    if user.role == "admin":
+        while True:
+            code = f"TE{random.randint(100000, 999999)}"
+            if not users_collection.find_one({"teacher_code": code}):
+                break
+        user_dict["teacher_code"] = code
 
     users_collection.insert_one(user_dict)
 
@@ -576,6 +683,8 @@ def login(data: dict):
         "name": user["name"],
         "student_id": str(user["_id"]),
         "teacher_id": user.get("teacher_id"),  # null if not yet linked to a teacher
+        "education_level": user.get("education_level"),  # "OL" | "AL" | None (legacy)
+        "teacher_code": user.get("teacher_code"),  # e.g. "TE482917" for admins
     }
 
 
@@ -623,6 +732,24 @@ def test_email_connection():
 def admin_get_students(teacher_id: str = None):
     students = get_all_students(teacher_id)
     return {"students": students}
+
+
+@app.get("/admin/safety-alerts")
+def admin_get_safety_alerts(teacher_id: str = None, limit: int = 50):
+    """Fetch recent safety-flag incidents for the teacher's admin dashboard.
+
+    If teacher_id is provided, only flags linked to that teacher's students
+    are returned. Otherwise, all flags are returned (for superadmin use).
+    """
+    from services.content_guard import get_safety_alerts
+    alerts = get_safety_alerts(teacher_id=teacher_id, limit=limit)
+    # Convert datetime objects to ISO strings for JSON serialization.
+    for a in alerts:
+        if "created_at" in a and a["created_at"]:
+            a["created_at"] = a["created_at"].isoformat()
+        if "reviewed_at" in a and a["reviewed_at"]:
+            a["reviewed_at"] = a["reviewed_at"].isoformat()
+    return {"alerts": alerts, "count": len(alerts)}
 
 
 # ✅ Look up a single student's name by their own id — /admin/students only
@@ -698,11 +825,29 @@ def sidebar_progress(student_id: str):
     return {"subjects": result}
 
 
+# Grade→education-level mapping for enrollment gating
+_OL_GRADES = {"11 ශ්‍රේණිය"}
+_AL_GRADES = {"12 ශ්‍රේණිය", "13 ශ්‍රේණිය"}
+
+
 @app.post("/enroll/")
 def enroll(data: EnrollmentSubmission):
 
     if not data.student_id or not data.subject:
         raise HTTPException(status_code=400, detail="student_id and subject required")
+
+    # ── Education-level guard ──────────────────────────────────────────
+    # Legacy accounts (education_level=None) are unrestricted.
+    try:
+        student = users_collection.find_one({"_id": ObjectId(data.student_id)})
+    except Exception:
+        student = None
+    level = student.get("education_level") if student else None
+    if level and data.grade:
+        if level == "OL" and data.grade not in _OL_GRADES:
+            raise HTTPException(status_code=403, detail="O/L students cannot enrol in A/L subjects")
+        if level == "AL" and data.grade not in _AL_GRADES:
+            raise HTTPException(status_code=403, detail="A/L students cannot enrol in O/L subjects")
 
     subject_entry = {
         "subject": data.subject,
