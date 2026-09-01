@@ -105,7 +105,7 @@ function LessonsPageContent() {
   const cfg = SUBJECT_CFG[subject] || DEFAULT_CFG;
 
   if (!subjectData) return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#020617" }}>
       <Navbar />
       <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc", }}>
         <p style={{ color: "#94a3b8" }}>No lessons found.</p>

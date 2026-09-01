@@ -144,11 +144,10 @@ function TopicsPageContent() {
   // ── Full-screen loading when "Start as Beginner" is processing ─────────
   if (skipLoading) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", }}>
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark || "#1e3a8a"} 55%, ${cfg.hue} 100%)` }}>
         <Navbar />
         <main style={{
           flex: 1, minWidth: 0,
-          background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark || "#1e3a8a"} 55%, ${cfg.hue} 100%)`,
           display: "flex", alignItems: "center", justifyContent: "center",
           position: "relative", overflow: "hidden",
         }}>
@@ -199,7 +198,7 @@ function TopicsPageContent() {
   }
 
   if (!lessonData || lessonData.topics.length === 0) return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#020617" }}>
       <Navbar />
       <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc", }}>
         <p style={{ color: "#94a3b8" }}>No topics available.</p>

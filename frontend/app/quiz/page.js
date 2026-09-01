@@ -59,11 +59,10 @@ function FloatingPattern({ color }) {
 // ── Fullscreen loading/submitting overlay ──────────────────────────
 function LoadingScreen({ subject, cfg, title, subtitle }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e3a8a 100%)" }}>
       <Navbar />
       <main style={{
         flex: 1, minWidth: 0,
-        background: "linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e3a8a 100%)",
         position: "relative", overflow: "hidden",
       }}>
         <BackgroundBeamsWithCollision className="!h-full w-full absolute inset-0 z-0" />
@@ -223,7 +222,7 @@ function QuizPageContent() {
   );
 
   if (!quiz?.questions?.length) return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#020617" }}>
       <Navbar />
       <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
         <div style={{ maxWidth: 640, background: "white", borderRadius: 16, padding: 28, border: "1.5px solid #fecaca" }}>
