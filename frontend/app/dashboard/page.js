@@ -132,7 +132,7 @@ export default function StudentDashboard() {
           setProfileComplete(complete);
           localStorage.setItem("profile_complete", complete ? "true" : "false");
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     const fetchEnrollments = async () => {
@@ -155,7 +155,7 @@ export default function StudentDashboard() {
     <div style={{ height: "100vh", overflow: "hidden", background: "linear-gradient(to bottom, #020617 0%, #0f172a 100%)" }}>
       <Navbar />
 
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 32px 0px", display: "flex", flexDirection: "column", gap: 48 }}>
+      <main style={{ maxWidth: 1540, margin: "0 auto", padding: "24px 32px 0px", display: "flex", flexDirection: "column", gap: 48 }}>
 
         {/* Top Split Section */}
         <div style={{ display: "flex", gap: "48px" }}>
@@ -245,7 +245,7 @@ export default function StudentDashboard() {
               <div style={{ marginBottom: 56 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
                   <h2 className="text-section-title c-white" style={{ margin: 0 }}>Continue learning</h2>
-                  <button 
+                  <button
                     onClick={() => router.push('/progress')}
                     style={{
                       background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
@@ -260,9 +260,9 @@ export default function StudentDashboard() {
                     See All My Lessons →
                   </button>
                 </div>
-                <div 
-                  style={{ 
-                    display: "flex", gap: 24, paddingBottom: 16, 
+                <div
+                  style={{
+                    display: "flex", gap: 24, paddingBottom: 16,
                     overflowX: "auto", overflowY: "hidden",
                     scrollbarWidth: "none", // For Firefox
                     msOverflowStyle: "none" // For IE and Edge
@@ -282,7 +282,7 @@ export default function StudentDashboard() {
                   ))}
                 </div>
                 <div style={{ display: "flex", justifyContent: "center" }}>
-                  <button 
+                  <button
                     onClick={() => router.push('/lessons')}
                     style={{
                       background: "rgba(255,255,255,0.05)",
@@ -305,4 +305,4 @@ export default function StudentDashboard() {
       <ChatBot accent={BLUE} />
     </div>
   );
-}
+}
