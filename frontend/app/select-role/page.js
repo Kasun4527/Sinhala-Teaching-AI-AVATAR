@@ -80,62 +80,36 @@ export default function LandingPage() {
   if (!mounted) return null;
 
   return (
-    <div style={{
-      display: "flex",
-      minHeight: "100vh",
-      width: "100vw",
-      overflow: "hidden",
-      fontFamily: "'Poppins', sans-serif",
-      /* ENTIRE PAGE BACKGROUND: Dark on left, reducing/fading into solid dark blue on the right */
-      background: "linear-gradient(to right, #020617 35%, #1e3a8a 85%, #1d4ed8 100%)"
-    }}>
+    <div className="page-shell" style={{ width: "100vw" }}>
 
       {/* Left Panel */}
       <div style={{
         width: "50%",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
+        justifyContent: "center",
         padding: "40px 48px",
         overflow: "hidden",
+        position: "relative"
       }}>
         {/* Logo (restored to original) */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-            width: 38, height: 38, borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(37,99,235,0.4)",
-            flexShrink: 0
-          }}>
-            <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>IDS</span>
-          </div>
-          <span style={{ color: "white", fontWeight: 600, fontSize: 14, letterSpacing: 0.3 }}>
-            Intelligent Distance System
+        <div style={{ display: "flex", alignItems: "center", gap: 12, position: "absolute", top: 40, left: 48 }}>
+          <img src="/logo.png" alt="SUBHASHA" style={{ height: 38, width: "auto", objectFit: "contain", flexShrink: 0 }} />
+          <span className="text-logo c-white">
+            SUBHASHA Platform
           </span>
         </div>
 
         {/* Center Content */}
         <div>
-          <p style={{
-            color: "#60a5fa", fontSize: 11, fontWeight: 700,
-            letterSpacing: "0.2em", textTransform: "uppercase",
-            marginBottom: 16
-          }}>
+          <p className="text-label c-blue-accent" style={{ marginBottom: 16 }}>
             Welcome to
           </p>
-          <h1 style={{
-            fontFamily: "'Poppins', sans-serif",
-            fontSize: 42, fontWeight: 700, color: "white",
-            lineHeight: 1.2, marginBottom: 20
-          }}>
-            Adaptive Learning Platform
+          <h1 className="text-page-title c-white" style={{ marginBottom: 20 }}>
+            SUBHASHA
           </h1>
-          <p style={{
-            color: "#94a3b8", fontSize: 15, lineHeight: 1.7,
-            maxWidth: 420
-          }}>
-            A personalized learning experience powered by AI — tailored to your level, your pace, your goals.
+          <p className="text-body c-muted" style={{ maxWidth: 420 }}>
+            A personalized Sinhala-medium learning experience powered by AI — tailored to your level, your pace, your goals.
           </p>
 
           {/* Feature Pills */}
@@ -152,30 +126,34 @@ export default function LandingPage() {
               </span>
             ))}
           </div>
-        </div>
 
-        {/* Bottom Subjects */}
-        <div>
-          <p style={{ color: "#94a3b8", fontSize: 11, marginBottom: 10, letterSpacing: "0.1em" }}>
-            AVAILABLE SUBJECTS
-          </p>
-          <div style={{ display: "flex", gap: 16 }}>
-            {[
-              { name: "Physics", color: "#60a5fa" },
-              { name: "Chemistry", color: "#4ade80" },
-              { name: "Biology", color: "#34d399" },
-              { name: "Maths", color: "#c084fc" },
-            ].map((s) => (
-              <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{
-                  width: 6, height: 6, borderRadius: "50%",
-                  backgroundColor: s.color
-                }} />
-                <span style={{ color: "#cbd5e1", fontSize: 12 }}>{s.name}</span>
-              </div>
-            ))}
+          {/* User Manual Button */}
+          <div style={{ marginTop: 40 }}>
+            <button
+              onClick={() => router.push("/manual")}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 10,
+                backgroundColor: "rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                color: "white", padding: "12px 24px",
+                borderRadius: 8, cursor: "pointer",
+                 fontSize: 14, fontWeight: 500,
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.2)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.1)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
+              }}
+            >
+              📖 View User Manual
+            </button>
           </div>
         </div>
+
       </div>
 
       {/* Right Panel */}
@@ -193,7 +171,7 @@ export default function LandingPage() {
         <div style={{ width: "100%", maxWidth: 380, position: "relative", zIndex: 1 }}>
 
           <h2 style={{
-            fontFamily: "'Poppins', sans-serif",
+            
             fontSize: 32, fontWeight: 700, color: "white", marginBottom: 6
           }}>
             Get Started
@@ -270,7 +248,7 @@ export default function LandingPage() {
                   color: "white",
                   fontWeight: 600, fontSize: 15, margin: 0
                 }}>
-                  Administrator
+                  Teacher
                 </p>
                 <p style={{
                   color: "#bfdbfe",

@@ -115,13 +115,11 @@ export default function HomePage() {
       {/* Navbar */}
       <header className="fixed inset-x-0 top-4 z-50 px-4">
         <nav
-          className={`mx-auto flex max-w-6xl items-center justify-between rounded-full px-4 py-2.5 transition-all duration-500 ${
-            scrolled ? "surface-card shadow-[var(--shadow-elegant)]" : "border border-transparent"
-          }`}
+          className={`mx-auto flex max-w-6xl items-center justify-between rounded-full px-4 py-2.5 transition-all duration-500 bg-white shadow-lg`}
         >
-          <a href="#home" className="flex items-center gap-3 pl-2">
-            <img src="/logo.png" alt="SUBHASA" className="h-9 w-auto object-contain" />
-            <span className="font-display text-lg font-bold tracking-tight">SUBHASA</span>
+          <a href="#home" className="flex items-center gap-3 pl-2 text-black">
+            <img src="/logo.png" alt="SUBHASHA" className="h-9 w-auto object-contain" />
+            <span className="font-display text-lg font-bold tracking-tight">SUBHASHA</span>
           </a>
 
           <div className="hidden items-center md:flex">
@@ -129,7 +127,7 @@ export default function HomePage() {
               <a
                 key={link.label}
                 href={link.href}
-                className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                className="rounded-full px-5 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-black"
               >
                 {link.label}
               </a>
@@ -137,14 +135,14 @@ export default function HomePage() {
           </div>
 
           <div className="hidden items-center gap-2 md:flex">
-            <Link href="/select-role" className="rounded-full px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-              Sign in
+            <Link href="/admin/login" className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-black transition-colors">
+              Teacher
             </Link>
             <Link
-              href="/signup"
+              href="/login"
               className="group flex items-center gap-1.5 rounded-full bg-[image:var(--gradient-hero)] px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
             >
-              Get Started
+              Sign in
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </div>
@@ -152,7 +150,7 @@ export default function HomePage() {
           <button
             onClick={() => setMenuOpen((v) => !v)}
             aria-label="Toggle menu"
-            className="rounded-full bg-secondary/70 p-2.5 text-foreground md:hidden"
+            className="rounded-full bg-gray-100 p-2.5 text-black md:hidden hover:bg-gray-200 transition-colors"
           >
             {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -164,31 +162,31 @@ export default function HomePage() {
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              className="surface-card mx-auto mt-3 max-w-6xl rounded-3xl p-3 md:hidden"
+              className="bg-white mx-auto mt-3 max-w-6xl rounded-3xl p-3 md:hidden shadow-xl border border-gray-100"
             >
               {NAV_LINKS.map((link) => (
                 <a
                   key={link.label}
                   href={link.href}
                   onClick={() => setMenuOpen(false)}
-                  className="block rounded-2xl px-5 py-3.5 text-base font-semibold text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                  className="block rounded-2xl px-5 py-3.5 text-base font-semibold text-gray-600 hover:bg-gray-50 hover:text-black transition-colors"
                 >
                   {link.label}
                 </a>
               ))}
               <Link
-                href="/select-role"
+                href="/admin/login"
                 onClick={() => setMenuOpen(false)}
-                className="block rounded-2xl px-5 py-3.5 text-base font-semibold text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                className="block rounded-2xl px-5 py-3.5 text-base font-semibold text-gray-600 hover:bg-gray-50 hover:text-black transition-colors"
               >
-                Sign in
+                Teacher
               </Link>
               <Link
-                href="/signup"
+                href="/login"
                 onClick={() => setMenuOpen(false)}
                 className="mt-2 block rounded-2xl bg-[image:var(--gradient-hero)] px-5 py-3.5 text-center text-base font-semibold text-primary-foreground"
               >
-                Get Started Free
+                Sign in
               </Link>
             </motion.div>
           )}
@@ -245,11 +243,11 @@ export default function HomePage() {
 
           <motion.div variants={fadeUp} className="mt-10 flex flex-wrap gap-4">
             <Link
-              href="/signup"
+              href="/select-role"
               className="group flex h-14 items-center gap-2 rounded-full bg-[image:var(--gradient-hero)] px-8 text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
             >
               <Sparkles className="h-5 w-5" />
-              Start Your Journey
+              SUBHASHA — Sinhala AI Avatar Teacher
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
             </Link>
             <a
@@ -330,7 +328,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <p className="text-xs font-semibold tracking-[0.3em] text-accent">THE PROCESS</p>
           <h2 className="mt-4 text-4xl font-bold sm:text-5xl">
-            How <span className="text-gradient">Subhasa</span> Works
+            How <span className="text-gradient">Subhasha</span> Works
           </h2>
 
           <div className="mt-14">
@@ -386,19 +384,19 @@ export default function HomePage() {
           <div className="glow-ambient pointer-events-none absolute -bottom-24 right-10 h-72 w-72 rounded-full bg-accent/30 blur-[120px]" />
           <h2 className="relative text-4xl font-bold sm:text-5xl">Ready to Learn Smarter?</h2>
           <p className="relative mx-auto mt-4 max-w-xl text-muted-foreground">
-            Join Subhasa today. Let your personal Avatar teacher guide you to mastery — in Sinhala,
+            Join Subhasha today. Let your personal Avatar teacher guide you to mastery — in Sinhala,
             at your perfect pace.
           </p>
           <div className="relative mt-10 flex flex-wrap justify-center gap-4">
             <Link
-              href="/signup"
+              href="/select-role"
               className="flex h-14 items-center gap-2 rounded-full bg-[image:var(--gradient-hero)] px-8 text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
             >
               <Sparkles className="h-5 w-5" />
-              Start Learning Free
+              SUBHASHA — Sinhala AI Avatar Teacher
             </Link>
             <Link
-              href="/select-role"
+              href="/login"
               className="flex h-14 items-center rounded-full border border-border bg-secondary/40 px-8 text-base font-semibold hover:bg-secondary/70"
             >
               Sign In
@@ -412,8 +410,8 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 sm:px-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="max-w-sm">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Subhasa" className="h-9 w-auto object-contain" />
-              <span className="font-display text-lg font-bold">Subhasa</span>
+              <img src="/logo.png" alt="Subhasha" className="h-9 w-auto object-contain" />
+              <span className="font-display text-lg font-bold">Subhasha</span>
             </div>
             <p className="mt-4 text-sm text-muted-foreground">
               Sri Lanka&apos;s first AI Avatar teaching platform. Revolutionizing Sinhala medium
@@ -421,7 +419,7 @@ export default function HomePage() {
             </p>
           </div>
           <div className="text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} Subhasa. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Subhasha. All rights reserved.</p>
             <p className="mt-2 flex items-center gap-2">
               <BrainCircuit className="h-4 w-4 text-accent" />
               Built with Hybrid PC-BKT + LSTM Engine

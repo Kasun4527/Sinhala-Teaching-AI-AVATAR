@@ -22,7 +22,7 @@
   }
 
   body {
-    font-family: 'Source Sans 3', sans-serif;
+    font-family: 'DM Sans', 'Source Sans 3', sans-serif;
     background: #f8fafc;
   }
 }
@@ -131,3 +131,132 @@
 @utility glow-ambient {
   animation: glow-pulse 6s ease-in-out infinite;
 }
+
+/* =====================================================================
+ * SUBHASHA — Global Typography & Color System
+ * Fonts: Space Grotesk (headings/display), DM Sans (body/UI)
+ * Matches the landing page design system for full consistency.
+ * ===================================================================== */
+
+/* ── Font Families ─────────────────────────────────────── */
+.font-display   { font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif; }
+.font-body      { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
+
+/* ── Heading Scale ─────────────────────────────────────── */
+.text-page-title {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.text-section-title {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+.text-card-title {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.text-subtitle {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
+}
+
+/* ── Body Scale ────────────────────────────────────────── */
+.text-body {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.7;
+}
+.text-body-sm {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+/* ── Label / Accent Scale ──────────────────────────────── */
+.text-label {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.text-pill {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+}
+.text-caption {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.text-stat {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ── Logo ──────────────────────────────────────────────── */
+.text-logo {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.text-logo-sm {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ── Dark-theme Color Utilities ────────────────────────── */
+.c-white       { color: #ffffff; }
+.c-light       { color: #f1f5f9; }
+.c-muted       { color: #94a3b8; }
+.c-blue-muted  { color: #bfdbfe; }
+.c-blue-accent { color: #60a5fa; }
+.c-blue-pill   { color: #93c5fd; }
+.c-navy        { color: #0f172a; }
+
+/* ── Shared Page Shell ─────────────────────────────────── */
+.page-shell {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  background: linear-gradient(to right, #020617 35%, #1e3a8a 85%, #1d4ed8 100%);
+  min-height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Form Inputs (auth pages) ──────────────────────────── */
+.input-field {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+}
+.input-label {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+}
+.btn-primary-text {
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}@keyframes spin { to { transform: rotate(360deg); } }

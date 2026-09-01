@@ -202,14 +202,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
-      display: "flex",
-      minHeight: "100vh",
-      position: "relative",
-      fontFamily: "'Poppins', sans-serif",
-      background: "linear-gradient(to right, #020617 35%, #1e3a8a 85%, #1d4ed8 100%)",
-      overflow: "hidden"
-    }}>
+    <div className="page-shell" style={{ position: "relative" }}>
 
       {/* Left Panel */}
       <div style={{
@@ -220,27 +213,17 @@ export default function LoginPage() {
         <div style={{
           display: "flex", alignItems: "center", gap: 10, marginBottom: 64
         }}>
-          <div style={{
-            background: "linear-gradient(135deg, #2563eb, #1d4ed8)", width: 36, height: 36,
-            borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(37,99,235,0.4)"
-          }}>
-            <span style={{ color: "white", fontWeight: 700, fontSize: 12 }}>IDS</span>
-          </div>
-          <span style={{ color: "white", fontWeight: 600, fontSize: 14 }}>Intelligent Distance System</span>
+          <img src="/logo.png" alt="SUBHASHA" style={{ height: 38, width: "auto", objectFit: "contain", flexShrink: 0 }} />
+          <span className="text-logo c-white">SUBHASHA Platform</span>
         </div>
 
-        <p style={{ color: "#60a5fa", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>
+        <p className="text-label c-blue-accent" style={{ marginBottom: 16 }}>
           Student Portal
         </p>
-        <h1 style={{
-          fontFamily: "'Poppins', sans-serif",
-          fontSize: 38, fontWeight: 700, color: "white",
-          lineHeight: 1.2, marginBottom: 16
-        }}>
+        <h1 className="text-page-title c-white" style={{ marginBottom: 16 }}>
           Continue Your Learning Journey
         </h1>
-        <p style={{ color: "#94a3b8", fontSize: 15, lineHeight: 1.6 }}>
+        <p className="text-body c-muted">
           Sign in to access your personalized lessons, quizzes, and progress tracking.
         </p>
       </div>
@@ -285,7 +268,7 @@ export default function LoginPage() {
           }}>
 
           <h2 style={{
-            fontFamily: "'Poppins', sans-serif",
+            
             fontSize: 28, fontWeight: 700, color: "white", marginBottom: 6
           }}>
             Welcome back

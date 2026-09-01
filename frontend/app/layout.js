@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "AI Guru — Sinhala AI Avatar Teacher",
+  title: "SUBHASHA — Sinhala AI Avatar Teacher",
   description: "Sri Lanka's first AI Avatar teaching platform — personalized Sinhala-medium lessons in Physics, Chemistry, Biology, Maths, Economics and Buddhism.",
 };
 

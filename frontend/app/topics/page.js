@@ -3,7 +3,6 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMergedCurriculum, findSubjectIn } from "@/data/useCurriculum";
 import { useEffect, useRef, useState, Suspense } from "react";
-import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
 import CursorGlow from "@/components/CursorGlow";
 import { SparklesCore } from "@/components/ui/sparkles";
@@ -145,8 +144,8 @@ function TopicsPageContent() {
   // ── Full-screen loading when "Start as Beginner" is processing ─────────
   if (skipLoading) {
     return (
-      <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'Source Sans 3', sans-serif" }}>
-        <Sidebar subject={subject} />
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", }}>
+        <Navbar />
         <main style={{
           flex: 1, minWidth: 0,
           background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark || "#1e3a8a"} 55%, ${cfg.hue} 100%)`,
@@ -186,7 +185,7 @@ function TopicsPageContent() {
                 position: "absolute", top: 10, left: 10,
               }} />
             </div>
-            <p style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 18, margin: "0 0 8px", fontFamily: "'Raleway', sans-serif", letterSpacing: "0.02em" }}>
+            <p style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 18, margin: "0 0 8px",  letterSpacing: "0.02em" }}>
               Preparing Your Lesson...
             </p>
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14, margin: 0, lineHeight: 1.7 }}>
@@ -200,9 +199,9 @@ function TopicsPageContent() {
   }
 
   if (!lessonData || lessonData.topics.length === 0) return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar subject={subject} />
-      <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <Navbar />
+      <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc", }}>
         <p style={{ color: "#94a3b8" }}>No topics available.</p>
       </main>
       <ChatBot subject={subject} lesson={lesson} accent={cfg.hue} />
@@ -212,14 +211,14 @@ function TopicsPageContent() {
   const topics = lessonData.topics;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "linear-gradient(to bottom, #020617 0%, #020617 250px, #1e3a8a 550px, #ffffff 950px)", }}>
+      <Navbar />
       <CursorGlow color={cfg.hue} opacity={0.08} size={900} />
 
-      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "linear-gradient(to bottom, #020617 0%, #020617 250px, #1e3a8a 550px, #ffffff 950px)" }}>
+      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "transparent" }}>
 
         <div style={{ padding: "48px 60px 0", position: "relative", zIndex: 20 }}>
-          <Navbar />
+          
         </div>
 
         {/* ── HERO ── */}
@@ -273,7 +272,7 @@ function TopicsPageContent() {
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32 }}>
               <div>
                 <h1 style={{
-                  fontFamily: "'Raleway', sans-serif",
+                  
                   fontSize: 40, fontWeight: 700, color: "#f1f5f9",
                   margin: "0 0 10px", letterSpacing: "0.01em", lineHeight: 1.1,
                 }}>
@@ -303,7 +302,7 @@ function TopicsPageContent() {
           {/* Section header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingTop: 14, paddingBottom: 14, borderTop: "1px solid rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.15)", position: "relative", zIndex: 1 }}>
             <div>
-              <h2 style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 22, fontWeight: 700, color: "white", letterSpacing: "0.03em" }}>
+              <h2 style={{ margin: 0,  fontSize: 22, fontWeight: 700, color: "white", letterSpacing: "0.03em" }}>
                 {lesson}
               </h2>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>
@@ -445,7 +444,7 @@ function TopicsPageContent() {
             </div>
 
             <h2 style={{
-              fontFamily: "'Raleway', sans-serif",
+              
               fontSize: 24, fontWeight: 700, color: NAVY,
               margin: "0 0 6px", lineHeight: 1.2,
             }}>

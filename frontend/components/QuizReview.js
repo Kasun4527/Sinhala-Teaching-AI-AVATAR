@@ -16,7 +16,7 @@ export default function QuizReview({ data, cfg }) {
       <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: "2px solid #e2e8f0" }}>
         <h2 style={{
           margin: 0,
-          fontFamily: "'Raleway', sans-serif",
+          
           fontSize: 22,
           fontWeight: 700,
           color: "#0f172a",

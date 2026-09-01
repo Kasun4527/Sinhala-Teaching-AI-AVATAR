@@ -169,7 +169,7 @@ export default function AdminDashboard() {
   const sm = selectedSubject ? (subjectMeta[selectedSubject] || { color: ACCENT, glow: "rgba(59,130,246,0.15)", icon: "📚" }) : null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", background: SURFACE, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", background: SURFACE, }}>
 
       {/* ── Sidebar ── */}
       <aside style={{
@@ -182,17 +182,10 @@ export default function AdminDashboard() {
           {/* Logo */}
           <div style={{ padding: "28px 20px 24px", borderBottom: `1px solid ${BORDER}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: `linear-gradient(135deg, ${ACCENT}, #1d4ed8)`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: `0 0 16px rgba(59,130,246,0.4)`,
-              }}>
-                <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>IDS</span>
-              </div>
+              <img src="/logo.png" alt="SUBHASHA" style={{ height: 36, width: "auto", objectFit: "contain", flexShrink: 0 }} />
               <div>
-                <p style={{ color: TEXT, fontWeight: 700, fontSize: 13, margin: 0 }}>IDS Platform</p>
-                <p style={{ color: MUTED, fontSize: 10, margin: 0, letterSpacing: "0.08em" }}>ADMIN PANEL</p>
+                <p className="text-logo-sm" style={{ color: TEXT, margin: 0 }}>SUBHASHA Platform</p>
+                <p className="text-caption" style={{ color: MUTED, margin: 0 }}>TEACHER PANEL</p>
               </div>
             </div>
           </div>
@@ -280,7 +273,7 @@ export default function AdminDashboard() {
                 <p style={{ color: TEXT, fontSize: 12, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {adminName}
                 </p>
-                <p style={{ color: MUTED, fontSize: 10, margin: 0 }}>Administrator</p>
+                <p style={{ color: MUTED, fontSize: 10, margin: 0 }}>Teacher</p>
               </div>
             </div>
           </div>
@@ -306,10 +299,10 @@ export default function AdminDashboard() {
         {/* Header */}
         <div style={{ marginBottom: 36, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
           <div>
-            <p style={{ color: MUTED, fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>
-              Admin Panel
+            <p className="text-label" style={{ color: MUTED, marginBottom: 6 }}>
+              Teacher Panel
             </p>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: "-0.5px" }}>
+            <h1 className="text-section-title" style={{ color: TEXT, margin: 0 }}>
               Student Analytics
             </h1>
           </div>
@@ -441,7 +434,7 @@ export default function AdminDashboard() {
                           color: MUTED, fontSize: 11, margin: "8px 0 0",
                           padding: "8px 10px", background: "rgba(255,255,255,0.02)",
                           borderRadius: 6, border: `1px solid ${BORDER}`,
-                          fontFamily: "monospace", wordBreak: "break-all",
+                           wordBreak: "break-all",
                           maxHeight: 60, overflow: "hidden",
                         }}>
                           {alert.content_snippet}

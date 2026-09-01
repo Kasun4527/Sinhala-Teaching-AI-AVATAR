@@ -2,7 +2,6 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
-import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
 import { BackgroundBeamsWithCollision } from "@/components/ui/background-beams-with-collision";
 import { getErrorMessage, getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer, getPracticeQuiz, submitPracticeQuiz } from "@/services/api";
@@ -60,8 +59,8 @@ function FloatingPattern({ color }) {
 // ── Fullscreen loading/submitting overlay ──────────────────────────
 function LoadingScreen({ subject, cfg, title, subtitle }) {
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", }}>
+      <Navbar />
       <main style={{
         flex: 1, minWidth: 0,
         background: "linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e3a8a 100%)",
@@ -104,7 +103,7 @@ function LoadingScreen({ subject, cfg, title, subtitle }) {
                 position: "absolute", top: 10, left: 10,
               }} />
             </div>
-            <p style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 18, margin: "0 0 8px", fontFamily: "'Raleway', sans-serif", letterSpacing: "0.02em" }}>
+            <p style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 18, margin: "0 0 8px",  letterSpacing: "0.02em" }}>
               {title}
             </p>
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14, margin: 0, lineHeight: 1.7 }}>
@@ -224,8 +223,8 @@ function QuizPageContent() {
   );
 
   if (!quiz?.questions?.length) return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", }}>
+      <Navbar />
       <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
         <div style={{ maxWidth: 640, background: "white", borderRadius: 16, padding: 28, border: "1.5px solid #fecaca" }}>
           <p style={{ color: "#b91c1c", fontWeight: 700, marginBottom: 8 }}>{error || "No quiz available."}</p>
@@ -239,13 +238,13 @@ function QuizPageContent() {
   const progress  = (answered / quiz.questions.length) * 100;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#020617", }}>
+      <Navbar />
 
-      <main style={{ flex: 1, minWidth: 0, height: "100vh", overflowY: "auto" }}>
+      <main style={{ flex: 1, minWidth: 0, height: "100vh", overflowY: "auto", background: "#f8fafc" }}>
       
         <div style={{ padding: "40px 60px 0" }}>
-          <Navbar />
+          
         </div>
 
         {/* ── HERO ── */}
@@ -276,7 +275,7 @@ function QuizPageContent() {
 
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32 }}>
               <div>
-                <h1 style={{ fontFamily: "'Raleway', sans-serif", fontSize: 36, fontWeight: 700, color: "#f1f5f9", margin: "0 0 8px", letterSpacing: "0.01em" }}>
+                <h1 style={{  fontSize: 36, fontWeight: 700, color: "#f1f5f9", margin: "0 0 8px", letterSpacing: "0.01em" }}>
                   {isPost ? "Post Lesson Quiz" : isPractice ? "Practice Quiz" : "Pre Lesson Quiz"}
                 </h1>
                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, margin: 0 }}>
@@ -451,7 +450,7 @@ function QuizPageContent() {
             boxShadow: "0 32px 80px rgba(0,0,0,0.12), 0 8px 24px rgba(0,0,0,0.08)",
             zIndex: 10,
           }}>
-            <h3 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 800, color: NAVY, fontFamily: "'Raleway', sans-serif" }}>
+            <h3 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 800, color: NAVY,  }}>
               Question Map
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>

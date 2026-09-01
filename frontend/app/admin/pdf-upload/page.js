@@ -181,15 +181,15 @@ export default function PdfUploadPage() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", background: SURFACE, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", background: SURFACE, }}>
       <main style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "40px 44px" }}>
 
         <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
           <div>
-            <p style={{ color: MUTED, fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>
-              Admin Panel
+            <p className="text-label" style={{ color: MUTED, marginBottom: 6 }}>
+              Teacher Panel
             </p>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: "-0.5px" }}>
+            <h1 className="text-section-title" style={{ color: TEXT, margin: 0 }}>
               Add Content (PDF → Vector DB)
             </h1>
           </div>
@@ -337,7 +337,7 @@ export default function PdfUploadPage() {
                   rows={10}
                   style={{
                     width: "100%", padding: 12, background: "#0f172a", border: `1px solid ${BORDER}`,
-                    borderRadius: 8, color: TEXT, fontSize: 13, lineHeight: 1.7, fontFamily: "inherit",
+                    borderRadius: 8, color: TEXT, fontSize: 13, lineHeight: 1.7, 
                     resize: "vertical", boxSizing: "border-box",
                   }}
                 />

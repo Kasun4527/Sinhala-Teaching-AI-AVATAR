@@ -94,14 +94,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div style={{ 
-      display: "flex", 
-      minHeight: "100vh", 
-      position: "relative",
-      fontFamily: "'Poppins', sans-serif",
-      background: "linear-gradient(to right, #020617 35%, #1e3a8a 85%, #1d4ed8 100%)",
-      overflow: "hidden"
-    }}>
+    <div className="page-shell" style={{ position: "relative" }}>
 
       {/* Left Dark Panel */}
       <div style={{
@@ -110,27 +103,17 @@ export default function SignupPage() {
         justifyContent: "flex-start", padding: "120px 48px 60px"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 64 }}>
-          <div style={{
-            background: "linear-gradient(135deg, #2563eb, #1d4ed8)", width: 36, height: 36,
-            borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(37,99,235,0.4)"
-          }}>
-            <span style={{ color: "white", fontWeight: 700, fontSize: 12 }}>IDS</span>
-          </div>
-          <span style={{ color: "white", fontWeight: 600, fontSize: 14 }}>Intelligent Distance System</span>
+          <img src="/logo.png" alt="SUBHASHA" style={{ height: 38, width: "auto", objectFit: "contain", flexShrink: 0 }} />
+          <span className="text-logo c-white">SUBHASHA Platform</span>
         </div>
 
-        <p style={{ color: "#60a5fa", fontSize: 11, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>
+        <p className="text-label c-blue-accent" style={{ marginBottom: 16 }}>
           Join Today
         </p>
-        <h1 style={{
-          fontFamily: "'Poppins', sans-serif",
-          fontSize: 38, fontWeight: 700, color: "white",
-          lineHeight: 1.2, marginBottom: 16
-        }}>
+        <h1 className="text-page-title c-white" style={{ marginBottom: 16 }}>
           Start Learning at Your Own Pace
         </h1>
-        <p style={{ color: "#94a3b8", fontSize: 15, lineHeight: 1.6 }}>
+        <p className="text-body c-muted">
           Create your account and get access to AI-powered personalized lessons tailored to your level.
         </p>
 
@@ -175,7 +158,7 @@ export default function SignupPage() {
           {done ? (
             <div style={{ textAlign: "center", color: "white" }}>
               <div style={{ fontSize: 52, marginBottom: 20 }}>📧</div>
-              <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 26, fontWeight: 700, color: "white", marginBottom: 10 }}>
+              <h2 style={{  fontSize: 26, fontWeight: 700, color: "white", marginBottom: 10 }}>
                 Check your email
               </h2>
               <p style={{ color: "#bfdbfe", fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
@@ -202,7 +185,7 @@ export default function SignupPage() {
           ) : (<>
 
           <h2 style={{
-            fontFamily: "'Poppins', sans-serif",
+            
             fontSize: 28, fontWeight: 700, color: "white", marginBottom: 6
           }}>
             Create account

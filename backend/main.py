@@ -768,6 +768,55 @@ def admin_student_lookup(student_id: str):
     return {"name": student["name"], "email": student["email"]}
 
 
+# ── Student Profile (bio fields) ─────────────────────────────────────────────
+PROFILE_FIELDS = ["bio", "contact_number", "parent_name", "parent_contact", "school"]
+
+
+@app.get("/student-profile")
+def get_student_profile(student_id: str):
+    """Return editable profile fields for a student."""
+    try:
+        student = users_collection.find_one({"_id": ObjectId(student_id), "role": "student"})
+    except Exception:
+        student = None
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return {
+        "name": student.get("name", ""),
+        "email": student.get("email", ""),
+        "education_level": student.get("education_level"),
+        "profile_complete": all(student.get(f) for f in PROFILE_FIELDS),
+        **{f: student.get(f, "") for f in PROFILE_FIELDS},
+    }
+
+
+class StudentProfileUpdate(BaseModel):
+    student_id: str
+    bio: str = ""
+    contact_number: str = ""
+    parent_name: str = ""
+    parent_contact: str = ""
+    school: str = ""
+
+
+@app.put("/student-profile")
+def update_student_profile(body: StudentProfileUpdate):
+    """Update editable profile fields for a student."""
+    try:
+        student = users_collection.find_one({"_id": ObjectId(body.student_id), "role": "student"})
+    except Exception:
+        student = None
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    update = {f: getattr(body, f) for f in PROFILE_FIELDS if getattr(body, f)}
+    if not update:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    users_collection.update_one({"_id": ObjectId(body.student_id)}, {"$set": update})
+    return {"message": "Profile updated", "profile_complete": all(update.get(f) for f in PROFILE_FIELDS)}
+
+
 # ✅ Get all subjects a student has activity in
 @app.get("/admin/student-subjects")
 def admin_get_student_subjects(student_id: str):

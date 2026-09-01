@@ -3,7 +3,6 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMergedCurriculum, findSubjectIn } from "@/data/useCurriculum";
 import { useEffect, useRef, useState, Suspense } from "react";
-import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
 import CursorGlow from "@/components/CursorGlow";
 import { SparklesCore } from "@/components/ui/sparkles";
@@ -106,9 +105,9 @@ function LessonsPageContent() {
   const cfg = SUBJECT_CFG[subject] || DEFAULT_CFG;
 
   if (!subjectData) return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar subject={subject} />
-      <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <Navbar />
+      <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc", }}>
         <p style={{ color: "#94a3b8" }}>No lessons found.</p>
       </main>
     </div>
@@ -118,14 +117,14 @@ function LessonsPageContent() {
   const totalTopics = lessons.reduce((a, l) => a + (l.topics?.length || 0), 0);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "linear-gradient(to bottom, #020617 0%, #020617 250px, #1e3a8a 550px, #ffffff 950px)", }}>
+      <Navbar />
       <CursorGlow color={cfg.hue} opacity={0.08} size={900} />
 
-      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "linear-gradient(to bottom, #020617 0%, #020617 250px, #1e3a8a 550px, #ffffff 950px)" }}>
+      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "transparent" }}>
 
         <div style={{ padding: "48px 60px 0", position: "relative", zIndex: 20 }}>
-          <Navbar />
+          
         </div>
 
         {/* ── HERO ── */}
@@ -174,7 +173,7 @@ function LessonsPageContent() {
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32 }}>
               <div>
                 <h1 style={{
-                  fontFamily: "'Raleway', sans-serif",
+                  
                   fontSize: 40, fontWeight: 700, color: "#f1f5f9",
                   margin: "0 0 10px", letterSpacing: "0.01em", lineHeight: 1.1,
                 }}>
@@ -210,7 +209,7 @@ function LessonsPageContent() {
           {/* Section label */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, paddingTop: 18, paddingBottom: 18, borderTop: "1px solid rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.15)", position: "relative", zIndex: 1 }}>
             <div>
-              <h2 style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 22, fontWeight: 700, color: "white", letterSpacing: "0.03em" }}>
+              <h2 style={{ margin: 0,  fontSize: 22, fontWeight: 700, color: "white", letterSpacing: "0.03em" }}>
                 {subject} Lessons
               </h2>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>
@@ -288,7 +287,7 @@ function LessonsPageContent() {
 
                   {/* Card body */}
                   <div style={{ padding: "0 20px 20px", flex: 1, display: "flex", flexDirection: "column", position: "relative", zIndex: 2 }}>
-                    <h3 style={{ margin: "0 0 12px", fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, color: NAVY }}>
+                    <h3 style={{ margin: "0 0 12px",  fontSize: 18, fontWeight: 700, color: NAVY }}>
                       {lesson.name}
                     </h3>
                     

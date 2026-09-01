@@ -267,16 +267,16 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
 
   return (
     <div style={{ backgroundColor: "#0f172a", borderRadius: 16, overflow: "hidden", marginBottom: 24, border: "1px solid #1e293b" }}>
-      <div style={{ position: "relative", background: "#000", minHeight: 340 }}>
+      <div style={{ position: "relative", background: "#000", aspectRatio: "16/9", display: "flex", flexDirection: "column", justifyContent: "center", overflow: "hidden" }}>
         <video
           ref={videoRef}
           autoPlay
           playsInline
-          style={{ width: "100%", height: 340, objectFit: "cover", display: isLive ? "block" : "none" }}
+          style={{ width: "100%", height: "100%", objectFit: "contain", display: isLive ? "block" : "none" }}
         />
 
         {!isLive && (
-          <div style={{ height: 340, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
             <div style={{ fontSize: 56 }}>👩‍🏫</div>
             <p style={{ color: "#64748b", fontSize: 13 }}>
               {isBusy ? "Connecting to avatar teacher..." : "Click below to start teacher explanation"}
@@ -297,12 +297,12 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
 
       <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #1e293b" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {!isLive && avatarList.length > 1 && (
+          {!isLive && avatarList.length > 0 && (
             <select value={selectedAvatar} onChange={e => setSelectedAvatar(e.target.value)} style={{ backgroundColor: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "5px 8px", fontSize: 12 }}>
               {avatarList.map((a, i) => <option key={i} value={a}>{a}</option>)}
             </select>
           )}
-          {!isLive && bgList.length > 1 && (
+          {!isLive && bgList.length > 0 && (
             <select value={selectedBg} onChange={e => setSelectedBg(e.target.value)} style={{ backgroundColor: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 8, padding: "5px 8px", fontSize: 12 }}>
               {bgList.map((b, i) => <option key={i} value={b}>{b}</option>)}
             </select>

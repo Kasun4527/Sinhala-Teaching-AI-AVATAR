@@ -2,7 +2,6 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
-import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
 import QuizReview from "@/components/QuizReview";
 
@@ -67,7 +66,7 @@ function ScoreRing({ score, color, dark }) {
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
       }}>
-        <span style={{ fontFamily: "'Raleway', sans-serif", fontSize: 42, fontWeight: 800, color: "white", lineHeight: 1 }}>
+        <span style={{  fontSize: 42, fontWeight: 800, color: "white", lineHeight: 1 }}>
           {score.toFixed(1)}
         </span>
         <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: 600, marginTop: 3 }}>/ 10</span>
@@ -118,13 +117,13 @@ function ResultPageContent() {
       : { text: "Your personalised lesson has been prepared based on your result.", cta: "Start Lesson" };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "linear-gradient(to right, #020617 0%, #0f172a 55%, #1e3a8a 85%, #1d4ed8 100%)", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "linear-gradient(to right, #020617 0%, #0f172a 55%, #1e3a8a 85%, #1d4ed8 100%)", }}>
+      <Navbar />
 
       <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
 
         <div style={{ padding: "24px 60px 0" }}>
-          <Navbar />
+          
         </div>
 
         {/* ── HERO (score ring lives here) ── */}
@@ -156,7 +155,7 @@ function ResultPageContent() {
               ))}
             </div>
 
-            <h1 style={{ fontFamily: "'Raleway', sans-serif", fontSize: 34, fontWeight: 700, color: "#f1f5f9", margin: "0 0 6px", letterSpacing: "0.01em", lineHeight: 1.15 }}>
+            <h1 style={{  fontSize: 34, fontWeight: 700, color: "#f1f5f9", margin: "0 0 6px", letterSpacing: "0.01em", lineHeight: 1.15 }}>
               {isPost ? "Post Quiz Result" : isPractice ? "Practice Quiz Result" : "Pre Quiz Result"}
             </h1>
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, margin: "0 0 16px", lineHeight: 1.7 }}>
@@ -217,7 +216,7 @@ function ResultPageContent() {
                     </svg>
                   </div>
                   <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.09em" }}>Score</p>
-                  <p style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 32, fontWeight: 800, color: sc.color, lineHeight: 1 }}>{score.toFixed(1)}</p>
+                  <p style={{ margin: 0,  fontSize: 32, fontWeight: 800, color: sc.color, lineHeight: 1 }}>{score.toFixed(1)}</p>
                   <p style={{ margin: "5px 0 0", fontSize: 11, color: "#cbd5e1", fontWeight: 500 }}>out of 10</p>
                   {/* Mini bar */}
                   <div style={{ marginTop: 14, height: 3, background: "#f1f5f9", borderRadius: 99 }}>
@@ -256,7 +255,7 @@ function ResultPageContent() {
                     </svg>
                   </div>
                   <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.09em" }}>Level</p>
-                  <p style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 20, fontWeight: 800, color: lc.color, lineHeight: 1.2 }}>{level}</p>
+                  <p style={{ margin: 0,  fontSize: 20, fontWeight: 800, color: lc.color, lineHeight: 1.2 }}>{level}</p>
                   <span style={{
                     display: "inline-block", marginTop: 8,
                     background: lc.bg, border: `1px solid ${lc.border}`,
@@ -295,7 +294,7 @@ function ResultPageContent() {
                     </svg>
                   </div>
                   <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.09em" }}>Quiz</p>
-                  <p style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 20, fontWeight: 800, color: NAVY, lineHeight: 1.2 }}>{isPost ? "Post" : isPractice ? "Practice" : "Pre"}</p>
+                  <p style={{ margin: 0,  fontSize: 20, fontWeight: 800, color: NAVY, lineHeight: 1.2 }}>{isPost ? "Post" : isPractice ? "Practice" : "Pre"}</p>
                   <span style={{
                     display: "inline-block", marginTop: 8,
                     background: `${cfg.hue}12`, border: `1px solid ${cfg.hue}30`,

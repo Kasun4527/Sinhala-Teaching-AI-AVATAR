@@ -1,12 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMergedCurriculum } from "@/data/useCurriculum";
 import { useEffect, useRef, useState } from "react";
-import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
 import ChatBot from "@/components/ChatBot";
-import { enrollSubject, getEnrollments } from "@/services/api";
+import { getEnrollments } from "@/services/api";
 
 const NAVY = "#020617";
 const BLUE_D = "#1d4ed8";
@@ -94,21 +92,10 @@ function EnrolledCard({ item, onClick }) {
 
 export default function StudentDashboard() {
   const router = useRouter();
-  const curriculum = useMergedCurriculum();
   const [name, setName] = useState("");
-  const [hovered, setHovered] = useState(null);
-  const [pendingEnroll, setPending] = useState(null);
-  const [enrolling, setEnrolling] = useState(false);
-  const [enrollErr, setEnrollErr] = useState("");
-  const [grade, setGrade] = useState(0);
-  const [needsTeacherCode, setNeedsTeacherCode] = useState(false);
-  const [teacherCodeInput, setTeacherCodeInput] = useState("");
-  const [teacherCodeStatus, setTeacherCodeStatus] = useState({ saving: false, error: "" });
-  const [educationLevel, setEducationLevel] = useState(null);
-  const [hasSetDefaultGrade, setHasSetDefaultGrade] = useState(false);
-  const [enrolledSubjects, setEnrolledSubjects] = useState([]);
   const [enrolled, setEnrolled] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [profileComplete, setProfileComplete] = useState(true);
 
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
 
@@ -135,16 +122,17 @@ export default function StudentDashboard() {
 
     const studentId = localStorage.getItem("student_id");
     setName(localStorage.getItem("name") || "Student");
-    setNeedsTeacherCode(!localStorage.getItem("teacher_id"));
-    setEducationLevel(localStorage.getItem("education_level") || null);
 
-    // Fetch current enrollments so we know which subjects are already enrolled
-    const sid = localStorage.getItem("student_id");
-    if (sid) {
-      fetch(`${BACKEND}/enrollments?student_id=${encodeURIComponent(sid)}`)
+    // Check profile completeness
+    if (studentId) {
+      fetch(`${BACKEND}/student-profile?student_id=${encodeURIComponent(studentId)}`)
         .then(r => r.json())
-        .then(d => setEnrolledSubjects((d.subjects || []).map(s => s.subject)))
-        .catch(() => { });
+        .then(data => {
+          const complete = data.profile_complete;
+          setProfileComplete(complete);
+          localStorage.setItem("profile_complete", complete ? "true" : "false");
+        })
+        .catch(() => {});
     }
 
     const fetchEnrollments = async () => {
@@ -161,51 +149,13 @@ export default function StudentDashboard() {
     fetchEnrollments();
   }, [router]);
 
-  useEffect(() => {
-    if (!hasSetDefaultGrade && curriculum.length > 0) {
-      const edLevel = localStorage.getItem("education_level") || null;
-      if (edLevel) {
-        const defaultIndex = curriculum.findIndex(g => GRADE_LEVEL[g.grade] === edLevel);
-        if (defaultIndex !== -1) setGrade(defaultIndex);
-      }
-      setHasSetDefaultGrade(true);
-    }
-  }, [curriculum, hasSetDefaultGrade]);
 
-  const submitTeacherCode = async () => {
-    const code = teacherCodeInput.trim();
-    if (!code) return;
-    setTeacherCodeStatus({ saving: true, error: "" });
-    try {
-      const res = await fetch(`${BACKEND}/auth/set-teacher-code`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: localStorage.getItem("student_id"), teacher_code: code }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Invalid code");
-      localStorage.setItem("teacher_id", data.teacher_id);
-      setNeedsTeacherCode(false);
-      window.location.reload();
-    } catch (err) {
-      setTeacherCodeStatus({ saving: false, error: err.message || "Invalid code" });
-    }
-  };
-
-  const current = curriculum[grade] || { subjects: [] };
 
   return (
-    <div style={{
-      display: "flex", minHeight: "100vh",
-      background: "linear-gradient(to right, #020617 35%, #0f172a 75%, #1e3a8a 100%)",
-      fontFamily: "'Times New Roman', Times, serif"
-    }}>
-      <Sidebar />
+    <div style={{ minHeight: "100vh", background: "linear-gradient(to bottom, #020617 0%, #0f172a 100%)" }}>
+      <Navbar />
 
-      <main style={{ flex: 1, padding: "48px", display: "flex", flexDirection: "column", gap: "48px", height: "100vh", overflowY: "auto", minWidth: 0 }}>
-
-        {/* Navigation Bar */}
-        <Navbar />
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 32px 80px", display: "flex", flexDirection: "column", gap: 48 }}>
 
         {/* Top Split Section */}
         <div style={{ display: "flex", gap: "48px" }}>
@@ -268,50 +218,6 @@ export default function StudentDashboard() {
               </div>
             </div>
 
-            {/* Teacher Code Block (if needed) */}
-            {needsTeacherCode && (
-              <div style={{
-                background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 24,
-                padding: "24px", position: "relative", zIndex: 1, backdropFilter: "blur(10px)"
-              }}>
-                <p style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 700, color: "white" }}>
-                  Link to your teacher
-                </p>
-                <p style={{ margin: "0 0 16px", fontSize: 14, color: "#bfdbfe" }}>
-                  Enter the code your teacher gave you so their lessons appear.
-                </p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <input
-                    value={teacherCodeInput}
-                    onChange={(e) => setTeacherCodeInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && submitTeacherCode()}
-                    placeholder="Teacher code"
-                    style={{
-                      flex: "1 1 200px", padding: "12px 16px", borderRadius: 12,
-                      border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)",
-                      fontSize: 14, outline: "none", color: "white",
-                    }}
-                  />
-                  <button
-                    onClick={submitTeacherCode}
-                    disabled={teacherCodeStatus.saving || !teacherCodeInput.trim()}
-                    style={{
-                      padding: "12px 24px", borderRadius: 12, border: "none",
-                      background: "#3b82f6", color: "white", fontWeight: 600, fontSize: 14,
-                      cursor: teacherCodeStatus.saving ? "default" : "pointer",
-                      opacity: teacherCodeStatus.saving ? 0.6 : 1, transition: "background 0.2s"
-                    }}
-                    className="hover:bg-blue-500"
-                  >
-                    {teacherCodeStatus.saving ? "Linking..." : "Link"}
-                  </button>
-                </div>
-                {teacherCodeStatus.error && (
-                  <p style={{ margin: "10px 0 0", fontSize: 13, color: "#fca5a5" }}>{teacherCodeStatus.error}</p>
-                )}
-              </div>
-            )}
-
           </div>
 
           {/* Right Column - Content */}
@@ -326,10 +232,10 @@ export default function StudentDashboard() {
               backdropFilter: "blur(20px)",
               boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
             }}>
-              <h1 style={{ fontSize: 44, color: "white", fontWeight: 700, margin: "0 0 12px" }}>
-                Hello, <span style={{ color: "#93c5fd" }}>{name}</span>
+              <h1 className="text-page-title c-white" style={{ margin: "0 0 12px" }}>
+                Hello, <span className="c-blue-pill">{name}</span>
               </h1>
-              <p style={{ color: "#bfdbfe", fontSize: 16, margin: 0, lineHeight: 1.6 }}>
+              <p className="text-body c-blue-muted" style={{ margin: 0 }}>
                 Explore your curriculum below. Select a subject to enrol and begin your personalised learning journey.
               </p>
             </div>
@@ -337,7 +243,7 @@ export default function StudentDashboard() {
             {/* Continue Learning */}
             {enrolled.length > 0 && (
               <div style={{ marginBottom: 56 }}>
-                <h2 style={{ fontSize: 24, color: "white", fontWeight: 700, marginBottom: 24 }}>Continue learning</h2>
+                <h2 className="text-section-title c-white" style={{ marginBottom: 24 }}>Continue learning</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 280px)", gap: 24, paddingBottom: 24 }}>
                   {[...enrolled].reverse().slice(0, 2).map((item, i) => (
                     <EnrolledCard
@@ -351,233 +257,9 @@ export default function StudentDashboard() {
             )}
           </div>
         </div>
-
-        {/* Other Lessons / Curriculum */}
-        <div id="other-lessons" style={{ scrollMarginTop: "120px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
-            <h2 style={{ fontSize: 24, color: "white", fontWeight: 700, margin: 0 }}>Other lessons</h2>
-
-            {/* Grade Tabs */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center", background: "rgba(255,255,255,0.05)", padding: "6px", borderRadius: 16, border: "1px solid rgba(255,255,255,0.1)" }}>
-              {curriculum.map((g, i) => (
-                <button
-                  key={i}
-                  onClick={() => setGrade(i)}
-                  style={{
-                    padding: "8px 24px", borderRadius: 12, border: "none",
-                    background: grade === i ? `linear-gradient(135deg, ${BLUE_D}, ${BLUE})` : "transparent",
-                    color: grade === i ? "white" : "#94a3b8",
-                    fontWeight: 600, fontSize: 13, cursor: "pointer",
-                    boxShadow: grade === i ? `0 4px 12px rgba(59,130,246,0.4)` : "none",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {g.grade}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Cards Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 24 }}>
-            {current.subjects.map((item, i) => {
-              const cfg = SUBJECT[item.subject] || DEFAULT_S;
-              const isH = hovered === i;
-              const tops = item.lessons?.reduce((a, l) => a + (l.topics?.length || 0), 0) || 0;
-              const gradeLevel = GRADE_LEVEL[current.grade];
-              const isLocked = educationLevel && gradeLevel && educationLevel !== gradeLevel;
-
-              return (
-                <div
-                  key={i}
-                  onClick={() => {
-                    const alreadyEnrolled = enrolledSubjects.includes(item.subject);
-                    setPending({ ...item, grade: current.grade, isLocked, gradeLevel, alreadyEnrolled });
-                  }}
-                  onMouseEnter={() => setHovered(i)}
-                  onMouseLeave={() => setHovered(null)}
-                  className="group"
-                  style={{
-                    background: "rgba(255,255,255,0.02)",
-                    border: `1.5px solid ${isH ? "rgba(59,130,246,0.5)" : "rgba(255,255,255,0.1)"}`,
-                    borderRadius: 24, overflow: "hidden", cursor: "pointer", backdropFilter: "blur(10px)",
-                    boxShadow: isH ? `0 20px 56px rgba(0,0,0,0.3)` : "0 4px 20px rgba(0,0,0,0.1)",
-                    transform: isH ? "translateY(-5px)" : "translateY(0)",
-                    transition: "all 0.22s cubic-bezier(.22,.61,.36,1)",
-                    position: "relative",
-                  }}
-                >
-                  {/* Top stripe */}
-                  <div style={{ height: 6, background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})` }} />
-
-                  {/* Card header */}
-                  <div style={{ padding: "24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <div style={{
-                      width: 56, height: 56, borderRadius: 16,
-                      background: cfg.img ? `url(${cfg.img}) center/cover no-repeat` : `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 16, fontWeight: 800, letterSpacing: "0.06em", color: "white",
-                      boxShadow: `0 8px 20px ${cfg.hue}40`, flexShrink: 0,
-                    }}>
-                      {!cfg.img && cfg.abbr}
-                    </div>
-                    <div style={{ background: "rgba(255,255,255,0.1)", color: "white", padding: "6px 14px", borderRadius: 100, fontSize: 11, fontWeight: 700, border: "1px solid rgba(255,255,255,0.1)" }}>
-                      {item.lessons?.length || 0} lessons
-                    </div>
-                  </div>
-
-                  {/* Card body */}
-                  <div style={{ padding: "0 24px 24px" }}>
-                    <h3 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700, color: "white" }}>
-                      {item.subject}
-                    </h3>
-                    <p style={{ margin: "0 0 24px", fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>
-                      {current.grade}{tops > 0 && <> &middot; {tops} topics</>}
-                    </p>
-
-                    <div style={{ height: 3, background: "#f1f5f9", borderRadius: 99, marginBottom: 20 }}>
-                      <div style={{
-                        height: "100%", borderRadius: 99, width: "40%",
-                        background: cfg.ring,
-                      }} />
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span className="group-hover:text-blue-400 transition-colors" style={{ fontSize: 14, fontWeight: 700, color: "#cbd5e1" }}>Preview lesson</span>
-                      <div className="group-hover:bg-blue-600 group-hover:border-blue-500 transition-all duration-300" style={{
-                        width: 38, height: 38, borderRadius: "50%",
-                        background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-                          <path d="M3 7h8M7 3l4 4-4 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </main>
-
-      {/* ═══ ENROL MODAL ═══ */}
-      {pendingEnroll && (() => {
-        const cfg = SUBJECT[pendingEnroll.subject] || DEFAULT_S;
-        const tops = pendingEnroll.lessons?.reduce((a, l) => a + (l.topics?.length || 0), 0) || 0;
-        return (
-          <div
-            onClick={e => e.target === e.currentTarget && (setPending(null), setEnrollErr(""))}
-            style={{
-              position: "fixed", inset: 0, zIndex: 3000,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: "rgba(2,6,23,0.7)", backdropFilter: "blur(12px)",
-            }}
-          >
-            <div style={{
-              width: 480, background: "rgba(30,41,59,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24,
-              overflow: "hidden", boxShadow: "0 40px 100px rgba(0,0,0,0.5)", color: "white"
-            }}>
-              <div style={{ height: 6, background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})` }} />
-
-              <div style={{ padding: "32px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 20 }}>
-                <div style={{
-                  width: 64, height: 64, borderRadius: 16,
-                  background: cfg.img ? `url(${cfg.img}) center/cover no-repeat` : `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 20, fontWeight: 800, color: "white", letterSpacing: "0.06em",
-                  boxShadow: `0 8px 24px ${cfg.hue}45`,
-                }}>
-                  {!cfg.img && cfg.abbr}
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "white" }}>
-                    {pendingEnroll.subject}
-                  </h3>
-                  <p style={{ margin: "6px 0 0", fontSize: 14, color: "#94a3b8" }}>
-                    {pendingEnroll.grade} &middot; {pendingEnroll.lessons?.length || 0} lessons &middot; {tops} topics
-                  </p>
-                </div>
-              </div>
-
-              <div style={{ padding: "26px 30px 30px" }}>
-                {pendingEnroll.isLocked ? (
-                  <div style={{ padding: "16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, marginBottom: 16 }}>
-                    <p style={{ margin: 0, color: "#b91c1c", fontSize: 14, fontWeight: 600, lineHeight: 1.6 }}>
-                      🔒 This subject is for {pendingEnroll.gradeLevel === "OL" ? "O/L" : "A/L"} students. Your account is registered as {educationLevel === "OL" ? "O/L" : "A/L"}.
-                    </p>
-                  </div>
-                ) : pendingEnroll.alreadyEnrolled ? (
-                  <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
-                    You are already enrolled in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Continue where you left off.
-                  </p>
-                ) : (
-                  <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
-                    You are about to enrol in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Your progress will be tracked and lessons unlocked as you advance.
-                  </p>
-                )}
-
-                {enrollErr && (
-                  <div style={{ marginTop: 20, padding: "14px 16px", borderRadius: 12, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#fca5a5", fontSize: 14 }}>
-                    {enrollErr}
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: 8, marginTop: 24, flexWrap: "wrap" }}>
-                  {[`${pendingEnroll.lessons?.length || 0} Lessons`, `${tops} Topics`, "Sinhala Medium", "Adaptive Path"].map((t, i) => (
-                    <div key={i} style={{ background: "rgba(255,255,255,0.05)", color: "#cbd5e1", border: "1px solid rgba(255,255,255,0.1)", padding: "6px 14px", borderRadius: 100, fontSize: 12, fontWeight: 600 }}>{t}</div>
-                  ))}
-                </div>
-
-                <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
-                  <button
-                    onClick={() => { setPending(null); setEnrollErr(""); }}
-                    style={{
-                      flex: 1, padding: "14px 0", borderRadius: 14,
-                      border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
-                      color: "white", fontWeight: 600, fontSize: 15, cursor: "pointer", transition: "all 0.2s"
-                    }}
-                    className="hover:bg-white/10"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        setEnrolling(true); setEnrollErr("");
-                        const studentId = localStorage.getItem("student_id");
-                        if (!studentId) throw new Error("Not logged in");
-                        await enrollSubject({ student_id: studentId, subject: pendingEnroll.subject, lessons: pendingEnroll.lessons || [], grade: pendingEnroll.grade || "" });
-                        setPending(null);
-                        router.push(`/sub-lesson?subject=${encodeURIComponent(pendingEnroll.subject)}&grade=${encodeURIComponent(pendingEnroll.grade || "")}`);
-                      } catch (err) {
-                        setEnrollErr(err?.message || "Enrolment failed. Please try again.");
-                      } finally {
-                        setEnrolling(false);
-                      }
-                    }}
-                    disabled={enrolling || pendingEnroll.isLocked}
-                    style={{
-                      flex: 2, padding: "13px 0", borderRadius: 12, border: "none",
-                      background: (enrolling || pendingEnroll.isLocked) ? "#94a3b8" : `linear-gradient(135deg, ${BLUE_D}, ${BLUE})`,
-                      color: "white", fontWeight: 700, fontSize: 14,
-                      cursor: (enrolling || pendingEnroll.isLocked) ? "not-allowed" : "pointer",
-                      boxShadow: (enrolling || pendingEnroll.isLocked) ? "none" : `0 6px 20px ${BLUE}50`,
-                      transition: "all 0.2s",
-                    }}
-                    className={!enrolling ? "hover:scale-[1.02]" : ""}
-                  >
-                    {enrolling ? "Enrolling..." : pendingEnroll.isLocked ? "Locked" : pendingEnroll.alreadyEnrolled ? "Continue Learning →" : "Enrol & Continue →"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       <ChatBot accent={BLUE} />
     </div>
   );
-}
+}
