@@ -3,10 +3,23 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMergedCurriculum, findSubjectIn } from "@/data/useCurriculum";
 import { useEffect, useRef, useState, Suspense } from "react";
-import Sidebar from "@/components/Sidebar";
 import ChatBot from "@/components/ChatBot";
+import CursorGlow from "@/components/CursorGlow";
+import { SparklesCore } from "@/components/ui/sparkles";
+import Navbar from "@/components/Navbar";
+import { Atom, FlaskConical, Dna, Sigma, Leaf, BookOpen, Microscope } from "lucide-react";
 
 const NAVY = "#0f172a";
+
+const SUBJECT_ICON = {
+  Physics:              Atom,
+  Chemistry:            FlaskConical,
+  Biology:              Dna,
+  Maths:                Sigma,
+  "ආර්ථික විද්‍යාව":   BookOpen,
+  "බුද්ධ ධර්මය":       Leaf,
+  "විද්‍යාව":           Microscope,
+};
 
 function HexPattern({ color }) {
   const canvasRef = useRef(null);
@@ -92,9 +105,9 @@ function LessonsPageContent() {
   const cfg = SUBJECT_CFG[subject] || DEFAULT_CFG;
 
   if (!subjectData) return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar subject={subject} />
-      <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#020617" }}>
+      <Navbar />
+      <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc", }}>
         <p style={{ color: "#94a3b8" }}>No lessons found.</p>
       </main>
     </div>
@@ -104,28 +117,35 @@ function LessonsPageContent() {
   const totalTopics = lessons.reduce((a, l) => a + (l.topics?.length || 0), 0);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "linear-gradient(to bottom, #020617 0%, #020617 250px, #1e3a8a 550px, #ffffff 950px)", }}>
+      <Navbar />
+      <CursorGlow color={cfg.hue} opacity={0.08} size={900} />
 
-      <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "transparent" }}>
+
+        <div style={{ padding: "48px 60px 0", position: "relative", zIndex: 20 }}>
+          
+        </div>
 
         {/* ── HERO ── */}
         <div style={{
           position: "relative", overflow: "hidden",
-          background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark} 55%, ${cfg.hue} 100%)`,
-          padding: "52px 60px 48px",
+          padding: "24px 60px 48px",
         }}>
-          {/* Blueprint grid — matches dashboard */}
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
-            backgroundSize: "48px 48px" }} />
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
-            backgroundSize: "12px 12px" }} />
-          <div style={{ position: "absolute", top: -80, right: -60, width: 360, height: 360, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(147,197,253,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
+          {/* Sparkles Effect */}
+          <div style={{ position: "absolute", inset: 0 }}>
+            <SparklesCore
+              id="tsparticles-hero"
+              background="transparent"
+              minSize={0.6}
+              maxSize={1.4}
+              particleDensity={100}
+              className="w-full h-full"
+              particleColor="#FFFFFF"
+            />
+          </div>
 
-          <div style={{ position: "relative" }}>
+          <div style={{ position: "relative", zIndex: 10 }}>
             {/* Back link */}
             <button
               onClick={() => router.push("/dashboard")}
@@ -153,7 +173,7 @@ function LessonsPageContent() {
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32 }}>
               <div>
                 <h1 style={{
-                  fontFamily: "'Raleway', sans-serif",
+                  
                   fontSize: 40, fontWeight: 700, color: "#f1f5f9",
                   margin: "0 0 10px", letterSpacing: "0.01em", lineHeight: 1.1,
                 }}>
@@ -186,12 +206,10 @@ function LessonsPageContent() {
 
         {/* ── BODY ── */}
         <div style={{ padding: "44px 60px 72px", position: "relative" }}>
-          <HexPattern color={cfg.hue} />
-
           {/* Section label */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, paddingBottom: 18, borderBottom: "2px solid #e2e8f0", position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, paddingTop: 18, paddingBottom: 18, borderTop: "1px solid rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.15)", position: "relative", zIndex: 1 }}>
             <div>
-              <h2 style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 22, fontWeight: 700, color: NAVY, letterSpacing: "0.03em" }}>
+              <h2 style={{ margin: 0,  fontSize: 22, fontWeight: 700, color: "white", letterSpacing: "0.03em" }}>
                 {subject} Lessons
               </h2>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>
@@ -209,10 +227,11 @@ function LessonsPageContent() {
           </div>
 
           {/* Lessons grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 18, position: "relative", zIndex: 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 18, position: "relative", zIndex: 1 }}>
             {lessons.map((lesson, i) => {
               const isH = hovered === i;
               const topicCount = lesson.topics?.length || 0;
+              const Icon = SUBJECT_ICON[subject] || BookOpen;
 
               return (
                 <div
@@ -220,81 +239,74 @@ function LessonsPageContent() {
                   onClick={() => router.push(`/topics?subject=${subject}&lesson=${encodeURIComponent(lesson.name)}&grade=${encodeURIComponent(grade)}`)}
                   onMouseEnter={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
+                  className="group"
                   style={{
-                    background: "white",
-                    border: `1.5px solid ${isH ? cfg.hue + "55" : "#e8edf2"}`,
-                    borderRadius: 16, overflow: "hidden", cursor: "pointer",
+                    position: "relative",
+                    background: isH ? `linear-gradient(to bottom, ${cfg.bg}, #ffffff)` : "linear-gradient(to bottom, #f8fafc, #ffffff)",
+                    border: `1.5px solid ${isH ? cfg.hue + "55" : "#e2e8f0"}`,
+                    borderRadius: 24, overflow: "hidden", cursor: "pointer",
                     boxShadow: isH
-                      ? `0 16px 48px rgba(0,0,0,0.08), 0 0 0 1px ${cfg.hue}15`
-                      : "0 1px 4px rgba(0,0,0,0.04)",
-                    transform: isH ? "translateY(-4px)" : "translateY(0)",
-                    transition: "all 0.22s cubic-bezier(.22,.61,.36,1)",
+                      ? `0 20px 56px rgba(0,0,0,0.15), 0 0 0 1px ${cfg.hue}25`
+                      : "0 8px 30px rgba(0,0,0,0.08)",
+                    transform: isH ? "translateY(-5px)" : "translateY(0)",
+                    transition: "all 0.3s cubic-bezier(.22,.61,.36,1)",
                     display: "flex", flexDirection: "column",
                   }}
                 >
-                  {/* Top stripe */}
-                  <div style={{ height: 4, background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})` }} />
+                  {/* Watermark Icon */}
+                  <div style={{
+                    position: "absolute", bottom: -20, right: -20,
+                    opacity: isH ? 0.08 : 0.02,
+                    transform: isH ? "scale(1.15) rotate(-10deg)" : "scale(1) rotate(0deg)",
+                    transition: "all 0.5s cubic-bezier(.22,.61,.36,1)",
+                    pointerEvents: "none"
+                  }}>
+                    <Icon size={160} color={cfg.hue} />
+                  </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "22px 24px" }}>
-                    {/* Number badge */}
+                  {/* Top stripe */}
+                  <div style={{ height: 6, background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})` }} />
+
+                  {/* Card header */}
+                  <div style={{ padding: "20px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                     <div style={{
-                      width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+                      width: 48, height: 48, borderRadius: 14,
                       background: isH ? `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})` : cfg.bg,
                       border: `1.5px solid ${isH ? "transparent" : cfg.ring}`,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontWeight: 800, fontSize: 17,
-                      color: isH ? "white" : cfg.hue,
-                      boxShadow: isH ? `0 6px 18px ${cfg.hue}40` : "none",
-                      transition: "all 0.22s",
+                      fontSize: 16, fontWeight: 800, color: isH ? "white" : cfg.hue,
+                      boxShadow: isH ? `0 8px 20px ${cfg.hue}40` : "none", flexShrink: 0,
+                      transition: "all 0.3s",
                     }}>
                       {String(i + 1).padStart(2, "0")}
                     </div>
-
-                    {/* Text */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{
-                        margin: "0 0 4px",
-                        fontFamily: "'Playfair Display', serif",
-                        fontSize: 17, fontWeight: 700,
-                        color: NAVY,
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      }}>
-                        {lesson.name}
-                      </p>
-                      <p style={{ margin: 0, color: "#94a3b8", fontSize: 12, fontWeight: 500 }}>
-                        {topicCount} topic{topicCount !== 1 ? "s" : ""}
-                      </p>
-                    </div>
-
-                    {/* Arrow */}
-                    <div style={{
-                      width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                      background: isH ? `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})` : cfg.bg,
-                      border: `1.5px solid ${isH ? "transparent" : cfg.ring}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      boxShadow: isH ? `0 4px 12px ${cfg.hue}45` : "none",
-                      transition: "all 0.22s",
-                    }}>
-                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                        <path d="M3 6.5h7M7 3l3.5 3.5L7 10" stroke={isH ? "white" : cfg.hue} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+                    <div style={{ background: cfg.bg, color: cfg.hue, padding: "5px 12px", borderRadius: 100, fontSize: 11, fontWeight: 700, border: `1px solid ${cfg.ring}` }}>
+                      {topicCount} topic{topicCount !== 1 ? "s" : ""}
                     </div>
                   </div>
 
-                  {/* Topic dots */}
-                  <div style={{ display: "flex", gap: 5, padding: "0 24px 18px", flexWrap: "wrap" }}>
-                    {Array.from({ length: Math.min(topicCount, 8) }).map((_, di) => (
-                      <div key={di} style={{
-                        width: 7, height: 7, borderRadius: "50%",
-                        background: di < 3
-                          ? `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})`
-                          : isH ? `${cfg.hue}40` : "#e2e8f0",
-                        transition: "background 0.22s",
-                      }} />
-                    ))}
-                    {topicCount > 8 && (
-                      <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, lineHeight: "7px" }}>+{topicCount - 8}</span>
-                    )}
+                  {/* Card body */}
+                  <div style={{ padding: "0 20px 20px", flex: 1, display: "flex", flexDirection: "column", position: "relative", zIndex: 2 }}>
+                    <h3 style={{ margin: "0 0 12px",  fontSize: 18, fontWeight: 700, color: NAVY }}>
+                      {lesson.name}
+                    </h3>
+                    
+                    <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: isH ? cfg.hue : "#64748b", transition: "color 0.3s" }}>
+                        Start learning
+                      </span>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: "50%",
+                        background: isH ? cfg.hue : "#f1f5f9",
+                        border: `1px solid ${isH ? "transparent" : "#e2e8f0"}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "all 0.3s",
+                      }}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path d="M3 7h8M7 3l4 4-4 4" stroke={isH ? "white" : "#64748b"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

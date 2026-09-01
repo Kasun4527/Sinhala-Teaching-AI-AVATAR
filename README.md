@@ -175,3 +175,14 @@ Detailed technical breakdowns can be found in the `system_architecture_report.md
 
 ## 📜 License
 This project was developed as a Final Year Project (FYP). All rights reserved.
+
+---
+
+### - sachinthana feature/dev - 2026-08-30
+
+**Changes Summary:**
+1. **Education Level Separation:** Added O/L and A/L student differentiation. Dashboard cards visually lock based on the student's registered level (`[🔒 A/L Only]`) and backend validation secures the enrollment endpoint.
+2. **Teacher Code Generation:** Upgraded teacher linking from raw database Object IDs to user-friendly 6-digit codes (e.g., `TE482917`), generated during admin signup and exposed via the admin dashboard. Retroactive database migration was successfully executed.
+3. **Smart Enrollment UI:** Dashboard dynamically reads active enrollments to show context-aware buttons ("Enrol & Continue" for new subjects, "Continue Learning" for existing ones).
+4. **Privacy Assurance:** Embedded a privacy notice banner in lessons ensuring students that real-time engagement tracking never stores webcam video or images.
+5. **"Taking Notes" Mode:** Updated the Avatar's generic pause functionality to a "📝 Taking Notes" mode. When active, it halts webcam processing (saving bandwidth/CPU) and forces a 100% engagement score to prevent students from being penalized for looking down while writing.

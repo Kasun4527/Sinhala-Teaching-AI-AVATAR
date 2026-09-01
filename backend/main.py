@@ -159,6 +159,14 @@ class EnrollmentSubmission(BaseModel):
     student_id: str
     subject: str
     lessons: list = Field(default_factory=list)
+    grade: str = ""  # e.g. "11 ශ්‍රේණිය" — used for education-level validation
+
+
+class SkipPreQuizRequest(BaseModel):
+    student_id: str
+    subject: str
+    lesson: str
+    topic: str
 
 
 def normalize_enrolled_lessons(lessons):
@@ -242,6 +250,61 @@ def pre_quiz(subject: str, lesson: str, topic: str):
         return {"quiz": quiz}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Pre-quiz bypass: student self-selects Beginner level ─────────────────
+@app.post("/skip-pre-quiz/")
+async def skip_pre_quiz(data: SkipPreQuizRequest):
+    """
+    Allows a student to bypass the pre-quiz and start directly as a Beginner.
+    Initializes BKT at cold-start defaults (mastery=0.30) and generates
+    Beginner-level content without requiring quiz answers.
+    """
+    from services.bkt_service import DEFAULT_L0, make_skill_id, get_subject_transfer_L0
+
+    print(f"⏩ [SkipPreQuiz] {data.student_id} skipping pre-quiz for {data.subject}/{data.lesson}/{data.topic}")
+
+    # Use transfer L0 if student has prior subject history, otherwise cold-start default
+    initial_mastery = get_subject_transfer_L0(data.student_id, data.subject)
+    level = "Beginner"
+
+    # Generate Beginner-level content (uses cache if available)
+    content = await asyncio.to_thread(
+        generate_content,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level
+    )
+
+    # Save progress with quiz_type="skip" to distinguish from assessed students
+    save_pre_quiz_result(
+        student_id=data.student_id,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level,
+        score=0,
+        mastery=initial_mastery,
+        bkt_level=level,
+        quiz_type="skip"
+    )
+
+    save_delivered_content(
+        student_id=data.student_id,
+        subject=data.subject,
+        lesson=data.lesson,
+        topic=data.topic,
+        level=level,
+        content=content
+    )
+
+    return {
+        "level": level,
+        "content": content,
+        "mastery": initial_mastery,
+        "score": 0
+    }
 
 
 @app.post("/submit-pre-quiz/")
@@ -487,10 +550,13 @@ async def generate_tts(data: dict):
 
 
 def _resolve_teacher_id(teacher_code: str) -> str:
-    """A teacher's own user id doubles as their "teacher code" — no
-    separate code needs generating/storing. Raises if it doesn't match a
-    real admin account, so a mistyped code fails loudly at signup rather
-    than silently leaving the student unassigned."""
+    """Look up a teacher by their human-readable teacher_code (e.g. 'TE482917').
+    Falls back to matching by _id for legacy codes that are raw ObjectIds."""
+    # Try human-readable code first
+    teacher = users_collection.find_one({"teacher_code": teacher_code, "role": "admin"})
+    if teacher:
+        return str(teacher["_id"])
+    # Fallback: legacy raw ObjectId codes
     try:
         teacher = users_collection.find_one({"_id": ObjectId(teacher_code), "role": "admin"})
     except Exception:
@@ -508,23 +574,45 @@ def signup(user: User):
 
     user_dict = user.dict()
     user_dict["password"] = hash_password(user.password)
-    user_dict["is_verified"] = False
+    # Parents skip email verification entirely — there's no web verification
+    # flow surfaced to them, so requiring it would just permanently block
+    # mobile parent signup.
+    user_dict["is_verified"] = (user.role == "parent")
 
     teacher_code = user_dict.pop("teacher_code", None)
     if user.role == "student" and teacher_code:
         user_dict["teacher_id"] = _resolve_teacher_id(teacher_code)
 
+    # Persist education_level for students (OL / AL); None for legacy
+    if user.role != "student":
+        user_dict.pop("education_level", None)
+
+    # Generate a human-readable teacher code for admin accounts
+    import random
+    if user.role == "admin":
+        while True:
+            code = f"TE{random.randint(100000, 999999)}"
+            if not users_collection.find_one({"teacher_code": code}):
+                break
+        user_dict["teacher_code"] = code
+
     users_collection.insert_one(user_dict)
 
-    try:
-        send_verification_email(user.email, user.name)
-    except Exception as e:
-        import traceback
-        print(f"[Signup] Email send failed: {e}")
-        traceback.print_exc()
-        # Don't block signup if email fails — user can request resend later
+    if user.role != "parent":
+        try:
+            send_verification_email(user.email, user.name)
+        except Exception as e:
+            import traceback
+            print(f"[Signup] Email send failed: {e}")
+            traceback.print_exc()
+            # Don't block signup if email fails — user can request resend later
 
-    return {"message": "Account created. Please check your email to verify your account."}
+    message = (
+        "Account created. You can log in now."
+        if user.role == "parent"
+        else "Account created. Please check your email to verify your account."
+    )
+    return {"message": message}
 
 
 @app.get("/auth/verify-email")
@@ -578,7 +666,9 @@ def login(data: dict):
     if not verify_password(data["password"], user["password"]):
         raise HTTPException(status_code=401, detail="Invalid password")
 
-    if not user.get("is_verified", False):
+    # Parents are exempt from email verification (see /auth/signup) — this
+    # also covers parent accounts created before that exemption existed.
+    if not user.get("is_verified", False) and user.get("role") != "parent":
         raise HTTPException(status_code=403, detail="Please verify your email before logging in. Check your inbox for the verification link.")
 
     token = jwt.encode(
@@ -593,6 +683,8 @@ def login(data: dict):
         "name": user["name"],
         "student_id": str(user["_id"]),
         "teacher_id": user.get("teacher_id"),  # null if not yet linked to a teacher
+        "education_level": user.get("education_level"),  # "OL" | "AL" | None (legacy)
+        "teacher_code": user.get("teacher_code"),  # e.g. "TE482917" for admins
     }
 
 
@@ -640,6 +732,89 @@ def test_email_connection():
 def admin_get_students(teacher_id: str = None):
     students = get_all_students(teacher_id)
     return {"students": students}
+
+
+@app.get("/admin/safety-alerts")
+def admin_get_safety_alerts(teacher_id: str = None, limit: int = 50):
+    """Fetch recent safety-flag incidents for the teacher's admin dashboard.
+
+    If teacher_id is provided, only flags linked to that teacher's students
+    are returned. Otherwise, all flags are returned (for superadmin use).
+    """
+    from services.content_guard import get_safety_alerts
+    alerts = get_safety_alerts(teacher_id=teacher_id, limit=limit)
+    # Convert datetime objects to ISO strings for JSON serialization.
+    for a in alerts:
+        if "created_at" in a and a["created_at"]:
+            a["created_at"] = a["created_at"].isoformat()
+        if "reviewed_at" in a and a["reviewed_at"]:
+            a["reviewed_at"] = a["reviewed_at"].isoformat()
+    return {"alerts": alerts, "count": len(alerts)}
+
+
+# ✅ Look up a single student's name by their own id — /admin/students only
+# returns students scoped to a teacher_id, with no by-id lookup mode. Used
+# by the mobile parent dashboard to resolve a student ID (entered manually
+# at parent signup, since there's no parent↔child link stored anywhere)
+# to a real name.
+@app.get("/admin/student-lookup")
+def admin_student_lookup(student_id: str):
+    try:
+        student = users_collection.find_one({"_id": ObjectId(student_id), "role": "student"})
+    except Exception:
+        student = None
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return {"name": student["name"], "email": student["email"]}
+
+
+# ── Student Profile (bio fields) ─────────────────────────────────────────────
+PROFILE_FIELDS = ["bio", "contact_number", "parent_name", "parent_contact", "school"]
+
+
+@app.get("/student-profile")
+def get_student_profile(student_id: str):
+    """Return editable profile fields for a student."""
+    try:
+        student = users_collection.find_one({"_id": ObjectId(student_id), "role": "student"})
+    except Exception:
+        student = None
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return {
+        "name": student.get("name", ""),
+        "email": student.get("email", ""),
+        "education_level": student.get("education_level"),
+        "profile_complete": all(student.get(f) for f in PROFILE_FIELDS),
+        **{f: student.get(f, "") for f in PROFILE_FIELDS},
+    }
+
+
+class StudentProfileUpdate(BaseModel):
+    student_id: str
+    bio: str = ""
+    contact_number: str = ""
+    parent_name: str = ""
+    parent_contact: str = ""
+    school: str = ""
+
+
+@app.put("/student-profile")
+def update_student_profile(body: StudentProfileUpdate):
+    """Update editable profile fields for a student."""
+    try:
+        student = users_collection.find_one({"_id": ObjectId(body.student_id), "role": "student"})
+    except Exception:
+        student = None
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    update = {f: getattr(body, f) for f in PROFILE_FIELDS if getattr(body, f)}
+    if not update:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    users_collection.update_one({"_id": ObjectId(body.student_id)}, {"$set": update})
+    return {"message": "Profile updated", "profile_complete": all(update.get(f) for f in PROFILE_FIELDS)}
 
 
 # ✅ Get all subjects a student has activity in
@@ -699,11 +874,29 @@ def sidebar_progress(student_id: str):
     return {"subjects": result}
 
 
+# Grade→education-level mapping for enrollment gating
+_OL_GRADES = {"11 ශ්‍රේණිය"}
+_AL_GRADES = {"12 ශ්‍රේණිය", "13 ශ්‍රේණිය"}
+
+
 @app.post("/enroll/")
 def enroll(data: EnrollmentSubmission):
 
     if not data.student_id or not data.subject:
         raise HTTPException(status_code=400, detail="student_id and subject required")
+
+    # ── Education-level guard ──────────────────────────────────────────
+    # Legacy accounts (education_level=None) are unrestricted.
+    try:
+        student = users_collection.find_one({"_id": ObjectId(data.student_id)})
+    except Exception:
+        student = None
+    level = student.get("education_level") if student else None
+    if level and data.grade:
+        if level == "OL" and data.grade not in _OL_GRADES:
+            raise HTTPException(status_code=403, detail="O/L students cannot enrol in A/L subjects")
+        if level == "AL" and data.grade not in _AL_GRADES:
+            raise HTTPException(status_code=403, detail="A/L students cannot enrol in O/L subjects")
 
     subject_entry = {
         "subject": data.subject,

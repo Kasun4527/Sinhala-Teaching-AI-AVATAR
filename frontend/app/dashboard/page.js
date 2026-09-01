@@ -1,464 +1,265 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMergedCurriculum } from "@/data/useCurriculum";
 import { useEffect, useRef, useState } from "react";
-import Sidebar from "@/components/Sidebar";
+import Navbar from "@/components/Navbar";
 import ChatBot from "@/components/ChatBot";
+import { getEnrollments } from "@/services/api";
 
-function FloatingPattern({ color }) {
-  const canvasRef = useRef(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const chars = "0123456789ABCDEFabcdefijklmnopqrstuvwxyz+-=><[]{}|/\\".split("");
-    let W = canvas.width  = canvas.offsetWidth;
-    let H = canvas.height = canvas.offsetHeight;
-    const particles = Array.from({ length: 120 }, () => ({
-      x: Math.random() * W, y: Math.random() * H,
-      char: chars[Math.floor(Math.random() * chars.length)],
-      size: 9 + Math.random() * 8,
-      speed: 0.18 + Math.random() * 0.32,
-      opacity: 0.35 + Math.random() * 0.30,
-      drift: (Math.random() - 0.5) * 0.15,
-    }));
-    let raf;
-    const draw = () => {
-      ctx.clearRect(0, 0, W, H);
-      for (const p of particles) {
-        ctx.font = `${p.size}px monospace`;
-        ctx.fillStyle = color + Math.round(p.opacity * 255).toString(16).padStart(2, "0");
-        ctx.fillText(p.char, p.x, p.y);
-        p.y += p.speed; p.x += p.drift;
-        if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W; p.char = chars[Math.floor(Math.random() * chars.length)]; }
-        if (p.x < -20 || p.x > W + 20) p.x = Math.random() * W;
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-    const onResize = () => { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; };
-    window.addEventListener("resize", onResize);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
-  }, [color]);
-  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
-}
-import { enrollSubject } from "@/services/api";
-
-// ── Design tokens ──────────────────────────────────────────────────
-const BLUE    = "#2563eb";
-const BLUE_D  = "#1d4ed8";
+const NAVY = "#020617";
+const BLUE_D = "#1d4ed8";
 const BLUE_XD = "#1e3a8a";
-const NAVY    = "#0f172a";
+const BLUE = "#3b82f6";
 
 const SUBJECT = {
-  Physics:              { abbr: "PH", hue: "#2563eb", bg: "#eff6ff", ring: "#bfdbfe", dark: "#1e3a8a" },
-  Chemistry:            { abbr: "CH", hue: "#0891b2", bg: "#ecfeff", ring: "#a5f3fc", dark: "#164e63" },
-  Biology:              { abbr: "BI", hue: "#059669", bg: "#ecfdf5", ring: "#6ee7b7", dark: "#064e3b" },
-  Maths:                { abbr: "MA", hue: "#7c3aed", bg: "#f5f3ff", ring: "#c4b5fd", dark: "#3b0764" },
-  "ආර්ථික විද්‍යාව":   { abbr: "₨", hue: "#b45309", bg: "#fffbeb", ring: "#fde68a", dark: "#78350f" },
-  "බුද්ධ ධර්මය":       { abbr: "☸", hue: "#c026d3", bg: "#fdf4ff", ring: "#e879f9", dark: "#701a75" },
-  "විද්‍යාව":           { abbr: "🔬", hue: "#0d9488", bg: "#f0fdfa", ring: "#99f6e4", dark: "#134e4a" },
+  Physics: { abbr: "PH", hue: "#3b82f6", dark: "#1e3a8a" },
+  Chemistry: { abbr: "CH", hue: "#06b6d4", dark: "#164e63" },
+  Biology: { abbr: "BI", hue: "#10b981", dark: "#064e3b" },
+  Maths: { abbr: "MA", hue: "#8b5cf6", dark: "#4c1d95" },
+  "ආර්ථික විද්‍යාව": { abbr: "₨", hue: "#f59e0b", dark: "#78350f", img: "/L3.jfif" },
+  "බුද්ධ ධර්මය": { abbr: "☸", hue: "#d946ef", dark: "#701a75", img: "/L2.jfif" },
+  "විද්‍යාව": { abbr: "🔬", hue: "#14b8a6", dark: "#134e4a", img: "/L1.jfif" },
 };
-const DEFAULT_S = { abbr: "SU", hue: "#475569", bg: "#f8fafc", ring: "#cbd5e1", dark: "#1e293b" };
+const DEFAULT_S = { abbr: "SU", hue: "#64748b", dark: "#1e293b" };
 
-function Chip({ children, style }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center",
-      fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase",
-      padding: "4px 12px", borderRadius: 100,
-      ...style,
-    }}>
-      {children}
-    </span>
-  );
-}
+// Grade → education-level mapping
+const GRADE_LEVEL = {
+  "11 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "OL",
+  "12 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "AL",
+  "13 \u0DC1\u0DCA\u200D\u0DBB\u0DDA\u0DAB\u0DD2\u0DBA": "AL",
+};
 
-function StatTile({ value, label }) {
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
+function EnrolledCard({ item, onClick }) {
+  const cfg = SUBJECT[item.subject] || DEFAULT_S;
+
+  const lessons = item.lessons || [];
+  const doneCount = lessons.reduce((sum, l) => sum + (l.topics?.filter(t => t.done).length || 0), 0);
+  const totalCount = lessons.reduce((sum, l) => sum + (l.topics?.length || 0), 0);
+  const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+
   return (
-    <div style={{
-      background: "rgba(255,255,255,0.06)",
-      border: "1px solid rgba(255,255,255,0.10)",
-      borderRadius: 14, padding: "18px 22px", minWidth: 108,
-    }}>
-      <p style={{ margin: 0, fontSize: 32, fontWeight: 800, color: "#93c5fd", lineHeight: 1 }}>{value}</p>
-      <p style={{ margin: "7px 0 0", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.40)", letterSpacing: "0.09em", textTransform: "uppercase" }}>{label}</p>
+    <div
+      className="group transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(59,130,246,0.2)]"
+      style={{
+        width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: 24, overflow: "hidden", cursor: "pointer", backdropFilter: "blur(12px)"
+      }}
+    >
+      <div style={{ height: 160, background: cfg.img ? `url(${cfg.img}) center/cover no-repeat` : `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})`, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {!cfg.img && <span style={{ fontSize: 56, color: "white", opacity: 0.3, fontWeight: 800 }}>{cfg.abbr}</span>}
+        <div style={{ position: "absolute", bottom: 12, right: 12, background: "rgba(0,0,0,0.6)", padding: "6px 12px", borderRadius: 8, fontSize: 12, color: "white", fontWeight: 700 }}>
+          {item.grade || "Grade 11"}
+        </div>
+      </div>
+      <div style={{ padding: 24 }}>
+        <h3 style={{ margin: "0 0 8px", fontSize: 20, color: "white", fontWeight: 700 }}>{item.subject}</h3>
+        {/* Progress Bar */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 600 }}>
+            <span>Progress</span>
+            <span>{pct}% ({doneCount}/{totalCount})</span>
+          </div>
+          <div style={{ width: "100%", height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: cfg.hue || "#3b82f6", borderRadius: 4, transition: "width 0.5s ease" }} />
+          </div>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onClick(); }}
+          className="transition-all duration-300 border border-white/20"
+          style={{
+            width: "100%", padding: "12px", color: "white", borderRadius: 12, fontWeight: 600,
+            backgroundImage: "linear-gradient(to right, #1e3a8a 50%, rgba(255,255,255,0.1) 50%)",
+            backgroundSize: "200% 100%",
+            backgroundPosition: "100% 0",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundPosition = "0 0";
+            e.currentTarget.style.borderColor = "#1e3a8a";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundPosition = "100% 0";
+            e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
+          }}
+        >
+          Continue lesson
+        </button>
+      </div>
     </div>
   );
 }
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-
 export default function StudentDashboard() {
   const router = useRouter();
-  const curriculum = useMergedCurriculum();
-  const [name, setName]             = useState("");
-  const [hovered, setHovered]       = useState(null);
-  const [pendingEnroll, setPending] = useState(null);
-  const [enrolling, setEnrolling]   = useState(false);
-  const [enrollErr, setEnrollErr]   = useState("");
-  const [grade, setGrade]           = useState(0);
-  const [needsTeacherCode, setNeedsTeacherCode] = useState(false);
-  const [teacherCodeInput, setTeacherCodeInput] = useState("");
-  const [teacherCodeStatus, setTeacherCodeStatus] = useState({ saving: false, error: "" });
+  const [name, setName] = useState("");
+  const [enrolled, setEnrolled] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [profileComplete, setProfileComplete] = useState(true);
+
+  const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
+
+  const slideshowImages = ["/d1.jpg", "/d2.jfif", "/d3.jpg", "/d4.jpg"];
+  const quotes = [
+    { text: "“Education is the most powerful weapon which you can use to change the world.”", author: "— Nelson Mandela" },
+    { text: "“The important thing is to never stop questioning.”", author: "— Albert Einstein" },
+    { text: "“I have no special talent. I am only passionately curious.”", author: "— Albert Einstein" },
+    { text: "“Live as if you were to die tomorrow. Learn as if you were to live forever.”", author: "— Mahatma Gandhi" },
+    { text: "“The roots of education are bitter, but the fruit is sweet.”", author: "— Aristotle" }
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % slideshowImages.length);
+      setCurrentQuoteIndex((prev) => (prev + 1) % quotes.length);
+    }, 5000); // Change both every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) { router.push("/login"); return; }
+    if (!token) router.push("/login");
+
+    const studentId = localStorage.getItem("student_id");
     setName(localStorage.getItem("name") || "Student");
-    setNeedsTeacherCode(!localStorage.getItem("teacher_id"));
-  }, []);
 
-  const submitTeacherCode = async () => {
-    const code = teacherCodeInput.trim();
-    if (!code) return;
-    setTeacherCodeStatus({ saving: true, error: "" });
-    try {
-      const res = await fetch(`${BACKEND}/auth/set-teacher-code`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: localStorage.getItem("student_id"), teacher_code: code }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Invalid code");
-      localStorage.setItem("teacher_id", data.teacher_id);
-      setNeedsTeacherCode(false);
-      // Reload so useMergedCurriculum (only fetches once on mount) picks up
-      // this teacher's content immediately instead of on next visit.
-      window.location.reload();
-    } catch (err) {
-      setTeacherCodeStatus({ saving: false, error: err.message || "Invalid code" });
+    // Check profile completeness
+    if (studentId) {
+      fetch(`${BACKEND}/student-profile?student_id=${encodeURIComponent(studentId)}`)
+        .then(r => r.json())
+        .then(data => {
+          const complete = data.profile_complete;
+          setProfileComplete(complete);
+          localStorage.setItem("profile_complete", complete ? "true" : "false");
+        })
+        .catch(() => {});
     }
-  };
 
-  const totalSubjects = curriculum.reduce((a, g) => a + g.subjects.length, 0);
-  const totalLessons  = curriculum.reduce((a, g) => a + g.subjects.reduce((s, sub) => s + (sub.lessons?.length || 0), 0), 0);
-  const totalTopics   = curriculum.reduce((a, g) => a + g.subjects.reduce((s, sub) => s + sub.lessons?.reduce((t, l) => t + (l.topics?.length || 0), 0), 0), 0);
-  const current       = curriculum[grade];
+    const fetchEnrollments = async () => {
+      if (!studentId) return;
+      try {
+        const res = await getEnrollments(studentId);
+        if (res.data?.subjects) {
+          setEnrolled(res.data.subjects);
+        }
+      } catch (e) {
+        console.error("Failed to fetch enrollments", e);
+      }
+    };
+    fetchEnrollments();
+  }, [router]);
+
+
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar />
+    <div style={{ minHeight: "100vh", background: "linear-gradient(to bottom, #020617 0%, #0f172a 100%)" }}>
+      <Navbar />
 
-      <main style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 32px 80px", display: "flex", flexDirection: "column", gap: 48 }}>
 
-        {/* ═══ HERO ═══ */}
-        <div style={{
-          position: "relative", overflow: "hidden",
-          background: `linear-gradient(145deg, ${NAVY} 0%, ${BLUE_XD} 55%, ${BLUE_D} 100%)`,
-          padding: "60px 60px 56px",
-        }}>
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
-            backgroundSize: "48px 48px" }} />
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
-            backgroundSize: "12px 12px" }} />
-          <div style={{ position: "absolute", top: -100, right: -60, width: 420, height: 420, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", bottom: -80, left: "40%", width: 300, height: 300, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
+        {/* Top Split Section */}
+        <div style={{ display: "flex", gap: "48px" }}>
 
-          <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 56 }}>
-            <div style={{ flex: 1 }}>
-              <Chip style={{ background: "rgba(147,197,253,0.12)", border: "1px solid rgba(147,197,253,0.22)", color: "#93c5fd", marginBottom: 24 }}>
-                <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#60a5fa", marginRight: 7 }} />
-                Adaptive Learning Platform
-              </Chip>
+          {/* Left Column - Featured */}
+          <div style={{ width: "42%", minWidth: 420, display: "flex", flexDirection: "column", gap: 24, position: "relative", zIndex: 10 }}>
 
-              <h1 style={{
-                fontFamily: "'Raleway', sans-serif",
-                fontSize: 48, fontWeight: 300, lineHeight: 1.12,
-                color: "#f1f5f9", margin: "0 0 6px", letterSpacing: "0.02em",
-              }}>
-                Hello,{" "}
-                <span style={{ fontWeight: 700, color: "#93c5fd", textShadow: "0 0 40px rgba(147,197,253,0.35)" }}>
-                  {name}
-                </span>
+            {/* Main Featured Block */}
+            <div style={{
+              background: "rgba(255,255,255,0.03)", borderRadius: 32, padding: 32,
+              border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(20px)",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.4)", position: "relative", overflow: "hidden"
+            }}>
+              {/* Glow Behind */}
+              <div style={{ position: "absolute", top: -50, right: -50, width: 200, height: 200, background: "#3b82f6", filter: "blur(100px)", opacity: 0.3 }} />
+
+              <div style={{ height: 380, borderRadius: 20, overflow: "hidden", position: "relative", border: "1px solid rgba(255,255,255,0.15)", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
+                {slideshowImages.map((src, idx) => (
+                  <img
+                    key={src}
+                    src={src}
+                    alt={`Slide ${idx + 1}`}
+                    style={{
+                      position: "absolute", inset: 0,
+                      width: "100%", height: "100%", objectFit: "cover",
+                      opacity: idx === currentImageIndex ? 1 : 0,
+                      transition: "opacity 1s ease-in-out"
+                    }}
+                  />
+                ))}
+              </div>
+
+              <div style={{ position: "relative", height: 130, marginTop: 32, overflow: "hidden" }}>
+                {quotes.map((q, idx) => {
+                  let offset = "100%";
+                  let opacity = 0;
+                  if (idx === currentQuoteIndex) {
+                    offset = "0%";
+                    opacity = 1;
+                  } else if (idx === (currentQuoteIndex - 1 + quotes.length) % quotes.length) {
+                    offset = "-100%";
+                  }
+
+                  return (
+                    <div key={idx} style={{
+                      position: "absolute", top: 0, left: 0, width: "100%",
+                      transform: `translateX(${offset})`,
+                      opacity: opacity,
+                      transition: "transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.8s ease-in-out"
+                    }}>
+                      <h3 style={{ color: "white", fontSize: 20, fontWeight: 700, margin: "0 0 12px", lineHeight: 1.5, fontStyle: "italic" }}>
+                        {q.text}
+                      </h3>
+                      <p style={{ color: "#94a3b8", fontSize: 15, margin: 0, fontWeight: 600, textAlign: "right" }}>
+                        {q.author}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Right Column - Content */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", zIndex: 10 }}>
+
+            <div style={{
+              marginBottom: 48,
+              background: "rgba(0,0,0,0.25)",
+              borderRadius: 24,
+              padding: 32,
+              border: "1px solid rgba(255,255,255,0.05)",
+              backdropFilter: "blur(20px)",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+            }}>
+              <h1 className="text-page-title c-white" style={{ margin: "0 0 12px" }}>
+                Hello, <span className="c-blue-pill">{name}</span>
               </h1>
-              <p style={{ color: "rgba(255,255,255,0.40)", fontSize: 15, margin: "14px 0 0", maxWidth: 400, lineHeight: 1.8 }}>
+              <p className="text-body c-blue-muted" style={{ margin: 0 }}>
                 Explore your curriculum below. Select a subject to enrol and begin your personalised learning journey.
               </p>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, flexShrink: 0 }}>
-              <StatTile value={curriculum.length} label="Grades" />
-              <StatTile value={totalSubjects}     label="Subjects" />
-              <StatTile value={totalLessons}      label="Lessons" />
-              <StatTile value={totalTopics}       label="Topics" />
-            </div>
-          </div>
-        </div>
-
-        {/* ═══ BODY ═══ */}
-        <div style={{ padding: "48px 60px 80px", position: "relative" }}>
-          <FloatingPattern color={BLUE} />
-
-          {/* Teacher code prompt — shown until a teacher is linked */}
-          {needsTeacherCode && (
-            <div style={{
-              background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 16,
-              padding: "20px 24px", marginBottom: 32, position: "relative", zIndex: 1,
-            }}>
-              <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#78350f" }}>
-                Link to your teacher
-              </p>
-              <p style={{ margin: "0 0 14px", fontSize: 13, color: "#92400e" }}>
-                Enter the code your teacher gave you so their added lessons and your progress show up correctly.
-              </p>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <input
-                  value={teacherCodeInput}
-                  onChange={(e) => setTeacherCodeInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && submitTeacherCode()}
-                  placeholder="Teacher code"
-                  style={{
-                    flex: "1 1 220px", padding: "9px 14px", borderRadius: 10,
-                    border: "1.5px solid #fde68a", fontSize: 13, outline: "none",
-                  }}
-                />
-                <button
-                  onClick={submitTeacherCode}
-                  disabled={teacherCodeStatus.saving || !teacherCodeInput.trim()}
-                  style={{
-                    padding: "9px 20px", borderRadius: 10, border: "none",
-                    background: "#b45309", color: "white", fontWeight: 600, fontSize: 13,
-                    cursor: teacherCodeStatus.saving ? "default" : "pointer",
-                    opacity: teacherCodeStatus.saving ? 0.6 : 1,
-                  }}
-                >
-                  {teacherCodeStatus.saving ? "Linking..." : "Link"}
-                </button>
-              </div>
-              {teacherCodeStatus.error && (
-                <p style={{ margin: "10px 0 0", fontSize: 12, color: "#dc2626" }}>{teacherCodeStatus.error}</p>
-              )}
-            </div>
-          )}
-
-          {/* Header row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32, flexWrap: "wrap", gap: 16, position: "relative", zIndex: 1 }}>
-            <div>
-              <h2 style={{ margin: 0, fontFamily: "'Raleway', sans-serif", fontSize: 26, fontWeight: 700, color: NAVY, letterSpacing: "0.03em" }}>
-                Your Curriculum
-              </h2>
-              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>
-                Select a grade to browse available subjects
-              </p>
-            </div>
-
-            <div style={{ display: "flex", gap: 6, alignItems: "center", background: "#f1f5f9", padding: "5px 6px", borderRadius: 12 }}>
-              {curriculum.map((g, i) => (
-                <button
-                  key={i}
-                  onClick={() => setGrade(i)}
-                  style={{
-                    padding: "8px 20px", borderRadius: 9, border: "none",
-                    background: grade === i ? `linear-gradient(135deg, ${BLUE_D}, ${BLUE})` : "transparent",
-                    color: grade === i ? "white" : "#64748b",
-                    fontWeight: 600, fontSize: 13, cursor: "pointer",
-                    boxShadow: grade === i ? `0 3px 10px ${BLUE}50` : "none",
-                    transition: "all 0.18s ease",
-                  }}
-                >
-                  {g.grade}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ height: 1, background: "linear-gradient(90deg, #e2e8f0, transparent)", marginBottom: 36, position: "relative", zIndex: 1 }} />
-
-          {/* Cards grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(295px, 1fr))", gap: 20, position: "relative", zIndex: 1 }}>
-            {current.subjects.map((item, i) => {
-              const cfg = SUBJECT[item.subject] || DEFAULT_S;
-              const isH = hovered === i;
-              const tops = item.lessons?.reduce((a, l) => a + (l.topics?.length || 0), 0) || 0;
-
-              return (
-                <div
-                  key={i}
-                  onClick={() => setPending({ ...item, grade: current.grade })}
-                  onMouseEnter={() => setHovered(i)}
-                  onMouseLeave={() => setHovered(null)}
-                  style={{
-                    background: "white",
-                    border: `1.5px solid ${isH ? cfg.hue + "60" : "#e8edf2"}`,
-                    borderRadius: 18, overflow: "hidden", cursor: "pointer",
-                    boxShadow: isH
-                      ? `0 20px 56px rgba(0,0,0,0.09), 0 0 0 1px ${cfg.hue}18`
-                      : "0 1px 4px rgba(0,0,0,0.04)",
-                    transform: isH ? "translateY(-5px)" : "translateY(0)",
-                    transition: "all 0.22s cubic-bezier(.22,.61,.36,1)",
-                  }}
-                >
-                  {/* Top stripe */}
-                  <div style={{ height: 5, background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})` }} />
-
-                  {/* Card header */}
-                  <div style={{ padding: "22px 24px 16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <div style={{
-                      width: 52, height: 52, borderRadius: 14,
-                      background: isH ? `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})` : cfg.bg,
-                      border: `1.5px solid ${isH ? "transparent" : cfg.ring}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 13, fontWeight: 800, letterSpacing: "0.06em",
-                      color: isH ? "white" : cfg.hue,
-                      boxShadow: isH ? `0 6px 18px ${cfg.hue}45` : "none",
-                      transition: "all 0.22s", flexShrink: 0,
-                    }}>
-                      {cfg.abbr}
-                    </div>
-                    <Chip style={{ background: cfg.bg, color: cfg.hue, border: `1px solid ${cfg.ring}` }}>
-                      {item.lessons?.length || 0} lessons
-                    </Chip>
-                  </div>
-
-                  {/* Card body */}
-                  <div style={{ padding: "0 24px 22px" }}>
-                    <h3 style={{ margin: "0 0 4px", fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: NAVY }}>
-                      {item.subject}
-                    </h3>
-                    <p style={{ margin: "0 0 20px", fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>
-                      {current.grade}{tops > 0 && <> &middot; {tops} topics</>}
-                    </p>
-
-                    {/* Decorative progress bar */}
-                    <div style={{ height: 3, background: "#f1f5f9", borderRadius: 99, marginBottom: 20 }}>
-                      <div style={{
-                        height: "100%", borderRadius: 99, width: isH ? "70%" : "40%",
-                        background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})`,
-                        transition: "width 0.5s ease",
-                      }} />
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: cfg.hue }}>Start Learning</span>
-                      <div style={{
-                        width: 34, height: 34, borderRadius: "50%",
-                        background: isH ? `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})` : cfg.bg,
-                        border: `1.5px solid ${isH ? "transparent" : cfg.ring}`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        boxShadow: isH ? `0 6px 16px ${cfg.hue}50` : "none",
-                        transition: "all 0.22s",
-                      }}>
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path d="M3 7h8M7 3l4 4-4 4" stroke={isH ? "white" : cfg.hue} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
+            {/* Continue Learning */}
+            {enrolled.length > 0 && (
+              <div style={{ marginBottom: 56 }}>
+                <h2 className="text-section-title c-white" style={{ marginBottom: 24 }}>Continue learning</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 280px)", gap: 24, paddingBottom: 24 }}>
+                  {[...enrolled].reverse().slice(0, 2).map((item, i) => (
+                    <EnrolledCard
+                      key={i}
+                      item={item}
+                      onClick={() => router.push(`/sub-lesson?subject=${encodeURIComponent(item.subject)}&grade=${encodeURIComponent(item.grade || "")}`)}
+                    />
+                  ))}
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
         </div>
       </main>
 
-      {/* ═══ ENROL MODAL ═══ */}
-      {pendingEnroll && (() => {
-        const cfg  = SUBJECT[pendingEnroll.subject] || DEFAULT_S;
-        const tops = pendingEnroll.lessons?.reduce((a, l) => a + (l.topics?.length || 0), 0) || 0;
-        return (
-          <div
-            onClick={e => e.target === e.currentTarget && (setPending(null), setEnrollErr(""))}
-            style={{
-              position: "fixed", inset: 0, zIndex: 3000,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: "rgba(2,6,23,0.55)", backdropFilter: "blur(8px)",
-            }}
-          >
-            <div style={{
-              width: 460, background: "white", borderRadius: 22,
-              overflow: "hidden", boxShadow: "0 40px 100px rgba(0,0,0,0.28)",
-            }}>
-              <div style={{ height: 5, background: `linear-gradient(90deg, ${cfg.dark}, ${cfg.hue})` }} />
-
-              <div style={{ padding: "28px 30px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 18 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: 16,
-                  background: `linear-gradient(135deg, ${cfg.dark}, ${cfg.hue})`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 16, fontWeight: 800, color: "white", letterSpacing: "0.06em",
-                  boxShadow: `0 8px 24px ${cfg.hue}45`,
-                }}>
-                  {cfg.abbr}
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: NAVY }}>
-                    {pendingEnroll.subject}
-                  </h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>
-                    {pendingEnroll.grade} &middot; {pendingEnroll.lessons?.length || 0} lessons &middot; {tops} topics
-                  </p>
-                </div>
-              </div>
-
-              <div style={{ padding: "26px 30px 30px" }}>
-                <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
-                  You are about to enrol in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Your progress will be tracked and lessons unlocked as you advance.
-                </p>
-
-                {enrollErr && (
-                  <div style={{ marginTop: 16, padding: "11px 16px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 13 }}>
-                    {enrollErr}
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: 8, marginTop: 20, flexWrap: "wrap" }}>
-                  {[`${pendingEnroll.lessons?.length || 0} Lessons`, `${tops} Topics`, "Sinhala Medium", "Adaptive Path"].map((t, i) => (
-                    <Chip key={i} style={{ background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0" }}>{t}</Chip>
-                  ))}
-                </div>
-
-                <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-                  <button
-                    onClick={() => { setPending(null); setEnrollErr(""); }}
-                    style={{
-                      flex: 1, padding: "13px 0", borderRadius: 12,
-                      border: "1.5px solid #e2e8f0", background: "white",
-                      color: "#374151", fontWeight: 600, fontSize: 14, cursor: "pointer",
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        setEnrolling(true); setEnrollErr("");
-                        const studentId = localStorage.getItem("student_id");
-                        if (!studentId) throw new Error("Not logged in");
-                        await enrollSubject({ student_id: studentId, subject: pendingEnroll.subject, lessons: pendingEnroll.lessons || [] });
-                        setPending(null);
-                        router.push(`/sub-lesson?subject=${encodeURIComponent(pendingEnroll.subject)}&grade=${encodeURIComponent(pendingEnroll.grade || "")}`);
-                      } catch (err) {
-                        setEnrollErr(err?.message || "Enrolment failed. Please try again.");
-                      } finally {
-                        setEnrolling(false);
-                      }
-                    }}
-                    disabled={enrolling}
-                    style={{
-                      flex: 2, padding: "13px 0", borderRadius: 12, border: "none",
-                      background: enrolling ? "#93c5fd" : `linear-gradient(135deg, ${BLUE_D}, ${BLUE})`,
-                      color: "white", fontWeight: 700, fontSize: 14,
-                      cursor: enrolling ? "not-allowed" : "pointer",
-                      boxShadow: enrolling ? "none" : `0 6px 20px ${BLUE}50`,
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {enrolling ? "Enrolling…" : "Enrol & Start Learning →"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       <ChatBot accent={BLUE} />
     </div>
   );
-}
+}

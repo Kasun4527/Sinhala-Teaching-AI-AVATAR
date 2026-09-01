@@ -50,6 +50,12 @@ student_clusters_col    = db["student_clusters"]
 problem_difficulty_col  = db["problem_difficulty"]
 kmeans_models_col       = db["kmeans_models"]
 
+# ── Safety Guardrails (LLM Content Guard) ────────────────────────────────────────
+# Audit log of input/output safety violations. Each document records what
+# was flagged, which student triggered it, and which teacher should be
+# alerted. Reviewed by teachers via the admin dashboard.
+safety_flags_collection = db["safety_flags"]
+
 
 def ensure_indexes():
     """Create all personalization indexes. Called once on FastAPI startup."""
@@ -85,5 +91,11 @@ def ensure_indexes():
     quiz_pool_collection.create_index(
         [("subject", ASCENDING), ("lesson", ASCENDING), ("topic", ASCENDING),
          ("level", ASCENDING), ("quiz_type", ASCENDING)]
+    )
+    safety_flags_collection.create_index(
+        [("teacher_id", ASCENDING), ("created_at", ASCENDING)]
+    )
+    safety_flags_collection.create_index(
+        [("student_id", ASCENDING), ("created_at", ASCENDING)]
     )
     print("[DB] Personalization indexes ensured.")
