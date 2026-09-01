@@ -24,7 +24,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
-from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection, curriculum_topics_collection, explain_cache_collection
+from db import users_collection, enrollments_collection, ensure_indexes, student_progress_collection, engagement_collection, qa_collection, youtube_watch_collection, curriculum_topics_collection, explain_cache_collection, parent_links_collection, notifications_collection
 from services.email_service import send_verification_email, verify_token
 from models.User import User
 from auth.security import hash_password
@@ -587,6 +587,10 @@ def signup(user: User):
     if user.role != "student":
         user_dict.pop("education_level", None)
 
+    # Keep contact_number for parents; strip it for other roles
+    if user.role != "parent":
+        user_dict.pop("contact_number", None)
+
     # Generate a human-readable teacher code for admin accounts, and student code for students
     import random
     if user.role == "admin":
@@ -691,6 +695,7 @@ def login(data: dict):
         "teacher_id": user.get("teacher_id"),  # null if not yet linked to a teacher
         "education_level": user.get("education_level"),  # "OL" | "AL" | None (legacy)
         "teacher_code": user.get("teacher_code"),  # e.g. "TE482917" for admins
+        "student_code": user.get("student_code"),  # e.g. "ST123456" for students
     }
 
 
@@ -765,13 +770,20 @@ def admin_get_safety_alerts(teacher_id: str = None, limit: int = 50):
 # to a real name.
 @app.get("/admin/student-lookup")
 def admin_student_lookup(student_id: str):
-    try:
-        student = users_collection.find_one({"_id": ObjectId(student_id), "role": "student"})
-    except Exception:
-        student = None
+    """Look up a student by ObjectId or by human-readable STXXXXXX code."""
+    student = None
+    # Try STXXXXXX code first
+    if student_id.upper().startswith("ST") and len(student_id) == 8:
+        student = users_collection.find_one({"student_code": student_id.upper(), "role": "student"})
+    # Fallback: raw ObjectId
+    if not student:
+        try:
+            student = users_collection.find_one({"_id": ObjectId(student_id), "role": "student"})
+        except Exception:
+            student = None
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
-    return {"name": student["name"], "email": student["email"]}
+    return {"name": student["name"], "email": student["email"], "student_id": str(student["_id"])}
 
 
 # ── Student Profile (bio fields) ─────────────────────────────────────────────
@@ -1526,3 +1538,214 @@ def curriculum_additions(student_id: str = None, teacher_id: str = None):
         {"grade": g, "subject": s, "lesson": l, "topics": topics}
         for (g, s, l), topics in grouped.items()
     ]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PARENT ↔ STUDENT LINKING + NOTIFICATIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _resolve_student_id(value: str) -> str:
+    """Resolve a student code (STXXXXXX) or raw ObjectId string to a real
+    ObjectId string. Raises HTTPException(404) if not found."""
+    student = None
+    if value.upper().startswith("ST") and len(value) == 8:
+        student = users_collection.find_one({"student_code": value.upper(), "role": "student"})
+    if not student:
+        try:
+            student = users_collection.find_one({"_id": ObjectId(value), "role": "student"})
+        except Exception:
+            student = None
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return str(student["_id"])
+
+
+class LinkChildRequest(BaseModel):
+    parent_id: str
+    student_code: str  # accepts STXXXXXX or raw ObjectId
+
+
+@app.post("/parent/link-child")
+def parent_link_child(body: LinkChildRequest):
+    """Create a persistent parent→student link. Idempotent — linking the same
+    child twice is silently ignored (no error, no duplicate)."""
+    # Verify parent exists
+    try:
+        parent = users_collection.find_one({"_id": ObjectId(body.parent_id), "role": "parent"})
+    except Exception:
+        parent = None
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent account not found")
+
+    real_student_id = _resolve_student_id(body.student_code)
+
+    from datetime import datetime
+    try:
+        parent_links_collection.insert_one({
+            "parent_id": body.parent_id,
+            "student_id": real_student_id,
+            "linked_at": datetime.utcnow(),
+        })
+    except Exception:
+        # Duplicate (unique index) — silently succeed
+        pass
+
+    student = users_collection.find_one({"_id": ObjectId(real_student_id)})
+    return {
+        "message": "Child linked successfully",
+        "student_id": real_student_id,
+        "student_name": student["name"] if student else "Unknown",
+    }
+
+
+@app.get("/parent/children")
+def parent_get_children(parent_id: str):
+    """Return all children linked to a parent — replaces on-device storage."""
+    links = parent_links_collection.find({"parent_id": parent_id})
+    children = []
+    for link in links:
+        student = users_collection.find_one({"_id": ObjectId(link["student_id"])})
+        if student:
+            children.append({
+                "student_id": str(student["_id"]),
+                "name": student["name"],
+                "email": student.get("email", ""),
+                "student_code": student.get("student_code", ""),
+            })
+    return {"children": children}
+
+
+@app.get("/student/parent-info")
+def student_get_parent_info(student_id: str):
+    """Return the linked parent's name and contact number for display on
+    the student's settings page (read-only)."""
+    link = parent_links_collection.find_one({"student_id": student_id})
+    if not link:
+        return {"linked": False}
+    parent = users_collection.find_one({"_id": ObjectId(link["parent_id"])})
+    if not parent:
+        return {"linked": False}
+    return {
+        "linked": True,
+        "parent_name": parent.get("name", ""),
+        "parent_contact": parent.get("contact_number", ""),
+        "parent_email": parent.get("email", ""),
+    }
+
+
+@app.get("/admin/student-parent")
+def admin_get_student_parent(student_id: str):
+    """Teacher fetches parent details for a selected student."""
+    link = parent_links_collection.find_one({"student_id": student_id})
+    if not link:
+        return {"has_parent": False}
+    parent = users_collection.find_one({"_id": ObjectId(link["parent_id"])})
+    if not parent:
+        return {"has_parent": False}
+    return {
+        "has_parent": True,
+        "parent_id": str(parent["_id"]),
+        "parent_name": parent.get("name", ""),
+        "parent_contact": parent.get("contact_number", ""),
+        "parent_email": parent.get("email", ""),
+    }
+
+
+class SendParentMessageRequest(BaseModel):
+    teacher_id: str
+    student_id: str
+    message: str
+
+
+@app.post("/admin/send-parent-message")
+def admin_send_parent_message(body: SendParentMessageRequest):
+    """Teacher sends a message to a student's parent. Stored as a notification."""
+    # Verify teacher
+    try:
+        teacher = users_collection.find_one({"_id": ObjectId(body.teacher_id), "role": "admin"})
+    except Exception:
+        teacher = None
+    if not teacher:
+        raise HTTPException(status_code=403, detail="Not a valid teacher account")
+
+    # Find parent link
+    link = parent_links_collection.find_one({"student_id": body.student_id})
+    if not link:
+        raise HTTPException(status_code=404, detail="No parent linked to this student")
+
+    from datetime import datetime
+    notifications_collection.insert_one({
+        "recipient_id": link["parent_id"],
+        "sender_id": body.teacher_id,
+        "sender_name": teacher.get("name", "Teacher"),
+        "type": "parent_message",
+        "message": body.message,
+        "student_id": body.student_id,
+        "read": False,
+        "created_at": datetime.utcnow(),
+    })
+    return {"message": "Message sent to parent"}
+
+
+class SendStudentFeedbackRequest(BaseModel):
+    teacher_id: str
+    student_id: str
+    subject: str = ""
+    lesson: str = ""
+    message: str
+
+
+@app.post("/admin/send-student-feedback")
+def admin_send_student_feedback(body: SendStudentFeedbackRequest):
+    """Teacher sends feedback to a student, shown in the student's Navbar notifications."""
+    try:
+        teacher = users_collection.find_one({"_id": ObjectId(body.teacher_id), "role": "admin"})
+    except Exception:
+        teacher = None
+    if not teacher:
+        raise HTTPException(status_code=403, detail="Not a valid teacher account")
+
+    from datetime import datetime
+    notifications_collection.insert_one({
+        "recipient_id": body.student_id,
+        "sender_id": body.teacher_id,
+        "sender_name": teacher.get("name", "Teacher"),
+        "type": "student_feedback",
+        "subject": body.subject,
+        "lesson": body.lesson,
+        "message": body.message,
+        "read": False,
+        "created_at": datetime.utcnow(),
+    })
+    return {"message": "Feedback sent to student"}
+
+
+@app.get("/notifications")
+def get_notifications(user_id: str, type: str = None, limit: int = 20):
+    """Fetch notifications for a user (student or parent)."""
+    query = {"recipient_id": user_id}
+    if type:
+        query["type"] = type
+    docs = list(notifications_collection.find(
+        query, {"_id": 1, "sender_name": 1, "type": 1, "subject": 1, "lesson": 1,
+                "message": 1, "read": 1, "created_at": 1, "student_id": 1}
+    ).sort("created_at", -1).limit(limit))
+    for d in docs:
+        d["id"] = str(d.pop("_id"))
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+    return {"notifications": docs, "unread_count": notifications_collection.count_documents({"recipient_id": user_id, "read": False})}
+
+
+@app.put("/notifications/read")
+def mark_notification_read(notification_id: str):
+    """Mark a notification as read."""
+    try:
+        notifications_collection.update_one(
+            {"_id": ObjectId(notification_id)},
+            {"$set": {"read": True}}
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid notification ID")
+    return {"message": "Marked as read"}
+

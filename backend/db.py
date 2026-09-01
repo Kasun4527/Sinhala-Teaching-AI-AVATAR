@@ -56,6 +56,16 @@ kmeans_models_col       = db["kmeans_models"]
 # alerted. Reviewed by teachers via the admin dashboard.
 safety_flags_collection = db["safety_flags"]
 
+# ── Parent↔Student Persistent Links ──────────────────────────────────────────
+# Each document records one parent→child relationship. Replaces the old
+# on-device-only storage the mobile app used (parentChildren.ts).
+parent_links_collection = db["parent_links"]
+
+# ── Cross-App Notifications ──────────────────────────────────────────────────
+# Teacher→Parent messages and Teacher→Student feedback, fetched by the
+# student web app (Navbar bell) and the parent mobile app (Alerts section).
+notifications_collection = db["notifications"]
+
 
 def ensure_indexes():
     """Create all personalization indexes. Called once on FastAPI startup."""
@@ -97,5 +107,14 @@ def ensure_indexes():
     )
     safety_flags_collection.create_index(
         [("student_id", ASCENDING), ("created_at", ASCENDING)]
+    )
+    parent_links_collection.create_index(
+        [("parent_id", ASCENDING), ("student_id", ASCENDING)], unique=True
+    )
+    parent_links_collection.create_index(
+        [("student_id", ASCENDING)]
+    )
+    notifications_collection.create_index(
+        [("recipient_id", ASCENDING), ("read", ASCENDING), ("created_at", ASCENDING)]
     )
     print("[DB] Personalization indexes ensured.")

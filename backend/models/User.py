@@ -14,6 +14,8 @@ class User(BaseModel):
     # Education level: "OL" (G.C.E. O/L) or "AL" (G.C.E. A/L).
     # None for legacy accounts — they can access both levels.
     education_level: str | None = None
+    # Contact number — required for parents, optional for others.
+    contact_number: str | None = None
 
     @field_validator("password")
     @classmethod

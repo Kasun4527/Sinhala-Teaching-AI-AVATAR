@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [copied, setCopied] = useState(false);
+  const [parentInfo, setParentInfo] = useState(null);
 
   // Teacher code
   const [needsTeacherCode, setNeedsTeacherCode] = useState(false);
@@ -57,6 +58,12 @@ export default function SettingsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Fetch linked parent info
+    fetch(`${BACKEND}/student/parent-info?student_id=${encodeURIComponent(sid)}`)
+      .then(r => r.json())
+      .then(data => { if (data.linked) setParentInfo(data); })
+      .catch(() => {});
   }, [router]);
 
   const submitTeacherCode = async () => {
@@ -255,6 +262,40 @@ export default function SettingsPage() {
               </div>
 
               <div style={{ height: 1, background: "#334155", margin: "20px 0" }} />
+
+              {/* Linked Parent (from mobile app) */}
+              {parentInfo ? (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                    <span style={{ fontSize: 16 }}>👨‍👩‍👧</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#f8fafc" }}>Linked Parent</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: "2px 10px", borderRadius: 99,
+                      background: "rgba(16,185,129,0.15)", color: "#34d399",
+                    }}>Connected</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <div>
+                      <label style={labelStyle}>Parent Name</label>
+                      <input value={parentInfo.parent_name} disabled style={{ ...fieldStyle, background: "#020617", color: "#64748b", borderColor: "#1e293b", cursor: "not-allowed" }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Parent Contact</label>
+                      <input value={parentInfo.parent_contact || "Not provided"} disabled style={{ ...fieldStyle, background: "#020617", color: "#64748b", borderColor: "#1e293b", cursor: "not-allowed" }} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "14px 16px",
+                  background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid #334155", marginBottom: 20,
+                }}>
+                  <span style={{ fontSize: 16 }}>👨‍👩‍👧</span>
+                  <span style={{ fontSize: 13, color: "#64748b" }}>No parent linked yet — parents can link via the mobile app using your Student Code.</span>
+                </div>
+              )}
+
+              <div style={{ height: 1, background: "#334155", margin: "0 0 20px" }} />
 
               {/* Editable fields */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>

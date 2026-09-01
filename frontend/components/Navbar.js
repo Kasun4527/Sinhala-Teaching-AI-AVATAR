@@ -1,6 +1,8 @@
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export default function Navbar() {
   const router = useRouter();
@@ -9,6 +11,8 @@ export default function Navbar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileComplete, setProfileComplete] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const profileRef = useRef(null);
   const notifRef = useRef(null);
 
@@ -30,6 +34,31 @@ export default function Navbar() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // Fetch notifications with polling (every 30s)
+  const fetchNotifications = useCallback(() => {
+    const sid = typeof window !== "undefined" ? localStorage.getItem("student_id") : null;
+    if (!sid) return;
+    fetch(`${BACKEND}/notifications?user_id=${encodeURIComponent(sid)}&limit=20`)
+      .then(r => r.json())
+      .then(data => {
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unread_count || 0);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  const markAsRead = (notifId) => {
+    fetch(`${BACKEND}/notifications/read?notification_id=${encodeURIComponent(notifId)}`, { method: "PUT" })
+      .then(() => fetchNotifications())
+      .catch(() => {});
+  };
 
   const handleLogout = () => {
     localStorage.clear();
@@ -131,12 +160,17 @@ export default function Navbar() {
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
             </svg>
-            {!profileComplete && (
+            {(unreadCount > 0 || !profileComplete) && (
               <span style={{
-                position: "absolute", top: 8, right: 8, width: 8, height: 8,
-                background: "#ef4444", borderRadius: "50%",
-                boxShadow: "0 0 0 2px white"
-              }} />
+                position: "absolute", top: 6, right: 6,
+                minWidth: 16, height: 16, padding: "0 4px",
+                background: "#ef4444", borderRadius: 99,
+                boxShadow: "0 0 0 2px white",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 9, fontWeight: 700, color: "white", lineHeight: 1,
+              }}>
+                {unreadCount > 0 ? unreadCount : "!"}
+              </span>
             )}
           </button>
           
@@ -149,7 +183,7 @@ export default function Navbar() {
               animation: "fadeIn 0.15s ease-out",
             }}>
               <h3 style={{ margin: "0 0 12px", fontSize: 16, color: "#0f172a" }}>Notifications</h3>
-              {!profileComplete ? (
+              {!profileComplete && (
                 <div
                   onClick={() => { setNotificationsOpen(false); router.push("/settings"); }}
                   style={{
@@ -157,6 +191,7 @@ export default function Navbar() {
                     padding: 12, borderRadius: 12, cursor: "pointer",
                     background: "rgba(245,158,11,0.1)",
                     border: "1px solid rgba(245,158,11,0.2)",
+                    marginBottom: 8,
                     transition: "all 0.2s",
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.background = "rgba(245,158,11,0.15)"}
@@ -168,10 +203,45 @@ export default function Navbar() {
                     <p style={{ margin: "4px 0 0", fontSize: 12, color: "#92400e" }}>Please fill in your student information before continuing lessons.</p>
                   </div>
                 </div>
+              )}
+              {notifications.length > 0 ? (
+                <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => { if (!n.read) markAsRead(n.id); }}
+                      style={{
+                        padding: "10px 12px", borderRadius: 10, cursor: n.read ? "default" : "pointer",
+                        background: n.read ? "#f8fafc" : "rgba(59,130,246,0.06)",
+                        border: `1px solid ${n.read ? "#e2e8f0" : "rgba(59,130,246,0.2)"}`,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 12 }}>{n.type === "student_feedback" ? "📝" : "📩"}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>{n.sender_name || "Teacher"}</span>
+                          {!n.read && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#3b82f6", flexShrink: 0 }} />}
+                        </div>
+                        <span style={{ fontSize: 10, color: "#94a3b8" }}>
+                          {n.created_at ? new Date(n.created_at).toLocaleDateString() : ""}
+                        </span>
+                      </div>
+                      {(n.subject || n.lesson) && (
+                        <p style={{ margin: "0 0 2px", fontSize: 11, color: "#64748b" }}>
+                          {[n.subject, n.lesson].filter(Boolean).join(" • ")}
+                        </p>
+                      )}
+                      <p style={{ margin: 0, fontSize: 13, color: "#334155", lineHeight: 1.4 }}>{n.message}</p>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <p style={{ margin: 0, fontSize: 14, color: "#64748b", textAlign: "center", padding: "20px 0" }}>
-                  No new notifications.
-                </p>
+                !profileComplete ? null : (
+                  <p style={{ margin: 0, fontSize: 14, color: "#64748b", textAlign: "center", padding: "20px 0" }}>
+                    No new notifications.
+                  </p>
+                )
               )}
             </div>
           )}
