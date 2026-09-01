@@ -587,7 +587,7 @@ def signup(user: User):
     if user.role != "student":
         user_dict.pop("education_level", None)
 
-    # Generate a human-readable teacher code for admin accounts
+    # Generate a human-readable teacher code for admin accounts, and student code for students
     import random
     if user.role == "admin":
         while True:
@@ -595,6 +595,12 @@ def signup(user: User):
             if not users_collection.find_one({"teacher_code": code}):
                 break
         user_dict["teacher_code"] = code
+    elif user.role == "student":
+        while True:
+            code = f"ST{random.randint(100000, 999999)}"
+            if not users_collection.find_one({"student_code": code}):
+                break
+        user_dict["student_code"] = code
 
     users_collection.insert_one(user_dict)
 
@@ -781,9 +787,20 @@ def get_student_profile(student_id: str):
         student = None
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+
+    student_code = student.get("student_code")
+    if not student_code:
+        import random
+        while True:
+            student_code = f"ST{random.randint(100000, 999999)}"
+            if not users_collection.find_one({"student_code": student_code}):
+                break
+        users_collection.update_one({"_id": student["_id"]}, {"$set": {"student_code": student_code}})
+
     return {
         "name": student.get("name", ""),
         "email": student.get("email", ""),
+        "student_code": student_code,
         "education_level": student.get("education_level"),
         "profile_complete": all(student.get(f) for f in PROFILE_FIELDS),
         **{f: student.get(f, "") for f in PROFILE_FIELDS},
