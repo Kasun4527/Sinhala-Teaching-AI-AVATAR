@@ -152,10 +152,10 @@ export default function StudentDashboard() {
 
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(to bottom, #020617 0%, #0f172a 100%)" }}>
+    <div style={{ height: "100vh", overflow: "hidden", background: "linear-gradient(to bottom, #020617 0%, #0f172a 100%)" }}>
       <Navbar />
 
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 32px 80px", display: "flex", flexDirection: "column", gap: 48 }}>
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 32px 0px", display: "flex", flexDirection: "column", gap: 48 }}>
 
         {/* Top Split Section */}
         <div style={{ display: "flex", gap: "48px" }}>
@@ -243,15 +243,58 @@ export default function StudentDashboard() {
             {/* Continue Learning */}
             {enrolled.length > 0 && (
               <div style={{ marginBottom: 56 }}>
-                <h2 className="text-section-title c-white" style={{ marginBottom: 24 }}>Continue learning</h2>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 280px)", gap: 24, paddingBottom: 24 }}>
-                  {[...enrolled].reverse().slice(0, 2).map((item, i) => (
-                    <EnrolledCard
-                      key={i}
-                      item={item}
-                      onClick={() => router.push(`/sub-lesson?subject=${encodeURIComponent(item.subject)}&grade=${encodeURIComponent(item.grade || "")}`)}
-                    />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                  <h2 className="text-section-title c-white" style={{ margin: 0 }}>Continue learning</h2>
+                  <button 
+                    onClick={() => router.push('/progress')}
+                    style={{
+                      background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
+                      color: "white", padding: "10px 24px", borderRadius: 12,
+                      border: "none", fontWeight: 600, fontSize: 14, cursor: "pointer",
+                      boxShadow: "0 4px 12px rgba(37,99,235,0.3)",
+                      transition: "all 0.2s"
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 16px rgba(37,99,235,0.4)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.3)"; }}
+                  >
+                    See All My Lessons →
+                  </button>
+                </div>
+                <div 
+                  style={{ 
+                    display: "flex", gap: 24, paddingBottom: 16, 
+                    overflowX: "auto", overflowY: "hidden",
+                    scrollbarWidth: "none", // For Firefox
+                    msOverflowStyle: "none" // For IE and Edge
+                  }}
+                  className="hide-scrollbar" // We will use inline styles to hide scrollbar if hide-scrollbar class is not defined
+                >
+                  <style>{`
+                    .hide-scrollbar::-webkit-scrollbar { display: none; }
+                  `}</style>
+                  {[...enrolled].reverse().map((item, i) => (
+                    <div key={i} style={{ minWidth: 280, maxWidth: 280, flexShrink: 0 }}>
+                      <EnrolledCard
+                        item={item}
+                        onClick={() => router.push(`/sub-lesson?subject=${encodeURIComponent(item.subject)}&grade=${encodeURIComponent(item.grade || "")}`)}
+                      />
+                    </div>
                   ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <button 
+                    onClick={() => router.push('/lessons')}
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#cbd5e1", padding: "10px 32px", borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.1)", fontWeight: 600, fontSize: 14, cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#cbd5e1"; }}
+                  >
+                    All Lessons
+                  </button>
                 </div>
               </div>
             )}
