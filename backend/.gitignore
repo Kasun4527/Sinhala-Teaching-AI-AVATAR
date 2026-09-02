@@ -27,3 +27,13 @@ env/
 *.swp
 *.swo
 .DS_Store
+
+# NOTE: these two are git-tracked content, NOT actually untracked/ignored —
+# listed here only because `az acr build` uses this file (not .dockerignore)
+# to decide what to exclude from the upload/build context. They're served
+# via the Azure Files mount at runtime, not needed inside the image. Do NOT
+# assume `git status` treats them as ignored — already-tracked files are
+# unaffected by gitignore rules either way.
+documents_unicode/
+images/
+avtr_cache/

@@ -8,3 +8,10 @@ test_retriever.py
 .git
 .gitignore
 *.md
+
+# Served via the Azure Files mount at runtime (see azure-setup.sh /
+# containerapp volumeMounts) — not needed inside the image itself, and
+# excluding them keeps the ACR build-context upload small.
+documents_unicode/
+images/
+avtr_cache/
