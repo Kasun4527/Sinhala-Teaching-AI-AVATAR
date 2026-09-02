@@ -334,7 +334,7 @@ export default function AdminLoginPage() {
             {loading ? "Signing in..." : "Sign In →"}
           </button>
 
-          <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, marginTop: 24 }}>
+          <p style={{ textAlign: "center", color: "#cbd5e1", fontSize: 13, marginTop: 24 }}>
             Don't have an admin account?{" "}
             <span
               onClick={() => router.push("/admin/signup")}
@@ -347,7 +347,7 @@ export default function AdminLoginPage() {
           <p style={{ textAlign: "center", marginTop: 12 }}>
             <span
               onClick={() => router.push("/")}
-              style={{ color: "#64748b", fontSize: 12, cursor: "pointer" }}
+              style={{ color: "#cbd5e1", fontSize: 12, cursor: "pointer" }}
             >
               ← Back to home
             </span>

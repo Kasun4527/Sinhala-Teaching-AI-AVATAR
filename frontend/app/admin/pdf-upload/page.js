@@ -10,10 +10,10 @@ const API = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 const ACCENT = "#3b82f6";
 const SURFACE = "#0f172a";
 const CARD = "#1e293b";
-const BORDER = "#334155";
-const MUTED = "#64748b";
+const BORDER = "#cbd5e1";
+const MUTED = "#cbd5e1";
 const TEXT = "#f1f5f9";
-const TEXT2 = "#94a3b8";
+const TEXT2 = "#cbd5e1";
 
 function StepBadge({ n, label, active, done }) {
   return (
@@ -221,7 +221,7 @@ export default function PdfUploadPage() {
         {/* ── Stage: idle (upload form) ── */}
         {stage === "idle" && (
           <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, padding: 28, maxWidth: 560 }}>
-            <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 16px" }}>
+            <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 16px" }}>
               Upload Textbook PDF
             </p>
             <input
@@ -234,7 +234,7 @@ export default function PdfUploadPage() {
               onClick={handleUpload}
               disabled={!file}
               style={{
-                background: !file ? "#334155" : ACCENT, color: "white", border: "none",
+                background: !file ? "#cbd5e1" : ACCENT, color: "white", border: "none",
                 borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600,
                 cursor: !file ? "not-allowed" : "pointer",
               }}
@@ -260,13 +260,13 @@ export default function PdfUploadPage() {
         {stage === "reviewing_images" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 900 }}>
             <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, padding: 24 }}>
-              <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 16px" }}>
+              <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 16px" }}>
                 Grade, Subject &amp; Lesson
               </p>
               <div style={{ display: "flex", gap: 12 }}>
                 <select
                   value={grade} onChange={e => setGrade(e.target.value)}
-                  style={{ flex: 1, padding: "9px 12px", background: "#0f172a", border: `1px solid ${BORDER}`, borderRadius: 8, color: grade ? TEXT : "#475569", fontSize: 13 }}
+                  style={{ flex: 1, padding: "9px 12px", background: "#0f172a", border: `1px solid ${BORDER}`, borderRadius: 8, color: grade ? TEXT : "#cbd5e1", fontSize: 13 }}
                 >
                   <option value="">Select grade...</option>
                   {curriculum.map((g) => (
@@ -287,7 +287,7 @@ export default function PdfUploadPage() {
             </div>
 
             <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, padding: 24 }}>
-              <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 16px" }}>
+              <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 16px" }}>
                 Select Images to Keep ({selectedImages.size} / {extractedImages.length})
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 14 }}>
@@ -306,7 +306,7 @@ export default function PdfUploadPage() {
                       alt={name}
                       style={{ width: "100%", height: 100, objectFit: "cover", display: "block" }}
                     />
-                    <div style={{ padding: "6px 8px", fontSize: 10, color: TEXT2, background: "#0f172a" }}>
+                    <div style={{ padding: "6px 8px", fontSize: 12, color: TEXT2, background: "#0f172a" }}>
                       {selectedImages.has(name) ? "✓ kept" : "excluded"}
                     </div>
                   </div>
@@ -350,7 +350,7 @@ export default function PdfUploadPage() {
               onClick={handleFinalize}
               disabled={topics.length === 0}
               style={{
-                alignSelf: "flex-start", background: topics.length === 0 ? "#334155" : "#10b981",
+                alignSelf: "flex-start", background: topics.length === 0 ? "#cbd5e1" : "#10b981",
                 color: "white", border: "none", borderRadius: 8, padding: "10px 20px",
                 fontSize: 13, fontWeight: 600, cursor: topics.length === 0 ? "not-allowed" : "pointer",
               }}
