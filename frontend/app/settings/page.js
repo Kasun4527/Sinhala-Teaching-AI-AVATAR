@@ -11,6 +11,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [parentInfo, setParentInfo] = useState(null);
 
   // Teacher code
   const [needsTeacherCode, setNeedsTeacherCode] = useState(false);
@@ -21,6 +23,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({
     name: "",
     email: "",
+    student_code: "",
     education_level: "",
     bio: "",
     contact_number: "",
@@ -35,15 +38,16 @@ export default function SettingsPage() {
 
     setNeedsTeacherCode(!localStorage.getItem("teacher_id"));
 
-    const studentId = localStorage.getItem("student_id");
-    if (!studentId) { setLoading(false); return; }
+    const sid = localStorage.getItem("student_id");
+    if (!sid) { setLoading(false); return; }
 
-    fetch(`${BACKEND}/student-profile?student_id=${encodeURIComponent(studentId)}`)
+    fetch(`${BACKEND}/student-profile?student_id=${encodeURIComponent(sid)}`)
       .then(r => r.json())
       .then(data => {
         setProfile({
           name: data.name || "",
           email: data.email || "",
+          student_code: data.student_code || "",
           education_level: data.education_level || "",
           bio: data.bio || "",
           contact_number: data.contact_number || "",
@@ -54,6 +58,12 @@ export default function SettingsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Fetch linked parent info
+    fetch(`${BACKEND}/student/parent-info?student_id=${encodeURIComponent(sid)}`)
+      .then(r => r.json())
+      .then(data => { if (data.linked) setParentInfo(data); })
+      .catch(() => {});
   }, [router]);
 
   const submitTeacherCode = async () => {
@@ -103,6 +113,12 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(profile.student_code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const isProfileComplete = profile.bio && profile.contact_number && profile.parent_name && profile.parent_contact && profile.school;
@@ -204,6 +220,36 @@ export default function SettingsPage() {
               </div>
 
               {/* Read-only fields */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label style={labelStyle}>Student Code (Unique Identifier)</label>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <input value={profile.student_code} disabled style={{ ...fieldStyle, flex: 1, background: "#020617", color: "#64748b", borderColor: "#1e293b", cursor: "not-allowed", fontFamily: "monospace", letterSpacing: "0.05em" }} />
+                    <button
+                      onClick={handleCopyId}
+                      style={{
+                        padding: "0 16px", borderRadius: 12, border: "1px solid #334155",
+                        background: copied ? "#10b981" : "#1e293b", color: copied ? "white" : "#f8fafc", cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      {copied ? (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
                 <div>
                   <label style={labelStyle}>Full Name</label>
@@ -216,6 +262,40 @@ export default function SettingsPage() {
               </div>
 
               <div style={{ height: 1, background: "#334155", margin: "20px 0" }} />
+
+              {/* Linked Parent (from mobile app) */}
+              {parentInfo ? (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                    <span style={{ fontSize: 16 }}>👨‍👩‍👧</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#f8fafc" }}>Linked Parent</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: "2px 10px", borderRadius: 99,
+                      background: "rgba(16,185,129,0.15)", color: "#34d399",
+                    }}>Connected</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <div>
+                      <label style={labelStyle}>Parent Name</label>
+                      <input value={parentInfo.parent_name} disabled style={{ ...fieldStyle, background: "#020617", color: "#64748b", borderColor: "#1e293b", cursor: "not-allowed" }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Parent Contact</label>
+                      <input value={parentInfo.parent_contact || "Not provided"} disabled style={{ ...fieldStyle, background: "#020617", color: "#64748b", borderColor: "#1e293b", cursor: "not-allowed" }} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "14px 16px",
+                  background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid #334155", marginBottom: 20,
+                }}>
+                  <span style={{ fontSize: 16 }}>👨‍👩‍👧</span>
+                  <span style={{ fontSize: 13, color: "#64748b" }}>No parent linked yet — parents can link via the mobile app using your Student Code.</span>
+                </div>
+              )}
+
+              <div style={{ height: 1, background: "#334155", margin: "0 0 20px" }} />
 
               {/* Editable fields */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>

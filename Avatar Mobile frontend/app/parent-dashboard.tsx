@@ -179,6 +179,9 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [parentId, setParentId] = useState("");
 
   const fetchChildren = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -192,12 +195,24 @@ export default function ParentDashboard() {
         return;
       }
       setParentName(session.name);
+      const sid = session.student_id;
+      setParentId(sid);
 
-      // No backend endpoint exists for this — child IDs entered at signup
-      // are stored on-device (see constants/parentChildren.ts). Each id's
-      // real progress is then pulled from the same endpoints the
-      // teacher/student-detail screens already use.
-      const childIds = await getChildren(session.email);
+      // Fetch children from backend (replaces on-device storage)
+      let childIds: string[] = [];
+      try {
+        const backendResp = await fetch(
+          `${API_BASE_URL}/parent/children?parent_id=${encodeURIComponent(sid)}`
+        );
+        if (backendResp.ok) {
+          const backendData = await backendResp.json();
+          childIds = (backendData.children || []).map((c: any) => c.student_id);
+        }
+      } catch {
+        // Fallback to on-device storage if backend fails
+        childIds = await getChildren(session.email);
+      }
+
       const results = await Promise.allSettled(childIds.map(fetchChildProgress));
       const mapped = results
         .filter((r): r is PromiseFulfilledResult<Student> => r.status === "fulfilled")
@@ -208,6 +223,18 @@ export default function ParentDashboard() {
         throw new Error("Could not load any linked children's data");
       }
       setChildren(mapped);
+
+      // Fetch alerts (teacher messages)
+      try {
+        const alertResp = await fetch(
+          `${API_BASE_URL}/notifications?user_id=${encodeURIComponent(sid)}&type=parent_message&limit=20`
+        );
+        if (alertResp.ok) {
+          const alertData = await alertResp.json();
+          setAlerts(alertData.notifications || []);
+        }
+      } catch {}
+
     } catch (err: any) {
       setError(err.message || "Connection error");
     } finally {
@@ -305,6 +332,55 @@ export default function ParentDashboard() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>My Children ({totalChildren})</Text>
             </View>
+
+            {/* Alerts from Teachers */}
+            {alerts.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setShowAlerts(!showAlerts)}
+                activeOpacity={0.7}
+                style={{
+                  marginHorizontal: 16, marginBottom: 12, padding: 14,
+                  backgroundColor: "white", borderRadius: 14,
+                  borderWidth: 1, borderColor: "#EF444433",
+                  shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Ionicons name="notifications" size={18} color="#EF4444" />
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#334155" }}>
+                      Teacher Alerts ({alerts.filter((a: any) => !a.read).length} new)
+                    </Text>
+                  </View>
+                  <Ionicons name={showAlerts ? "chevron-up" : "chevron-down"} size={18} color="#94A3B8" />
+                </View>
+                {showAlerts && (
+                  <View style={{ marginTop: 10, gap: 8 }}>
+                    {alerts.map((alert: any) => (
+                      <View
+                        key={alert.id}
+                        style={{
+                          padding: 12, borderRadius: 10,
+                          backgroundColor: alert.read ? "#F8FAFC" : "#EFF6FF",
+                          borderWidth: 1, borderColor: alert.read ? "#E2E8F0" : "#BFDBFE",
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                          <Text style={{ fontSize: 12, fontWeight: "600", color: "#334155" }}>
+                            {alert.sender_name || "Teacher"}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: "#94A3B8" }}>
+                            {alert.created_at ? new Date(alert.created_at).toLocaleDateString() : ""}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 13, color: "#475569", lineHeight: 18 }}>{alert.message}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
           </>
         }
         renderItem={({ item, index }) => (
@@ -325,7 +401,7 @@ export default function ParentDashboard() {
               <Ionicons name="people-outline" size={48} color="#D1D5DB" />
               <Text style={styles.emptyText}>No children linked yet</Text>
               <Text style={styles.emptySubtext}>
-                Children are linked using their registration number during signup
+                Link your children using their Student Code (e.g. ST123456) during signup
               </Text>
             </View>
           ) : null

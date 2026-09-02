@@ -128,6 +128,27 @@ export default function Login() {
         }
         router.replace("/teacher-dashboard");
       } else if (data.role === "parent") {
+        // Migrate any on-device children to the backend
+        const { getChildren, saveChildren: clearLocalChildren } = await import("../constants/parentChildren");
+        const localChildren = await getChildren(email);
+        if (localChildren.length > 0) {
+          for (const childId of localChildren) {
+            try {
+              await fetch(`${API_BASE_URL}/parent/link-child`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  parent_id: data.student_id,
+                  student_code: childId.trim(),
+                }),
+              });
+            } catch {
+              // Non-critical — they can re-link later
+            }
+          }
+          // Clear local storage after migration
+          await clearLocalChildren(email, []);
+        }
         router.replace("/parent-dashboard");
       } else {
         Alert.alert("Access Denied", "This app is for parents and teachers only.");
