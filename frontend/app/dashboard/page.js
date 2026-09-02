@@ -98,6 +98,14 @@ function EnrolledCard({ item, onClick }) {
 
 export default function StudentDashboard() {
   const router = useRouter();
+  const scrollRef = useRef(null);
+
+  const scrollCards = (direction) => {
+    if (scrollRef.current) {
+      const scrollAmount = 304; // card width (280) + gap (24)
+      scrollRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    }
+  };
   const [name, setName] = useState("");
   const [enrolled, setEnrolled] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -266,15 +274,28 @@ export default function StudentDashboard() {
                     See All My Lessons →
                   </button>
                 </div>
-                <div
-                  style={{
-                    display: "flex", gap: 24, paddingBottom: 16,
-                    overflowX: "auto", overflowY: "hidden",
-                    scrollbarWidth: "none", // For Firefox
-                    msOverflowStyle: "none" // For IE and Edge
-                  }}
-                  className="hide-scrollbar" // We will use inline styles to hide scrollbar if hide-scrollbar class is not defined
-                >
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  {enrolled.length > 3 && (
+                    <button
+                      onClick={() => scrollCards('left')}
+                      style={{ position: "absolute", left: -20, zIndex: 10, background: "rgba(30,58,138,0.9)", color: "white", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, transition: "background 0.2s" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(30,58,138,1)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "rgba(30,58,138,0.9)"}
+                    >
+                      ←
+                    </button>
+                  )}
+                  <div
+                    ref={scrollRef}
+                    style={{
+                      display: "flex", gap: 24, paddingBottom: 16,
+                      overflowX: "auto", overflowY: "hidden",
+                      maxWidth: 1052,
+                      scrollbarWidth: "none", // For Firefox
+                      msOverflowStyle: "none" // For IE and Edge
+                    }}
+                    className="hide-scrollbar" // We will use inline styles to hide scrollbar if hide-scrollbar class is not defined
+                  >
                   <style>{`
                     .hide-scrollbar::-webkit-scrollbar { display: none; }
                   `}</style>
@@ -286,6 +307,17 @@ export default function StudentDashboard() {
                       />
                     </div>
                   ))}
+                  </div>
+                  {enrolled.length > 3 && (
+                    <button
+                      onClick={() => scrollCards('right')}
+                      style={{ position: "absolute", right: -20, zIndex: 10, background: "rgba(30,58,138,0.9)", color: "white", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, transition: "background 0.2s" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(30,58,138,1)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "rgba(30,58,138,0.9)"}
+                    >
+                      →
+                    </button>
+                  )}
                 </div>
                 <div style={{ display: "flex", justifyContent: "center" }}>
                   <button

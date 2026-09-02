@@ -85,6 +85,34 @@ export default function AdminDashboard() {
   const [feedbackModal, setFeedbackModal] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState("");
+  const [dateFilter, setDateFilter] = useState("All Time");
+  const [feedbackContext, setFeedbackContext] = useState({ lesson: "", topic: "" });
+
+  const isWithinDateFilter = (dateString, filter) => {
+    if (filter === "All Time") return true;
+    if (!dateString) return false;
+    const d = new Date(dateString);
+    const now = new Date();
+    if (filter === "Today") {
+      return d.toDateString() === now.toDateString();
+    }
+    if (filter === "Yesterday") {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return d.toDateString() === yesterday.toDateString();
+    }
+    if (filter === "Last 7 Days") {
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return d >= sevenDaysAgo;
+    }
+    if (filter === "Last Month") {
+      const lastMonth = new Date(now);
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+      return d >= lastMonth;
+    }
+    return true;
+  };
 
   useEffect(() => {
     const role = localStorage.getItem("role");
@@ -159,7 +187,7 @@ export default function AdminDashboard() {
         teacher_id: teacherId,
         student_id: selectedStudent.student_id,
         subject: selectedSubject || "",
-        lesson: expandedTopic?.lesson || "",
+        lesson: feedbackContext.lesson || "",
         message: feedbackMsg.trim(),
       });
       setFeedbackStatus("sent");
@@ -654,7 +682,7 @@ export default function AdminDashboard() {
                       👨‍👩‍👧 View Parent
                     </button>
                     <button
-                      onClick={() => { setFeedbackModal(true); setFeedbackMsg(""); setFeedbackStatus(""); }}
+                      onClick={() => { setFeedbackContext({ lesson: "", topic: "" }); setFeedbackModal(true); setFeedbackMsg(""); setFeedbackStatus(""); }}
                       style={{
                         padding: "8px 14px", borderRadius: 10, border: "none",
                         background: ACCENT, color: "white", cursor: "pointer",
@@ -702,6 +730,26 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Date Filter */}
+            {selectedSubject && (
+              <div style={{ marginBottom: 24, display: "flex", gap: 10 }}>
+                {["All Time", "Today", "Yesterday", "Last 7 Days", "Last Month"].map(df => (
+                  <button
+                    key={df}
+                    onClick={() => setDateFilter(df)}
+                    style={{
+                      padding: "8px 14px", borderRadius: 8, border: `1px solid ${dateFilter === df ? ACCENT : BORDER}`,
+                      background: dateFilter === df ? "rgba(59,130,246,0.15)" : "transparent",
+                      color: dateFilter === df ? ACCENT : TEXT2, cursor: "pointer",
+                      fontSize: 12, fontWeight: 600, transition: "all 0.15s"
+                    }}
+                  >
+                    {df}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -921,12 +969,12 @@ export default function AdminDashboard() {
                             )}
 
                             {/* Engagement sessions */}
-                            {(engagementData[i] || []).length > 0 && (
+                            {(engagementData[i] || []).filter(e => isWithinDateFilter(e.started_at, dateFilter)).length > 0 && (
                               <div style={{ marginBottom: 20 }}>
                                 <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   Engagement Sessions
                                 </p>
-                                {(engagementData[i] || []).map((session, si) => {
+                                {(engagementData[i] || []).filter(e => isWithinDateFilter(e.started_at, dateFilter)).map((session, si) => {
                                   const scoreColor = session.avg_score >= 75 ? "#34d399" : session.avg_score >= 50 ? "#fbbf24" : "#f87171";
                                   return (
                                     <div key={si} style={{
@@ -938,6 +986,22 @@ export default function AdminDashboard() {
                                           {new Date(session.started_at).toLocaleString()} · {Math.round(session.duration_seconds / 60)}m
                                         </p>
                                         <div style={{ display: "flex", gap: 8 }}>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setFeedbackContext({ lesson: t.lesson, topic: t.topic });
+                                              setFeedbackModal(true);
+                                              setFeedbackMsg("");
+                                              setFeedbackStatus("");
+                                            }}
+                                            style={{
+                                              padding: "4px 10px", borderRadius: 8, border: "none",
+                                              background: ACCENT, color: "white", cursor: "pointer",
+                                              fontSize: 11, fontWeight: 700
+                                            }}
+                                          >
+                                            Write Feedback
+                                          </button>
                                           {[
                                             { label: "Avg", value: session.avg_score, color: scoreColor },
                                             { label: "Min", value: session.min_score, color: "#f87171" },
@@ -976,12 +1040,12 @@ export default function AdminDashboard() {
                             )}
 
                             {/* YouTube watch history */}
-                            {(youtubeData[i] || []).length > 0 && (
+                            {(youtubeData[i] || []).filter(y => isWithinDateFilter(y.started_at, dateFilter)).length > 0 && (
                               <div style={{ marginBottom: 20 }}>
                                 <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   YouTube Watch History
                                 </p>
-                                {(youtubeData[i] || []).map((session, yi) => (
+                                {(youtubeData[i] || []).filter(y => isWithinDateFilter(y.started_at, dateFilter)).map((session, yi) => (
                                   <div key={yi} style={{
                                     background: CARD, border: `1px solid ${BORDER}`,
                                     borderRadius: 12, padding: "14px 18px", marginBottom: 10,
@@ -1013,12 +1077,12 @@ export default function AdminDashboard() {
                             )}
 
                             {/* Q&A */}
-                            {(qaData[i] || []).length > 0 && (
+                            {(qaData[i] || []).filter(q => isWithinDateFilter(q.asked_at, dateFilter)).length > 0 && (
                               <div>
                                 <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   Student Q&amp;A
                                 </p>
-                                {(qaData[i] || []).map((qa, qi) => (
+                                {(qaData[i] || []).filter(q => isWithinDateFilter(q.asked_at, dateFilter)).map((qa, qi) => (
                                   <div key={qi} style={{
                                     background: CARD, border: `1px solid ${BORDER}`,
                                     borderRadius: 12, padding: "14px 18px", marginBottom: 10,
@@ -1180,7 +1244,7 @@ export default function AdminDashboard() {
               </div>
               <div style={{ padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}` }}>
                 <p style={{ color: TEXT2, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Lesson/Topic</p>
-                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{expandedTopic?.lesson || expandedTopic?.topic || "—"}</p>
+                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{feedbackContext?.lesson || feedbackContext?.topic || "—"}</p>
               </div>
             </div>
 
