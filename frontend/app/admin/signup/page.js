@@ -265,7 +265,7 @@ export default function AdminSignupPage() {
                     backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
                     borderRadius: 10,
                   }}>
-                    <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "#cbd5e1", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                       Password requirements
                     </p>
                     {PASSWORD_RULES.map((rule) => {
@@ -277,12 +277,12 @@ export default function AdminSignupPage() {
                             backgroundColor: passed ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)",
                             border: `1.5px solid ${passed ? "#22c55e" : "rgba(255,255,255,0.2)"}`,
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 9, color: passed ? "#4ade80" : "#94a3b8",
+                            fontSize: 12, color: passed ? "#4ade80" : "#cbd5e1",
                             transition: "all 0.2s",
                           }}>
                             {passed ? "✓" : ""}
                           </div>
-                          <span style={{ fontSize: 12, color: passed ? "#4ade80" : "#94a3b8", transition: "color 0.2s" }}>
+                          <span style={{ fontSize: 12, color: passed ? "#4ade80" : "#cbd5e1", transition: "color 0.2s" }}>
                             {rule.label}
                           </span>
                         </div>
@@ -308,7 +308,7 @@ export default function AdminSignupPage() {
               {loading ? "Creating account..." : "Create Admin Account →"}
             </button>
 
-            <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, marginTop: 24 }}>
+            <p style={{ textAlign: "center", color: "#cbd5e1", fontSize: 13, marginTop: 24 }}>
               Already have an account?{" "}
               <span
                 onClick={() => router.push("/admin/login")}
@@ -321,7 +321,7 @@ export default function AdminSignupPage() {
             <p style={{ textAlign: "center", marginTop: 12 }}>
               <span
                 onClick={() => router.push("/")}
-                style={{ color: "#64748b", fontSize: 12, cursor: "pointer" }}
+                style={{ color: "#cbd5e1", fontSize: 12, cursor: "pointer" }}
               >
                 ← Back to home
               </span>
