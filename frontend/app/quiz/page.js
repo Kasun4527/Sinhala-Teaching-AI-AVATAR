@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import { BackgroundBeamsWithCollision } from "@/components/ui/background-beams-with-collision";
 import { getErrorMessage, getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer, getPracticeQuiz, submitPracticeQuiz } from "@/services/api";
+import { displaySubjectName } from "@/data/subjectDisplay";
 
 const NAVY = "#0f172a";
 
@@ -15,6 +16,11 @@ const SUBJECT_CFG = {
   Maths:                { hue: "#7c3aed", dark: "#3b0764" },
   "ආර්ථික විද්‍යාව":   { hue: "#b45309", dark: "#78350f" },
   "බුද්ධ ධර්මය":       { hue: "#c026d3", dark: "#701a75" },
+  "ඉතිහාසය11":         { hue: "#c2410c", dark: "#7c2d12" },
+  "කෘෂි විද්‍යාව12":   { hue: "#65a30d", dark: "#365314" },
+  "ගණිතය11":           { hue: "#6366f1", dark: "#3730a3" },
+  "රසායන විද්‍යාව12":  { hue: "#0891b2", dark: "#164e63" },
+  "රසායන විද්‍යාව13":  { hue: "#2563eb", dark: "#1e3a8a" },
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a" };
 
@@ -262,7 +268,7 @@ function QuizPageContent() {
           <div style={{ position: "relative" }}>
             {/* Breadcrumb */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
-              {[subject, lesson, topic].filter(Boolean).map((crumb, i, arr) => (
+              {[displaySubjectName(subject), lesson, topic].filter(Boolean).map((crumb, i, arr) => (
                 <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ color: i === arr.length - 1 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.35)", fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     {crumb}

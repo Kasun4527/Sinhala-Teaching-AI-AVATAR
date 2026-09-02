@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import ChatBot from "@/components/ChatBot";
 import { enrollSubject, getEnrollments } from "@/services/api";
+import { displaySubjectName } from "@/data/subjectDisplay";
 
 const NAVY = "#020617";
 const BLUE_D = "#1d4ed8";
@@ -19,6 +20,11 @@ const SUBJECT = {
   "ආර්ථික විද්\u200Dයාව": { abbr: "₨", hue: "#f59e0b", dark: "#78350f", img: "/L3.jfif" },
   "බුද්ධ ධර්මය": { abbr: "☸", hue: "#d946ef", dark: "#701a75", img: "/L2.jfif" },
   "විද්\u200Dයාව": { abbr: "🔬", hue: "#14b8a6", dark: "#134e4a", img: "/L1.jfif" },
+  "ඉතිහාසය11": { abbr: "ඉ", hue: "#c2410c", dark: "#7c2d12" },
+  "කෘෂි විද්‍යාව12": { abbr: "කෘ", hue: "#65a30d", dark: "#365314" },
+  "ගණිතය11": { abbr: "ග", hue: "#6366f1", dark: "#3730a3" },
+  "රසායන විද්‍යාව12": { abbr: "ර", hue: "#0891b2", dark: "#164e63" },
+  "රසායන විද්‍යාව13": { abbr: "ර", hue: "#2563eb", dark: "#1e3a8a" },
 };
 const DEFAULT_S = { abbr: "SU", hue: "#64748b", dark: "#1e293b" };
 
@@ -144,7 +150,7 @@ export default function LessonsPage() {
                   </div>
                 </div>
                 <div style={{ padding: "0 24px 24px" }}>
-                  <h3 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700, color: "white" }}>{item.subject}</h3>
+                  <h3 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700, color: "white" }}>{displaySubjectName(item.subject)}</h3>
                   <p style={{ margin: "0 0 24px", fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>
                     {current.grade}{tops > 0 && <> &middot; {tops} topics</>}
                   </p>
@@ -196,7 +202,7 @@ export default function LessonsPage() {
                   {!cfg.img && cfg.abbr}
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "white" }}>{pendingEnroll.subject}</h3>
+                  <h3 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "white" }}>{displaySubjectName(pendingEnroll.subject)}</h3>
                   <p style={{ margin: "6px 0 0", fontSize: 14, color: "#94a3b8" }}>
                     {pendingEnroll.grade} &middot; {pendingEnroll.lessons?.length || 0} lessons &middot; {tops} topics
                   </p>
@@ -211,11 +217,11 @@ export default function LessonsPage() {
                   </div>
                 ) : pendingEnroll.alreadyEnrolled ? (
                   <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
-                    You are already enrolled in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Continue where you left off.
+                    You are already enrolled in <strong style={{ color: NAVY }}>{displaySubjectName(pendingEnroll.subject)}</strong>. Continue where you left off.
                   </p>
                 ) : (
                   <p style={{ color: "#374151", fontSize: 15, lineHeight: 1.8, margin: 0 }}>
-                    You are about to enrol in <strong style={{ color: NAVY }}>{pendingEnroll.subject}</strong>. Your progress will be tracked and lessons unlocked as you advance.
+                    You are about to enrol in <strong style={{ color: NAVY }}>{displaySubjectName(pendingEnroll.subject)}</strong>. Your progress will be tracked and lessons unlocked as you advance.
                   </p>
                 )}
                 {enrollErr && (

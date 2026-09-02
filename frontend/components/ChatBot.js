@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { displaySubjectName } from "@/data/subjectDisplay";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
@@ -10,6 +11,7 @@ const SI_EMPTY       = "ඔබගේ ප්‍රශ්නය ඇතුළත්
 const SI_PLACEHOLDER = "ප්‍රශ්නයක් ඇතුළත් කරන්න...";
 const SI_THINKING    = "පිළිතුර සකස් කරනවා...";
 const SI_NO_ANSWER   = "පිළිතුර ලබා ගත නොහෙකි විය.";
+const SI_MIC_ERROR   = "හඬ හඳුනාගැනීම අසාර්ථක විය — කරුණාකර ටයිප් කර උත්සාහ කරන්න.";
 
 export default function ChatBot({ subject = "", lesson = "", topic = "", accent = "#2563eb", inline = false, onHearAvatar }) {
   const [chatOpen, setChatOpen] = useState(inline ? true : false);
@@ -18,6 +20,7 @@ export default function ChatBot({ subject = "", lesson = "", topic = "", accent 
   const [chatLoading, setChatLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const chatBottomRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -26,21 +29,67 @@ export default function ChatBot({ subject = "", lesson = "", topic = "", accent 
   const startListening = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Browser does not support speech recognition.");
+
+    // Clean up any previous session before starting a new one, rather than
+    // permanently blocking re-clicks on `listening` state — a hard block can
+    // soft-lock the mic button forever if a previous session never fired
+    // onend/onerror (e.g. got stuck mid-permission-prompt, or state survived
+    // a Fast Refresh hot-reload during dev). Aborting a session that's
+    // already stopped is a harmless no-op, so this is always safe to do.
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch (_) { /* already stopped */ }
+      recognitionRef.current = null;
+    }
+
     const rec = new SR();
+    recognitionRef.current = rec;
     rec.lang = "si-LK";
     rec.onstart = () => setListening(true);
     rec.onresult = (e) => {
-      if (e.results[0] && e.results[0][0]) {
-        setChatInput(e.results[0][0].transcript);
+      const transcript = e.results[0]?.[0]?.transcript;
+      if (transcript) {
+        setChatInput(transcript);
+        // Send immediately using the transcript directly (not the chatInput
+        // state, which wouldn't be updated yet in this same tick) instead of
+        // just filling the box and waiting for a manual click.
+        sendMessage(transcript);
       }
     };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    rec.start();
+    rec.onend = () => {
+      setListening(false);
+      if (recognitionRef.current === rec) recognitionRef.current = null;
+    };
+    rec.onerror = (e) => {
+      setListening(false);
+      if (recognitionRef.current === rec) recognitionRef.current = null;
+      // Fails silently otherwise — e.g. "si-LK" isn't a supported
+      // recognition language in every browser, which errors out instantly
+      // with no other feedback, looking like the mic just did nothing.
+      if (e.error !== "aborted" && e.error !== "no-speech") {
+        setChatHistory(prev => [...prev, {
+          role: "bot",
+          text: `${SI_MIC_ERROR} (${e.error})`,
+        }]);
+      }
+    };
+
+    try {
+      rec.start();
+    } catch (err) {
+      // .start() can throw synchronously (e.g. InvalidStateError from a
+      // browser-level stuck session) — previously uncaught, which is
+      // exactly why clicking the mic could do nothing with zero feedback.
+      setListening(false);
+      recognitionRef.current = null;
+      setChatHistory(prev => [...prev, {
+        role: "bot",
+        text: `${SI_MIC_ERROR} (${err?.message || err})`,
+      }]);
+    }
   };
 
-  const sendMessage = async () => {
-    const q = chatInput.trim();
+  const sendMessage = async (overrideText) => {
+    const q = (overrideText ?? chatInput).trim();
     if (!q || chatLoading) return;
     setChatInput("");
     setChatHistory(prev => [...prev, { role: "user", text: q }]);
@@ -104,7 +153,7 @@ export default function ChatBot({ subject = "", lesson = "", topic = "", accent 
               <div>
                 <p style={{ color: inline ? "#0f172a" : "white", fontWeight: 700, fontSize: inline ? 15 : 14, margin: 0 }}>{SI_TITLE}</p>
                 <p style={{ color: inline ? "#64748b" : "rgba(255,255,255,0.7)", fontSize: inline ? 12 : 11, margin: 0, marginTop: inline ? 2 : 0 }}>
-                  {[subject, lesson, topic].filter(Boolean).join(" - ")}
+                  {[displaySubjectName(subject), lesson, topic].filter(Boolean).join(" - ")}
                 </p>
               </div>
             </div>
@@ -224,7 +273,7 @@ export default function ChatBot({ subject = "", lesson = "", topic = "", accent 
               onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={chatLoading || !chatInput.trim()}
               style={{
                 background: chatLoading || !chatInput.trim() ? "#f1f5f9" : `linear-gradient(135deg, ${accent}, #4f46e5)`,

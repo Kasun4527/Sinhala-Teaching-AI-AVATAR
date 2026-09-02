@@ -1033,6 +1033,56 @@ def get_engagement_history(student_id: str, subject: str, topic: str):
     return {"sessions": sessions}
 
 
+# Local-dev convenience only. In production the engagement engine is its own
+# separately deployed service (Azure Container App) that's always running —
+# this endpoint has nothing to spawn there, since engagement_engine/ isn't
+# even present inside the backend's container image. Locally, though, both
+# live side-by-side in the same repo checkout, so the frontend calls this
+# when the lesson page opens instead of requiring a third terminal window.
+_engagement_process = None
+
+@app.post("/start-engagement-engine")
+def start_engagement_engine():
+    import subprocess
+
+    global _engagement_process
+
+    # Already reachable (started by us earlier, or manually) — nothing to do.
+    try:
+        resp = requests.get("http://localhost:5000/api/health", timeout=1)
+        if resp.status_code == 200:
+            return {"status": "already_running"}
+    except Exception:
+        pass
+
+    # We already spawned it and it's still alive — just booting, don't double-spawn.
+    if _engagement_process is not None and _engagement_process.poll() is None:
+        return {"status": "starting"}
+
+    engagement_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "engagement_engine"))
+    app_path = os.path.join(engagement_dir, "app.py")
+    if not os.path.exists(app_path):
+        # Expected in production — engagement_engine isn't in this container.
+        return {"status": "unavailable", "detail": "engagement_engine not found next to backend (expected in local dev only)"}
+
+    # Prefer the engagement engine's own venv (separate deps — OpenCV/YOLO —
+    # from the backend's) over the backend's interpreter, if one exists.
+    venv_python_win = os.path.join(engagement_dir, "venv", "Scripts", "python.exe")
+    venv_python_unix = os.path.join(engagement_dir, "venv", "bin", "python")
+    if os.path.exists(venv_python_win):
+        python_exe = venv_python_win
+    elif os.path.exists(venv_python_unix):
+        python_exe = venv_python_unix
+    else:
+        python_exe = sys.executable
+
+    try:
+        _engagement_process = subprocess.Popen([python_exe, "app.py"], cwd=engagement_dir)
+        return {"status": "starting"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
 
 # ── Student Q&A endpoint ──────────────────────────────────────────────────────
 import json as _json

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import ChatBot from "@/components/ChatBot";
 import { getEnrollments } from "@/services/api";
+import { displaySubjectName } from "@/data/subjectDisplay";
 
 const NAVY = "#020617";
 const BLUE_D = "#1d4ed8";
@@ -19,6 +20,11 @@ const SUBJECT = {
   "ආර්ථික විද්‍යාව": { abbr: "₨", hue: "#f59e0b", dark: "#78350f", img: "/L3.jfif" },
   "බුද්ධ ධර්මය": { abbr: "☸", hue: "#d946ef", dark: "#701a75", img: "/L2.jfif" },
   "විද්‍යාව": { abbr: "🔬", hue: "#14b8a6", dark: "#134e4a", img: "/L1.jfif" },
+  "ඉතිහාසය11": { abbr: "ඉ", hue: "#c2410c", dark: "#7c2d12" },
+  "කෘෂි විද්‍යාව12": { abbr: "කෘ", hue: "#65a30d", dark: "#365314" },
+  "ගණිතය11": { abbr: "ග", hue: "#6366f1", dark: "#3730a3" },
+  "රසායන විද්‍යාව12": { abbr: "ර", hue: "#0891b2", dark: "#164e63" },
+  "රසායන විද්‍යාව13": { abbr: "ර", hue: "#2563eb", dark: "#1e3a8a" },
 };
 const DEFAULT_S = { abbr: "SU", hue: "#64748b", dark: "#1e293b" };
 
@@ -54,7 +60,7 @@ function EnrolledCard({ item, onClick }) {
         </div>
       </div>
       <div style={{ padding: 24 }}>
-        <h3 style={{ margin: "0 0 8px", fontSize: 20, color: "white", fontWeight: 700 }}>{item.subject}</h3>
+        <h3 style={{ margin: "0 0 8px", fontSize: 20, color: "white", fontWeight: 700 }}>{displaySubjectName(item.subject)}</h3>
         {/* Progress Bar */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#94a3b8", marginBottom: 6, fontWeight: 600 }}>

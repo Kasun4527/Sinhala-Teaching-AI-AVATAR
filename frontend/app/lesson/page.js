@@ -257,6 +257,11 @@ function LessonPageContent() {
     Maths: { hue: "#7c3aed", dark: "#3b0764" },
     "ආර්ථික විද්‍යාව": { hue: "#b45309", dark: "#78350f" },
     "බුද්ධ ධර්මය": { hue: "#c026d3", dark: "#701a75" },
+    "ඉතිහාසය11": { hue: "#c2410c", dark: "#7c2d12" },
+    "කෘෂි විද්‍යාව12": { hue: "#65a30d", dark: "#365314" },
+    "ගණිතය11": { hue: "#6366f1", dark: "#3730a3" },
+    "රසායන විද්‍යාව12": { hue: "#0891b2", dark: "#164e63" },
+    "රසායන විද්‍යාව13": { hue: "#2563eb", dark: "#1e3a8a" },
   };
   const cfg = SUBJECT_CFG[subject] || { hue: "#2563eb", dark: "#1e3a8a" };
   const accent = cfg.hue;
@@ -296,6 +301,14 @@ function LessonPageContent() {
     if (!topic) return;
     sessionStartRef.current = new Date().toISOString();
     engSessionIdRef.current = crypto.randomUUID();
+
+    // Local-dev convenience: ask the backend to spawn the engagement engine
+    // if it isn't already running, instead of requiring a third terminal.
+    // No-op in production (the backend has nothing to spawn there — it's
+    // already running as its own deployed service) and fire-and-forget here
+    // either way — captureAndSend()'s own try/catch below already handles
+    // the engine not being reachable yet while it boots.
+    fetch(`${BACKEND}/start-engagement-engine`, { method: "POST" }).catch(() => {});
 
     const FRAME_INTERVAL_MS = 700;
     const MAX_TIMELINE_POINTS = 90; // ~60s of history at one frame per 700ms

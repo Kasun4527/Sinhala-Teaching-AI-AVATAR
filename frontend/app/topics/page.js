@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMergedCurriculum, findSubjectIn } from "@/data/useCurriculum";
+import { displaySubjectName } from "@/data/subjectDisplay";
 import { useEffect, useRef, useState, Suspense } from "react";
 import ChatBot from "@/components/ChatBot";
 import CursorGlow from "@/components/CursorGlow";
@@ -93,6 +94,11 @@ const SUBJECT_CFG = {
   "ආර්ථික විද්‍යාව": { hue: "#b45309", dark: "#78350f", bg: "#fffbeb", ring: "#fde68a" },
   "බුද්ධ ධර්මය": { hue: "#c026d3", dark: "#701a75", bg: "#fdf4ff", ring: "#e879f9" },
   "විද්‍යාව": { hue: "#0d9488", dark: "#134e4a", bg: "#f0fdfa", ring: "#99f6e4" },
+  "ඉතිහාසය11": { hue: "#c2410c", dark: "#7c2d12", bg: "#fff7ed", ring: "#fed7aa" },
+  "කෘෂි විද්‍යාව12": { hue: "#65a30d", dark: "#365314", bg: "#f7fee7", ring: "#d9f99d" },
+  "ගණිතය11": { hue: "#6366f1", dark: "#3730a3", bg: "#eef2ff", ring: "#c7d2fe" },
+  "රසායන විද්‍යාව12": { hue: "#0891b2", dark: "#164e63", bg: "#ecfeff", ring: "#a5f3fc" },
+  "රසායන විද්‍යාව13": { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" },
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" };
 
@@ -258,7 +264,7 @@ function TopicsPageContent() {
 
             {/* Breadcrumb */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
-              {[grade, subject, lesson].filter(Boolean).map((crumb, i, arr) => (
+              {[grade, displaySubjectName(subject), lesson].filter(Boolean).map((crumb, i, arr) => (
                 <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ color: i === arr.length - 1 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.35)", fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     {crumb}

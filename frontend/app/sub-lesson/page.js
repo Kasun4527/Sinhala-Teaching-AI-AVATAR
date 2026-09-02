@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useMergedCurriculum, findSubjectIn } from "@/data/useCurriculum";
+import { displaySubjectName } from "@/data/subjectDisplay";
 import { useEffect, useRef, useState, Suspense } from "react";
 import ChatBot from "@/components/ChatBot";
 import CursorGlow from "@/components/CursorGlow";
@@ -86,6 +87,11 @@ const SUBJECT_CFG = {
   "ආර්ථික විද්‍යාව":   { hue: "#b45309", dark: "#78350f", bg: "#fffbeb", ring: "#fde68a" },
   "බුද්ධ ධර්මය":       { hue: "#c026d3", dark: "#701a75", bg: "#fdf4ff", ring: "#e879f9" },
   "විද්‍යාව":           { hue: "#0d9488", dark: "#134e4a", bg: "#f0fdfa", ring: "#99f6e4" },
+  "ඉතිහාසය11":         { hue: "#c2410c", dark: "#7c2d12", bg: "#fff7ed", ring: "#fed7aa" },
+  "කෘෂි විද්‍යාව12":   { hue: "#65a30d", dark: "#365314", bg: "#f7fee7", ring: "#d9f99d" },
+  "ගණිතය11":           { hue: "#6366f1", dark: "#3730a3", bg: "#eef2ff", ring: "#c7d2fe" },
+  "රසායන විද්‍යාව12":  { hue: "#0891b2", dark: "#164e63", bg: "#ecfeff", ring: "#a5f3fc" },
+  "රසායන විද්‍යාව13":  { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" },
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" };
 
@@ -167,7 +173,7 @@ function LessonsPageContent() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
               <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase" }}>{grade}</span>
               <span style={{ color: "rgba(255,255,255,0.2)" }}>›</span>
-              <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase" }}>{subject}</span>
+              <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase" }}>{displaySubjectName(subject)}</span>
             </div>
 
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32 }}>
@@ -210,7 +216,7 @@ function LessonsPageContent() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, paddingTop: 18, paddingBottom: 18, borderTop: "1px solid rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.15)", position: "relative", zIndex: 1 }}>
             <div>
               <h2 style={{ margin: 0,  fontSize: 22, fontWeight: 700, color: "white", letterSpacing: "0.03em" }}>
-                {subject} Lessons
+                {displaySubjectName(subject)} Lessons
               </h2>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "#94a3b8" }}>
                 {lessons.length} lesson{lessons.length !== 1 ? "s" : ""} &middot; {totalTopics} topics total

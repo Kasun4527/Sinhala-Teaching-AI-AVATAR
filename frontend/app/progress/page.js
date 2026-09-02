@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { getPastLessons, getPracticeQuizResults } from "@/services/api";
+import { displaySubjectName } from "@/data/subjectDisplay";
 
 const NAVY = "#0f172a";
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
@@ -16,6 +17,11 @@ const SUBJECT_CFG = {
   "ආර්ථික විද්\u200Dයාව":   { hue: "#b45309", dark: "#78350f", bg: "#fffbeb", ring: "#fde68a" },
   "බුද්ධ ධර්මය":       { hue: "#c026d3", dark: "#701a75", bg: "#fdf4ff", ring: "#e879f9" },
   "විද්\u200Dයාව":           { hue: "#0d9488", dark: "#134e4a", bg: "#f0fdfa", ring: "#99f6e4" },
+  "ඉතිහාසය11":         { hue: "#c2410c", dark: "#7c2d12", bg: "#fff7ed", ring: "#fed7aa" },
+  "කෘෂි විද්‍යාව12":   { hue: "#65a30d", dark: "#365314", bg: "#f7fee7", ring: "#d9f99d" },
+  "ගණිතය11":           { hue: "#6366f1", dark: "#3730a3", bg: "#eef2ff", ring: "#c7d2fe" },
+  "රසායන විද්‍යාව12":  { hue: "#0891b2", dark: "#164e63", bg: "#ecfeff", ring: "#a5f3fc" },
+  "රසායන විද්‍යාව13":  { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" },
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a", bg: "#eff6ff", ring: "#bfdbfe" };
 
@@ -138,7 +144,7 @@ export default function ProgressPage() {
               return (
                 <div key={subject} style={{ marginBottom: 36 }}>
                   <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "2px solid #334155" }}>
-                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f8fafc" }}>{subject}</h2>
+                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f8fafc" }}>{displaySubjectName(subject)}</h2>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {subjectTopics.map((t) => {
@@ -230,7 +236,7 @@ export default function ProgressPage() {
                   return (
                     <div key={subject} style={{ marginBottom: 36 }}>
                       <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "2px solid #334155" }}>
-                        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f8fafc" }}>{subject}</h2>
+                        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f8fafc" }}>{displaySubjectName(subject)}</h2>
                       </div>
                       {lessons.map(({ lesson, items }) => (
                         <div key={lesson} style={{ marginBottom: 20 }}>
