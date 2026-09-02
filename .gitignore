@@ -30,3 +30,8 @@ personalization_report_0705.md
 # ChromaDB Vector Store
 backend/chroma_db/
 *.sqlite3
+
+# AVTR-1 avatar video cache (recorded live sessions, regenerated on demand —
+# local disk for now, Azure Files-mounted after deploy; see backend/db.py's
+# avtr_video_cache_collection)
+backend/avtr_cache/

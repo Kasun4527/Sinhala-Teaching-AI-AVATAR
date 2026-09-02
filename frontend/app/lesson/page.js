@@ -638,7 +638,10 @@ function LessonPageContent() {
             <div style={{ flexShrink: 0 }}>
               <AvatarSelector
                 content={avatarSpeech || content}
+                subject={subject}
+                lesson={lesson}
                 topic={topic}
+                level={level}
                 speechReady={speechReady}
                 onSentenceChange={handleSentenceChange}
                 paragraphCount={contentParas.length}

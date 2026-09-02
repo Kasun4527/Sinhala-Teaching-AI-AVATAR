@@ -41,6 +41,15 @@ content_cache_collection = db["content_cache"]
 explain_cache_collection = db["explain_cache"]
 quiz_pool_collection = db["quiz_pool"]
 
+# AVTR-1 avatar video cache — a recording of the first live WebRTC session
+# for a given (subject, lesson, topic, level), reused on repeat visits
+# instead of generating a fresh live session every time. Unlike the caches
+# above (which store text/JSON in Mongo), the actual video file lives on
+# disk under backend/avtr_cache/ (same pattern as documents_unicode/images —
+# plain files, mounted via Azure Files in production); this collection only
+# tracks the filename/metadata. See agents/avtr_cache_agent.py.
+avtr_video_cache_collection = db["avtr_video_cache"]
+
 # ── Personalization Collections (PC-BKT + BKT-LSTM) ─────────────────────────
 
 skill_mastery_col       = db["skill_mastery"]
@@ -55,6 +64,16 @@ kmeans_models_col       = db["kmeans_models"]
 # was flagged, which student triggered it, and which teacher should be
 # alerted. Reviewed by teachers via the admin dashboard.
 safety_flags_collection = db["safety_flags"]
+
+# ── Parent↔Student Persistent Links ──────────────────────────────────────────
+# Each document records one parent→child relationship. Replaces the old
+# on-device-only storage the mobile app used (parentChildren.ts).
+parent_links_collection = db["parent_links"]
+
+# ── Cross-App Notifications ──────────────────────────────────────────────────
+# Teacher→Parent messages and Teacher→Student feedback, fetched by the
+# student web app (Navbar bell) and the parent mobile app (Alerts section).
+notifications_collection = db["notifications"]
 
 
 def ensure_indexes():
@@ -92,10 +111,23 @@ def ensure_indexes():
         [("subject", ASCENDING), ("lesson", ASCENDING), ("topic", ASCENDING),
          ("level", ASCENDING), ("quiz_type", ASCENDING)]
     )
+    avtr_video_cache_collection.create_index(
+        [("subject", ASCENDING), ("lesson", ASCENDING), ("topic", ASCENDING), ("level", ASCENDING)],
+        unique=True
+    )
     safety_flags_collection.create_index(
         [("teacher_id", ASCENDING), ("created_at", ASCENDING)]
     )
     safety_flags_collection.create_index(
         [("student_id", ASCENDING), ("created_at", ASCENDING)]
+    )
+    parent_links_collection.create_index(
+        [("parent_id", ASCENDING), ("student_id", ASCENDING)], unique=True
+    )
+    parent_links_collection.create_index(
+        [("student_id", ASCENDING)]
+    )
+    notifications_collection.create_index(
+        [("recipient_id", ASCENDING), ("read", ASCENDING), ("created_at", ASCENDING)]
     )
     print("[DB] Personalization indexes ensured.")

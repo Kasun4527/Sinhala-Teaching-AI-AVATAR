@@ -31,6 +31,7 @@ export default function SignUp() {
   const [password, setPassword] = useState("");
   const [childrenRegNos, setChildrenRegNos] = useState<string[]>([""]);
   const [studentRegNos, setStudentRegNos] = useState<string[]>([""]);
+  const [contactNumber, setContactNumber] = useState("");
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -92,6 +93,11 @@ export default function SignUp() {
       return;
     }
 
+    if (role === "parent" && !contactNumber.trim()) {
+      Alert.alert("Error", "Please enter your contact number");
+      return;
+    }
+
     const students = role === "teacher" ? studentRegNos : childrenRegNos;
     if (students.some(reg => !reg.trim())) {
       Alert.alert("Error", `Please fill all ${role === "teacher" ? "student" : "child"} IDs`);
@@ -115,6 +121,7 @@ export default function SignUp() {
           email: email,
           password: password,
           role: backendRole,
+          contact_number: role === "parent" ? contactNumber.trim() : undefined,
         }),
       });
 
@@ -135,11 +142,10 @@ export default function SignUp() {
           "Account created! Please verify your email, then log in — your students will be linked automatically on first login."
         );
       } else {
-        // Backend has no field to store a parent's children either, and no
-        // linking endpoint like teachers get — kept on-device instead, read
-        // back by the parent dashboard on every load.
+        // For parents: save children to on-device storage for now (will be
+        // migrated to backend via /parent/link-child on first login)
         await saveChildren(email, childrenRegNos.filter(s => s.trim() !== ""));
-        Alert.alert("Success", "Account created successfully! Please login.");
+        Alert.alert("Success", "Account created successfully! Please login to link your children.");
       }
       router.replace("/login");
     } catch (error: any) {
@@ -241,6 +247,17 @@ export default function SignUp() {
               onChangeText={setPassword}
             />
 
+            {/* Contact Number for Parents */}
+            {role === "parent" && (
+              <TextInput
+                placeholder="Contact Number (e.g. 07X XXX XXXX)"
+                style={styles.input}
+                value={contactNumber}
+                onChangeText={setContactNumber}
+                keyboardType="phone-pad"
+              />
+            )}
+
             {/* Conditional Fields */}
             {role === "teacher" ? (
               <View style={{ marginBottom: 15 }}>
@@ -277,15 +294,19 @@ export default function SignUp() {
             ) : (
               <View style={{ marginBottom: 15 }}>
                 <Text style={{ marginBottom: 10, fontWeight: "600", color: "#555" }}>
-                  Children Registration Numbers
+                  Children Student Codes
+                </Text>
+                <Text style={{ marginBottom: 10, fontSize: 12, color: "#888" }}>
+                  Enter your child's Student Code (e.g. ST123456) — found in their Settings → Student Information.
                 </Text>
                 {childrenRegNos.map((reg, index) => (
                   <View key={index} style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
                     <TextInput
-                      placeholder={`Child ${index + 1} Reg No`}
+                      placeholder={`Child ${index + 1} Student Code (e.g. ST123456)`}
                       style={[styles.input, { flex: 1, marginBottom: 0 }]}
                       value={reg}
                       onChangeText={(text) => updateChildReg(text, index)}
+                      autoCapitalize="characters"
                     />
                     {childrenRegNos.length > 1 && (
                       <TouchableOpacity

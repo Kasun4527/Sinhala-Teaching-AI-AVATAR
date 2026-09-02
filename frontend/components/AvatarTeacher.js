@@ -3,7 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 
 const AVTR_HOST = process.env.NEXT_PUBLIC_AVTR_HOST || "https://stifle-implement-feminist.ngrok-free.dev";
+const BACKEND   = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 const NGROK_HDR = { "ngrok-skip-browser-warning": "1" };
+
+// Preferred MediaRecorder mime types for recording the AVTR-1 stream,
+// in order of preference — the browser is asked for the first one it
+// actually supports.
+const RECORDER_MIME_CANDIDATES = [
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm",
+];
+
+function pickRecorderMimeType() {
+  if (typeof MediaRecorder === "undefined") return "";
+  for (const type of RECORDER_MIME_CANDIDATES) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return "";
+}
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 
@@ -12,10 +30,19 @@ const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5];
 const FEMALE_AVATARS = ["camila", "caroline", "clara", "elena", "kate", "maria", "may", "olivia"];
 const DEFAULT_AVATAR = "kate";
 
-export default function AvatarTeacher({ content, topic, speechReady = true, onSentenceChange, paragraphCount = 1, answerContent, onAnswerSpoken, onPauseChange }) {
+export default function AvatarTeacher({ content, subject, lesson, topic, level, speechReady = true, onSentenceChange, paragraphCount = 1, answerContent, onAnswerSpoken, onPauseChange }) {
   const videoRef    = useRef(null);
   const pcRef       = useRef(null);
   const channelRef  = useRef(null);
+
+  // AVTR-1 video cache — recording of the live WebRTC stream, uploaded once
+  // per (subject, lesson, topic, level) and replayed for every later
+  // student who reaches the same combination instead of a fresh live
+  // session. Only applies to the primary lesson narration, never Q&A
+  // answer playback (answerContent), which is one-off per student.
+  const recorderRef       = useRef(null);
+  const recordedChunksRef = useRef([]);
+  const recordingMetaRef  = useRef(null);
 
   const [status, setStatus]                 = useState("idle");
   const [error,  setError]                  = useState("");
@@ -25,13 +52,16 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
   const [selectedBg, setSelectedBg]         = useState("");
   const [speed, setSpeed]                   = useState(1);
   const [paused, setPaused]                 = useState(false);
+  const [isCachedPlayback, setIsCachedPlayback] = useState(false);
 
   const activeContent = answerContent || content;
+  const cacheKeyReady = !!(subject && lesson && topic && level);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       clearHighlight();
+      stopRecording({ discard: true });
       if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
       if (videoRef.current) { videoRef.current.srcObject = null; }
     };
@@ -90,9 +120,71 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
         if (data.para_index === paragraphCountForSession - 1) {
           clearHighlight();
           if (answerContent && onAnswerSpoken) onAnswerSpoken();
+          // Narration finished — this is the natural point to stop
+          // recording and upload it as the AVTR-1 cache for this topic.
+          stopRecording();
         }
       }
     };
+  }
+
+  // Starts recording the live avatar stream so it can be cached for future
+  // students. Never called for Q&A answer playback (answerContent) or when
+  // the cache key is incomplete — see cacheKeyReady.
+  function startRecording(stream) {
+    if (answerContent || !cacheKeyReady) return;
+    const mimeType = pickRecorderMimeType();
+    if (!mimeType) return; // MediaRecorder unsupported — live session still works, just isn't cached
+    try {
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recordedChunksRef.current = [];
+      recordingMetaRef.current = { subject, lesson, topic, level };
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => uploadRecording(mimeType);
+      recorder.start();
+      recorderRef.current = recorder;
+    } catch (err) {
+      console.error("[AVTR-1] recording failed to start:", err);
+    }
+  }
+
+  // Stops the in-progress recording. discard=true is used when a session
+  // ends early (user clicks Stop, error, unmount) — an incomplete
+  // recording is never uploaded as "the" cached video for a topic.
+  function stopRecording({ discard = false } = {}) {
+    const recorder = recorderRef.current;
+    if (!recorder) return;
+    recorderRef.current = null;
+    if (discard) {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      recordedChunksRef.current = [];
+      recordingMetaRef.current = null;
+    }
+    try { recorder.stop(); } catch { /* already stopped */ }
+  }
+
+  async function uploadRecording(mimeType) {
+    const meta = recordingMetaRef.current;
+    const chunks = recordedChunksRef.current;
+    recordedChunksRef.current = [];
+    recordingMetaRef.current = null;
+    if (!meta || !chunks.length) return;
+    try {
+      const blob = new Blob(chunks, { type: mimeType || "video/webm" });
+      const form = new FormData();
+      form.append("subject", meta.subject);
+      form.append("lesson", meta.lesson);
+      form.append("topic", meta.topic);
+      form.append("level", meta.level);
+      form.append("file", blob, "session.webm");
+      await fetch(`${BACKEND}/avtr-cache/upload`, { method: "POST", body: form });
+      console.log("[AVTR-1] cached video uploaded:", meta);
+    } catch (err) {
+      console.error("[AVTR-1] cache upload failed:", err);
+    }
   }
 
   function splitParagraphs(text) {
@@ -153,6 +245,35 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
       // rejected with "409 Another session is active".
       stopSession();
 
+      setError("");
+      setStatus("connecting");
+      setPaused(false);
+      setIsCachedPlayback(false);
+
+      // AVTR-1 video cache — a combination that's already been recorded is
+      // played back from a plain <video src>, skipping the live WebRTC
+      // session (and the server's one-session-at-a-time slot) entirely.
+      // Only checked for primary lesson narration; Q&A answer playback
+      // (answerContent) is always a fresh live session.
+      if (!answerContent && cacheKeyReady) {
+        try {
+          const params = new URLSearchParams({ subject, lesson, topic, level });
+          const cacheResp = await fetch(`${BACKEND}/avtr-cache/check?${params.toString()}`);
+          if (cacheResp.ok) {
+            const cacheData = await cacheResp.json();
+            if (cacheData.cached && cacheData.video_url && videoRef.current) {
+              videoRef.current.srcObject = null;
+              videoRef.current.src = `${BACKEND}${cacheData.video_url}`;
+              setIsCachedPlayback(true);
+              setStatus("live");
+              return;
+            }
+          }
+        } catch {
+          // Cache lookup is best-effort — fall through to a live session.
+        }
+      }
+
       // stopSession()'s pc.close() only starts the WebRTC teardown on our
       // side — the server only notices via ICE consent-freshness checks,
       // which can take far longer than we're willing to wait here. Ask it
@@ -164,10 +285,6 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
       } catch {
         // best-effort — if this fails, the 409 retry below is still there as a fallback
       }
-
-      setError("");
-      setStatus("connecting");
-      setPaused(false);
 
       const speechText = activeContent
         .replace(/\[IMAGE:[^\]]+\]/gi, "")
@@ -193,6 +310,9 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
       pc.ontrack = (e) => {
         if (e.streams && e.streams[0] && videoRef.current) {
           videoRef.current.srcObject = e.streams[0];
+          // Cache this session for future students, if it qualifies (see
+          // startRecording — no-op for Q&A answers or an incomplete key).
+          if (!recorderRef.current) startRecording(e.streams[0]);
         }
       };
 
@@ -255,10 +375,17 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
 
   function stopSession() {
     clearHighlight();
+    // Stopping mid-session means an incomplete recording — never upload it
+    // as "the" cached video for this topic.
+    stopRecording({ discard: true });
     if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
-    if (videoRef.current) { videoRef.current.srcObject = null; }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+      videoRef.current.removeAttribute("src");
+    }
     channelRef.current = null;
     setPaused(false);
+    setIsCachedPlayback(false);
     setStatus("idle");
   }
 
@@ -272,6 +399,10 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
           ref={videoRef}
           autoPlay
           playsInline
+          controls={isCachedPlayback}
+          onEnded={() => {
+            if (isCachedPlayback) { clearHighlight(); setStatus("idle"); }
+          }}
           style={{ width: "100%", height: "100%", objectFit: "contain", display: isLive ? "block" : "none" }}
         />
 
@@ -289,8 +420,8 @@ export default function AvatarTeacher({ content, topic, speechReady = true, onSe
 
         {isLive && (
           <div style={{ position: "absolute", top: 12, left: 12, display: "flex", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.6)", padding: "4px 10px", borderRadius: 20 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#22c55e", animation: "pulse 1.5s ease-in-out infinite" }} />
-            <span style={{ color: "white", fontSize: 11, fontWeight: 600 }}>LIVE</span>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: isCachedPlayback ? "#3b82f6" : "#22c55e", animation: isCachedPlayback ? "none" : "pulse 1.5s ease-in-out infinite" }} />
+            <span style={{ color: "white", fontSize: 11, fontWeight: 600 }}>{isCachedPlayback ? "RECORDED" : "LIVE"}</span>
           </div>
         )}
       </div>

@@ -75,6 +75,17 @@ export default function AdminDashboard() {
   const [safetyAlerts, setSafetyAlerts] = useState([]);
   const [showAlerts, setShowAlerts] = useState(false);
 
+  // Parent modal
+  const [parentModal, setParentModal] = useState(false);
+  const [parentInfo, setParentInfo] = useState(null);
+  const [parentMsg, setParentMsg] = useState("");
+  const [parentMsgStatus, setParentMsgStatus] = useState("");
+
+  // Feedback modal
+  const [feedbackModal, setFeedbackModal] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState("");
+
   useEffect(() => {
     const role = localStorage.getItem("role");
     const name = localStorage.getItem("name");
@@ -105,6 +116,56 @@ export default function AdminDashboard() {
       console.error("Failed to load students", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchParentInfo = async (studentId) => {
+    try {
+      const res = await axios.get(`${API}/admin/student-parent`, { params: { student_id: studentId } });
+      setParentInfo(res.data);
+      setParentModal(true);
+      setParentMsg("");
+      setParentMsgStatus("");
+    } catch (err) {
+      console.error("Failed to load parent info", err);
+      setParentInfo({ has_parent: false });
+      setParentModal(true);
+    }
+  };
+
+  const sendParentMessage = async () => {
+    if (!parentMsg.trim()) return;
+    setParentMsgStatus("sending");
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      await axios.post(`${API}/admin/send-parent-message`, {
+        teacher_id: teacherId,
+        student_id: selectedStudent.student_id,
+        message: parentMsg.trim(),
+      });
+      setParentMsgStatus("sent");
+      setParentMsg("");
+    } catch (err) {
+      setParentMsgStatus("error");
+    }
+  };
+
+  const sendStudentFeedback = async () => {
+    if (!feedbackMsg.trim()) return;
+    setFeedbackStatus("sending");
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      await axios.post(`${API}/admin/send-student-feedback`, {
+        teacher_id: teacherId,
+        student_id: selectedStudent.student_id,
+        subject: selectedSubject || "",
+        lesson: expandedTopic?.lesson || "",
+        message: feedbackMsg.trim(),
+      });
+      setFeedbackStatus("sent");
+      setFeedbackMsg("");
+    } catch (err) {
+      setFeedbackStatus("error");
     }
   };
 
@@ -578,6 +639,32 @@ export default function AdminDashboard() {
                     <h2 style={{ color: TEXT, fontSize: 22, fontWeight: 800, margin: "0 0 2px" }}>{selectedStudent.name}</h2>
                     <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>{selectedStudent.email}</p>
                   </div>
+                  <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+                    <button
+                      onClick={() => fetchParentInfo(selectedStudent.student_id)}
+                      style={{
+                        padding: "8px 14px", borderRadius: 10, border: `1px solid ${BORDER}`,
+                        background: "rgba(255,255,255,0.04)", color: TEXT2, cursor: "pointer",
+                        fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+                    >
+                      👨‍👩‍👧 View Parent
+                    </button>
+                    <button
+                      onClick={() => { setFeedbackModal(true); setFeedbackMsg(""); setFeedbackStatus(""); }}
+                      style={{
+                        padding: "8px 14px", borderRadius: 10, border: "none",
+                        background: ACCENT, color: "white", cursor: "pointer",
+                        fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      📝 Send Feedback
+                    </button>
+                  </div>
                 </div>
 
                 {/* Subjects */}
@@ -963,9 +1050,175 @@ export default function AdminDashboard() {
         </div>
       </main>
 
+      {/* ── Parent Details Modal ── */}
+      {parentModal && (
+        <div
+          onClick={() => setParentModal(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: CARD, borderRadius: 20, border: `1px solid ${BORDER}`,
+              padding: "32px 36px", width: 460, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>👨‍👩‍👧</span>
+                <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 700, margin: 0 }}>Parent Details</h3>
+              </div>
+              <button
+                onClick={() => setParentModal(false)}
+                style={{ background: "none", border: "none", color: MUTED, fontSize: 20, cursor: "pointer" }}
+              >✕</button>
+            </div>
+
+            {parentInfo?.has_parent ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+                  {[
+                    { label: "Name", value: parentInfo.parent_name },
+                    { label: "Contact", value: parentInfo.parent_contact || "Not provided" },
+                    { label: "Email", value: parentInfo.parent_email },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{
+                      padding: "12px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}`,
+                    }}>
+                      <p style={{ color: TEXT2, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>{label}</p>
+                      <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{value || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 20 }}>
+                  <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px" }}>Send Message to Parent</p>
+                  <textarea
+                    value={parentMsg}
+                    onChange={e => setParentMsg(e.target.value)}
+                    placeholder="Type your message here..."
+                    rows={3}
+                    style={{
+                      width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 13,
+                      background: "#0f172a", border: `1px solid ${BORDER}`, color: TEXT,
+                      outline: "none", resize: "vertical", boxSizing: "border-box",
+                    }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+                    <button
+                      onClick={sendParentMessage}
+                      disabled={!parentMsg.trim() || parentMsgStatus === "sending"}
+                      style={{
+                        padding: "8px 20px", borderRadius: 10, border: "none",
+                        background: parentMsg.trim() && parentMsgStatus !== "sending" ? ACCENT : "#334155",
+                        color: "white", fontWeight: 600, fontSize: 12, cursor: parentMsg.trim() ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {parentMsgStatus === "sending" ? "Sending..." : "Send Message"}
+                    </button>
+                    {parentMsgStatus === "sent" && <span style={{ color: "#34d399", fontSize: 12, fontWeight: 600 }}>✓ Message sent!</span>}
+                    {parentMsgStatus === "error" && <span style={{ color: "#f87171", fontSize: 12, fontWeight: 600 }}>Failed to send</span>}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ textAlign: "center", padding: "30px 0" }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: "50%", margin: "0 auto 14px",
+                  background: "rgba(100,116,139,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 22,
+                }}>👤</div>
+                <p style={{ color: TEXT, fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>No parent linked</p>
+                <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>This student's parent has not linked their account yet via the mobile app.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Send Feedback Modal ── */}
+      {feedbackModal && selectedStudent && (
+        <div
+          onClick={() => setFeedbackModal(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: CARD, borderRadius: 20, border: `1px solid ${BORDER}`,
+              padding: "32px 36px", width: 480, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>📝</span>
+                <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 700, margin: 0 }}>Send Feedback</h3>
+              </div>
+              <button
+                onClick={() => setFeedbackModal(false)}
+                style={{ background: "none", border: "none", color: MUTED, fontSize: 20, cursor: "pointer" }}
+              >✕</button>
+            </div>
+
+            <p style={{ color: TEXT2, fontSize: 12, margin: "0 0 16px" }}>
+              Sending feedback to <strong style={{ color: TEXT }}>{selectedStudent.name}</strong>
+              {selectedSubject ? <> for <strong style={{ color: TEXT }}>{selectedSubject}</strong></> : ""}
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}` }}>
+                <p style={{ color: TEXT2, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Subject</p>
+                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{selectedSubject || "General"}</p>
+              </div>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}` }}>
+                <p style={{ color: TEXT2, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Lesson/Topic</p>
+                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{expandedTopic?.lesson || expandedTopic?.topic || "—"}</p>
+              </div>
+            </div>
+
+            <textarea
+              value={feedbackMsg}
+              onChange={e => setFeedbackMsg(e.target.value)}
+              placeholder="Write your feedback for the student..."
+              rows={4}
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: 10, fontSize: 13,
+                background: "#0f172a", border: `1px solid ${BORDER}`, color: TEXT,
+                outline: "none", resize: "vertical", boxSizing: "border-box",
+              }}
+            />
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+              <button
+                onClick={sendStudentFeedback}
+                disabled={!feedbackMsg.trim() || feedbackStatus === "sending"}
+                style={{
+                  padding: "10px 24px", borderRadius: 10, border: "none",
+                  background: feedbackMsg.trim() && feedbackStatus !== "sending" ? ACCENT : "#334155",
+                  color: "white", fontWeight: 600, fontSize: 13, cursor: feedbackMsg.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                {feedbackStatus === "sending" ? "Sending..." : "Send Feedback"}
+              </button>
+              {feedbackStatus === "sent" && <span style={{ color: "#34d399", fontSize: 12, fontWeight: 600 }}>✓ Feedback sent! Student will see it in their notifications.</span>}
+              {feedbackStatus === "error" && <span style={{ color: "#f87171", fontSize: 12, fontWeight: 600 }}>Failed to send</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         * { box-sizing: border-box; }
         input::placeholder { color: #475569; }
+        textarea::placeholder { color: #475569; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }
