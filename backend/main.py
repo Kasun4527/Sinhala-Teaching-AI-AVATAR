@@ -817,6 +817,39 @@ def admin_get_students(teacher_id: str = None):
     return {"students": students}
 
 
+@app.post("/admin/add-student")
+def admin_add_student(data: dict):
+    """Lets a teacher link a student to themselves using the student's ID or code."""
+    teacher_id = data.get("teacher_id", "")
+    student_id = data.get("student_id", "").strip()
+    
+    if not teacher_id or not student_id:
+        raise HTTPException(status_code=400, detail="teacher_id and student_id are required")
+        
+    # Find student by ObjectId or student_code
+    student = None
+    if student_id.upper().startswith("ST") and len(student_id) == 8:
+        student = users_collection.find_one({"student_code": student_id.upper(), "role": "student"})
+    else:
+        try:
+            student = users_collection.find_one({"_id": ObjectId(student_id), "role": "student"})
+        except Exception:
+            student = None
+            
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found or invalid ID format")
+        
+    if student.get("teacher_id") == teacher_id:
+        return {"message": f"Student {student.get('name')} is already linked to you.", "already_linked": True}
+        
+    users_collection.update_one(
+        {"_id": student["_id"]},
+        {"$set": {"teacher_id": teacher_id}},
+    )
+    
+    return {"message": f"Successfully linked student {student.get('name')} to your account."}
+
+
 @app.get("/admin/safety-alerts")
 def admin_get_safety_alerts(teacher_id: str = None, limit: int = 50):
     """Fetch recent safety-flag incidents for the teacher's admin dashboard.
