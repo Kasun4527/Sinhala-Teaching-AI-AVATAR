@@ -1,6 +1,8 @@
 # Next.js
 .next/
 node_modules/
+frontend/.next/
+frontend/node_modules/
 
 # Python / FastAPI
 backend/.env
@@ -13,6 +15,7 @@ backend/temp/
 mongodb_data/
 backend/mongodb_data/
 backend/.venv/
+.venv/
 
 # Engagement engine local venv (model weights under engagement_engine/models/ ARE tracked)
 engagement_engine/venv/
@@ -27,3 +30,10 @@ personalization_report_0705.md
 # ChromaDB Vector Store
 backend/chroma_db/
 *.sqlite3
+
+# AVTR-1 avatar video cache (recorded live sessions, regenerated on demand —
+# local disk for now, Azure Files-mounted after deploy; see backend/db.py's
+# avtr_video_cache_collection)
+backend/avtr_cache/Avatar Mobile frontend/
+
+Avatar Mobile frontend/
