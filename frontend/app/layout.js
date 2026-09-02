@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "IDS Platform",
-  description: "Intelligent Distance Learning System",
+  title: "SUBHASHA — Sinhala AI Avatar Teacher",
+  description: "Sri Lanka's first AI Avatar teaching platform — personalized Sinhala-medium lessons in Physics, Chemistry, Biology, Maths, Economics and Buddhism.",
 };
 
 export default function RootLayout({ children }) {
@@ -10,11 +10,13 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;500;600&family=Raleway:wght@300;400;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+      </body>
     </html>
   );
 }

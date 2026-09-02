@@ -40,3 +40,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Azure deployment artifacts
+f0dac557-*-swa-oryx/
+f0dac557-*-api.zip
+f0dac557-*-app.zip

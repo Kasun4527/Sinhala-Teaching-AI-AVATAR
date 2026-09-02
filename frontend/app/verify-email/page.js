@@ -31,22 +31,20 @@ function VerifyEmailPageContent() {
   const border = status === "verifying" ? "#bfdbfe" : status === "success" ? "#bbf7d0" : "#fecaca";
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", alignItems: "center", justifyContent: "center", fontFamily: "'Source Sans 3', sans-serif" }}>
+    <div className="font-body" style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 460, padding: "0 24px" }}>
 
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
-          <div style={{ backgroundColor: "#2563eb", width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "white", fontWeight: 700, fontSize: 12 }}>IDS</span>
-          </div>
-          <span style={{ fontWeight: 600, fontSize: 15, color: "#0f172a" }}>IDS Platform</span>
+          <img src="/logo.png" alt="SUBHASHA" style={{ height: 38, width: "auto", objectFit: "contain", flexShrink: 0 }} />
+          <span className="text-logo c-navy">SUBHASHA Platform</span>
         </div>
 
         <div style={{ background: "white", borderRadius: 20, padding: "48px 40px", boxShadow: "0 4px 24px rgba(0,0,0,0.07)", textAlign: "center" }}>
 
           <div style={{ fontSize: 56, marginBottom: 20 }}>{icon}</div>
 
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: "#0f172a", margin: "0 0 12px" }}>
+          <h1 className="text-card-title" style={{ color: "#0f172a", margin: "0 0 12px" }}>
             {status === "verifying" && "Verifying your email…"}
             {status === "success"   && "Email Verified!"}
             {status === "error"     && "Verification Failed"}

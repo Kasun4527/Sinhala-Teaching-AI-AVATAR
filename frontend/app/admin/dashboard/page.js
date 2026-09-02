@@ -72,15 +72,67 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [teacherCode, setTeacherCode] = useState("");
   const [codeCopied, setCodeCopied] = useState(false);
+  const [safetyAlerts, setSafetyAlerts] = useState([]);
+  const [showAlerts, setShowAlerts] = useState(false);
+
+  // Parent modal
+  const [parentModal, setParentModal] = useState(false);
+  const [parentInfo, setParentInfo] = useState(null);
+  const [parentMsg, setParentMsg] = useState("");
+  const [parentMsgStatus, setParentMsgStatus] = useState("");
+
+  // Feedback modal
+  const [feedbackModal, setFeedbackModal] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState("");
+  const [dateFilter, setDateFilter] = useState("All Time");
+  const [feedbackContext, setFeedbackContext] = useState({ lesson: "", topic: "" });
+
+  const isWithinDateFilter = (dateString, filter) => {
+    if (filter === "All Time") return true;
+    if (!dateString) return false;
+    const d = new Date(dateString);
+    const now = new Date();
+    if (filter === "Today") {
+      return d.toDateString() === now.toDateString();
+    }
+    if (filter === "Yesterday") {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return d.toDateString() === yesterday.toDateString();
+    }
+    if (filter === "Last 7 Days") {
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return d >= sevenDaysAgo;
+    }
+    if (filter === "Last Month") {
+      const lastMonth = new Date(now);
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+      return d >= lastMonth;
+    }
+    return true;
+  };
 
   useEffect(() => {
     const role = localStorage.getItem("role");
     const name = localStorage.getItem("name");
     if (role !== "admin") { router.push("/"); return; }
     setAdminName(name || "Admin");
-    setTeacherCode(localStorage.getItem("student_id") || "");
+    setTeacherCode(localStorage.getItem("teacher_code") || localStorage.getItem("student_id") || "");
     fetchStudents();
+    fetchSafetyAlerts();
   }, []);
+
+  const fetchSafetyAlerts = async () => {
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      const res = await axios.get(`${API}/admin/safety-alerts`, { params: { teacher_id: teacherId, limit: 50 } });
+      setSafetyAlerts(res.data.alerts || []);
+    } catch (err) {
+      console.error("Failed to load safety alerts", err);
+    }
+  };
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -92,6 +144,56 @@ export default function AdminDashboard() {
       console.error("Failed to load students", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchParentInfo = async (studentId) => {
+    try {
+      const res = await axios.get(`${API}/admin/student-parent`, { params: { student_id: studentId } });
+      setParentInfo(res.data);
+      setParentModal(true);
+      setParentMsg("");
+      setParentMsgStatus("");
+    } catch (err) {
+      console.error("Failed to load parent info", err);
+      setParentInfo({ has_parent: false });
+      setParentModal(true);
+    }
+  };
+
+  const sendParentMessage = async () => {
+    if (!parentMsg.trim()) return;
+    setParentMsgStatus("sending");
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      await axios.post(`${API}/admin/send-parent-message`, {
+        teacher_id: teacherId,
+        student_id: selectedStudent.student_id,
+        message: parentMsg.trim(),
+      });
+      setParentMsgStatus("sent");
+      setParentMsg("");
+    } catch (err) {
+      setParentMsgStatus("error");
+    }
+  };
+
+  const sendStudentFeedback = async () => {
+    if (!feedbackMsg.trim()) return;
+    setFeedbackStatus("sending");
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      await axios.post(`${API}/admin/send-student-feedback`, {
+        teacher_id: teacherId,
+        student_id: selectedStudent.student_id,
+        subject: selectedSubject || "",
+        lesson: feedbackContext.lesson || "",
+        message: feedbackMsg.trim(),
+      });
+      setFeedbackStatus("sent");
+      setFeedbackMsg("");
+    } catch (err) {
+      setFeedbackStatus("error");
     }
   };
 
@@ -156,7 +258,7 @@ export default function AdminDashboard() {
   const sm = selectedSubject ? (subjectMeta[selectedSubject] || { color: ACCENT, glow: "rgba(59,130,246,0.15)", icon: "📚" }) : null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", background: SURFACE, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", background: SURFACE, }}>
 
       {/* ── Sidebar ── */}
       <aside style={{
@@ -169,17 +271,10 @@ export default function AdminDashboard() {
           {/* Logo */}
           <div style={{ padding: "28px 20px 24px", borderBottom: `1px solid ${BORDER}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: `linear-gradient(135deg, ${ACCENT}, #1d4ed8)`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: `0 0 16px rgba(59,130,246,0.4)`,
-              }}>
-                <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>IDS</span>
-              </div>
+              <img src="/logo.png" alt="SUBHASHA" style={{ height: 36, width: "auto", objectFit: "contain", flexShrink: 0 }} />
               <div>
-                <p style={{ color: TEXT, fontWeight: 700, fontSize: 13, margin: 0 }}>IDS Platform</p>
-                <p style={{ color: MUTED, fontSize: 10, margin: 0, letterSpacing: "0.08em" }}>ADMIN PANEL</p>
+                <p className="text-logo-sm" style={{ color: TEXT, margin: 0 }}>SUBHASHA Platform</p>
+                <p className="text-caption" style={{ color: MUTED, margin: 0 }}>TEACHER PANEL</p>
               </div>
             </div>
           </div>
@@ -267,7 +362,7 @@ export default function AdminDashboard() {
                 <p style={{ color: TEXT, fontSize: 12, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {adminName}
                 </p>
-                <p style={{ color: MUTED, fontSize: 10, margin: 0 }}>Administrator</p>
+                <p style={{ color: MUTED, fontSize: 10, margin: 0 }}>Teacher</p>
               </div>
             </div>
           </div>
@@ -293,10 +388,10 @@ export default function AdminDashboard() {
         {/* Header */}
         <div style={{ marginBottom: 36, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
           <div>
-            <p style={{ color: MUTED, fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>
-              Admin Panel
+            <p className="text-label" style={{ color: MUTED, marginBottom: 6 }}>
+              Teacher Panel
             </p>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: "-0.5px" }}>
+            <h1 className="text-section-title" style={{ color: TEXT, margin: 0 }}>
               Student Analytics
             </h1>
           </div>
@@ -337,6 +432,109 @@ export default function AdminDashboard() {
               {codeCopied ? "Copied!" : "Copy"}
             </button>
           </div>
+        </div>
+
+        {/* ── Safety Alerts ── */}
+        <div style={{
+          background: CARD, borderRadius: 14, border: `1px solid ${safetyAlerts.length > 0 ? "#ef4444" : BORDER}`,
+          padding: "16px 22px", marginBottom: 24,
+        }}>
+          <div
+            onClick={() => setShowAlerts(!showAlerts)}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              cursor: "pointer", userSelect: "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18 }}>🛡️</span>
+              <div>
+                <p style={{ color: TEXT, fontSize: 14, fontWeight: 700, margin: 0 }}>
+                  Safety Alerts
+                </p>
+                <p style={{ color: MUTED, fontSize: 11, margin: 0 }}>
+                  Content guardrail violations detected by the LLM safety system
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {safetyAlerts.length > 0 && (
+                <span style={{
+                  background: "#ef4444", color: "white", fontSize: 11, fontWeight: 700,
+                  padding: "3px 10px", borderRadius: 99, minWidth: 20, textAlign: "center",
+                }}>
+                  {safetyAlerts.length}
+                </span>
+              )}
+              <span style={{ color: MUTED, fontSize: 16, transition: "transform 0.2s", transform: showAlerts ? "rotate(180deg)" : "rotate(0)" }}>
+                ▼
+              </span>
+            </div>
+          </div>
+
+          {showAlerts && (
+            <div style={{ marginTop: 16, maxHeight: 400, overflowY: "auto" }}>
+              {safetyAlerts.length === 0 ? (
+                <p style={{ color: MUTED, fontSize: 12, textAlign: "center", padding: 20 }}>
+                  ✅ No safety incidents recorded. All systems operating normally.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {safetyAlerts.map((alert, i) => (
+                    <div key={i} style={{
+                      padding: "14px 16px", borderRadius: 10,
+                      background: "#0f172a", border: `1px solid ${alert.flag_type === "input_blocked" ? "#f97316" : "#ef4444"}`,
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
+                            background: alert.flag_type === "input_blocked" ? "rgba(249,115,22,0.15)" : "rgba(239,68,68,0.15)",
+                            color: alert.flag_type === "input_blocked" ? "#fb923c" : "#f87171",
+                            textTransform: "uppercase", letterSpacing: "0.05em",
+                          }}>
+                            {alert.flag_type === "input_blocked" ? "Input Blocked" : "Output Flagged"}
+                          </span>
+                          <span style={{ color: MUTED, fontSize: 10 }}>
+                            {alert.agent || "unknown agent"}
+                          </span>
+                        </div>
+                        <span style={{ color: MUTED, fontSize: 10 }}>
+                          {alert.created_at ? new Date(alert.created_at).toLocaleString() : "—"}
+                        </span>
+                      </div>
+                      <p style={{ color: TEXT2, fontSize: 12, margin: "0 0 4px", fontWeight: 600 }}>
+                        {alert.reason}
+                      </p>
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        {alert.student_id && (
+                          <span style={{ color: MUTED, fontSize: 11 }}>
+                            👤 Student: <span style={{ color: TEXT2 }}>{alert.student_id}</span>
+                          </span>
+                        )}
+                        {alert.subject && (
+                          <span style={{ color: MUTED, fontSize: 11 }}>
+                            📘 {alert.subject} → {alert.topic || alert.lesson || "—"}
+                          </span>
+                        )}
+                      </div>
+                      {alert.content_snippet && (
+                        <p style={{
+                          color: MUTED, fontSize: 11, margin: "8px 0 0",
+                          padding: "8px 10px", background: "rgba(255,255,255,0.02)",
+                          borderRadius: 6, border: `1px solid ${BORDER}`,
+                           wordBreak: "break-all",
+                          maxHeight: 60, overflow: "hidden",
+                        }}>
+                          {alert.content_snippet}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Top stat row */}
@@ -469,6 +667,32 @@ export default function AdminDashboard() {
                     <h2 style={{ color: TEXT, fontSize: 22, fontWeight: 800, margin: "0 0 2px" }}>{selectedStudent.name}</h2>
                     <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>{selectedStudent.email}</p>
                   </div>
+                  <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+                    <button
+                      onClick={() => fetchParentInfo(selectedStudent.student_id)}
+                      style={{
+                        padding: "8px 14px", borderRadius: 10, border: `1px solid ${BORDER}`,
+                        background: "rgba(255,255,255,0.04)", color: TEXT2, cursor: "pointer",
+                        fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+                    >
+                      👨‍👩‍👧 View Parent
+                    </button>
+                    <button
+                      onClick={() => { setFeedbackContext({ lesson: "", topic: "" }); setFeedbackModal(true); setFeedbackMsg(""); setFeedbackStatus(""); }}
+                      style={{
+                        padding: "8px 14px", borderRadius: 10, border: "none",
+                        background: ACCENT, color: "white", cursor: "pointer",
+                        fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      📝 Send Feedback
+                    </button>
+                  </div>
                 </div>
 
                 {/* Subjects */}
@@ -506,6 +730,26 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Date Filter */}
+            {selectedSubject && (
+              <div style={{ marginBottom: 24, display: "flex", gap: 10 }}>
+                {["All Time", "Today", "Yesterday", "Last 7 Days", "Last Month"].map(df => (
+                  <button
+                    key={df}
+                    onClick={() => setDateFilter(df)}
+                    style={{
+                      padding: "8px 14px", borderRadius: 8, border: `1px solid ${dateFilter === df ? ACCENT : BORDER}`,
+                      background: dateFilter === df ? "rgba(59,130,246,0.15)" : "transparent",
+                      color: dateFilter === df ? ACCENT : TEXT2, cursor: "pointer",
+                      fontSize: 12, fontWeight: 600, transition: "all 0.15s"
+                    }}
+                  >
+                    {df}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -725,12 +969,12 @@ export default function AdminDashboard() {
                             )}
 
                             {/* Engagement sessions */}
-                            {(engagementData[i] || []).length > 0 && (
+                            {(engagementData[i] || []).filter(e => isWithinDateFilter(e.started_at, dateFilter)).length > 0 && (
                               <div style={{ marginBottom: 20 }}>
                                 <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   Engagement Sessions
                                 </p>
-                                {(engagementData[i] || []).map((session, si) => {
+                                {(engagementData[i] || []).filter(e => isWithinDateFilter(e.started_at, dateFilter)).map((session, si) => {
                                   const scoreColor = session.avg_score >= 75 ? "#34d399" : session.avg_score >= 50 ? "#fbbf24" : "#f87171";
                                   return (
                                     <div key={si} style={{
@@ -742,6 +986,22 @@ export default function AdminDashboard() {
                                           {new Date(session.started_at).toLocaleString()} · {Math.round(session.duration_seconds / 60)}m
                                         </p>
                                         <div style={{ display: "flex", gap: 8 }}>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setFeedbackContext({ lesson: t.lesson, topic: t.topic });
+                                              setFeedbackModal(true);
+                                              setFeedbackMsg("");
+                                              setFeedbackStatus("");
+                                            }}
+                                            style={{
+                                              padding: "4px 10px", borderRadius: 8, border: "none",
+                                              background: ACCENT, color: "white", cursor: "pointer",
+                                              fontSize: 11, fontWeight: 700
+                                            }}
+                                          >
+                                            Write Feedback
+                                          </button>
                                           {[
                                             { label: "Avg", value: session.avg_score, color: scoreColor },
                                             { label: "Min", value: session.min_score, color: "#f87171" },
@@ -780,12 +1040,12 @@ export default function AdminDashboard() {
                             )}
 
                             {/* YouTube watch history */}
-                            {(youtubeData[i] || []).length > 0 && (
+                            {(youtubeData[i] || []).filter(y => isWithinDateFilter(y.started_at, dateFilter)).length > 0 && (
                               <div style={{ marginBottom: 20 }}>
                                 <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   YouTube Watch History
                                 </p>
-                                {(youtubeData[i] || []).map((session, yi) => (
+                                {(youtubeData[i] || []).filter(y => isWithinDateFilter(y.started_at, dateFilter)).map((session, yi) => (
                                   <div key={yi} style={{
                                     background: CARD, border: `1px solid ${BORDER}`,
                                     borderRadius: 12, padding: "14px 18px", marginBottom: 10,
@@ -817,12 +1077,12 @@ export default function AdminDashboard() {
                             )}
 
                             {/* Q&A */}
-                            {(qaData[i] || []).length > 0 && (
+                            {(qaData[i] || []).filter(q => isWithinDateFilter(q.asked_at, dateFilter)).length > 0 && (
                               <div>
                                 <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   Student Q&amp;A
                                 </p>
-                                {(qaData[i] || []).map((qa, qi) => (
+                                {(qaData[i] || []).filter(q => isWithinDateFilter(q.asked_at, dateFilter)).map((qa, qi) => (
                                   <div key={qi} style={{
                                     background: CARD, border: `1px solid ${BORDER}`,
                                     borderRadius: 12, padding: "14px 18px", marginBottom: 10,
@@ -854,9 +1114,175 @@ export default function AdminDashboard() {
         </div>
       </main>
 
+      {/* ── Parent Details Modal ── */}
+      {parentModal && (
+        <div
+          onClick={() => setParentModal(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: CARD, borderRadius: 20, border: `1px solid ${BORDER}`,
+              padding: "32px 36px", width: 460, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>👨‍👩‍👧</span>
+                <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 700, margin: 0 }}>Parent Details</h3>
+              </div>
+              <button
+                onClick={() => setParentModal(false)}
+                style={{ background: "none", border: "none", color: MUTED, fontSize: 20, cursor: "pointer" }}
+              >✕</button>
+            </div>
+
+            {parentInfo?.has_parent ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+                  {[
+                    { label: "Name", value: parentInfo.parent_name },
+                    { label: "Contact", value: parentInfo.parent_contact || "Not provided" },
+                    { label: "Email", value: parentInfo.parent_email },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{
+                      padding: "12px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}`,
+                    }}>
+                      <p style={{ color: TEXT2, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>{label}</p>
+                      <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{value || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 20 }}>
+                  <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px" }}>Send Message to Parent</p>
+                  <textarea
+                    value={parentMsg}
+                    onChange={e => setParentMsg(e.target.value)}
+                    placeholder="Type your message here..."
+                    rows={3}
+                    style={{
+                      width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 13,
+                      background: "#0f172a", border: `1px solid ${BORDER}`, color: TEXT,
+                      outline: "none", resize: "vertical", boxSizing: "border-box",
+                    }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+                    <button
+                      onClick={sendParentMessage}
+                      disabled={!parentMsg.trim() || parentMsgStatus === "sending"}
+                      style={{
+                        padding: "8px 20px", borderRadius: 10, border: "none",
+                        background: parentMsg.trim() && parentMsgStatus !== "sending" ? ACCENT : "#334155",
+                        color: "white", fontWeight: 600, fontSize: 12, cursor: parentMsg.trim() ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {parentMsgStatus === "sending" ? "Sending..." : "Send Message"}
+                    </button>
+                    {parentMsgStatus === "sent" && <span style={{ color: "#34d399", fontSize: 12, fontWeight: 600 }}>✓ Message sent!</span>}
+                    {parentMsgStatus === "error" && <span style={{ color: "#f87171", fontSize: 12, fontWeight: 600 }}>Failed to send</span>}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ textAlign: "center", padding: "30px 0" }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: "50%", margin: "0 auto 14px",
+                  background: "rgba(100,116,139,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 22,
+                }}>👤</div>
+                <p style={{ color: TEXT, fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>No parent linked</p>
+                <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>This student's parent has not linked their account yet via the mobile app.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Send Feedback Modal ── */}
+      {feedbackModal && selectedStudent && (
+        <div
+          onClick={() => setFeedbackModal(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: CARD, borderRadius: 20, border: `1px solid ${BORDER}`,
+              padding: "32px 36px", width: 480, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>📝</span>
+                <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 700, margin: 0 }}>Send Feedback</h3>
+              </div>
+              <button
+                onClick={() => setFeedbackModal(false)}
+                style={{ background: "none", border: "none", color: MUTED, fontSize: 20, cursor: "pointer" }}
+              >✕</button>
+            </div>
+
+            <p style={{ color: TEXT2, fontSize: 12, margin: "0 0 16px" }}>
+              Sending feedback to <strong style={{ color: TEXT }}>{selectedStudent.name}</strong>
+              {selectedSubject ? <> for <strong style={{ color: TEXT }}>{selectedSubject}</strong></> : ""}
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}` }}>
+                <p style={{ color: TEXT2, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Subject</p>
+                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{selectedSubject || "General"}</p>
+              </div>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}` }}>
+                <p style={{ color: TEXT2, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Lesson/Topic</p>
+                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{feedbackContext?.lesson || feedbackContext?.topic || "—"}</p>
+              </div>
+            </div>
+
+            <textarea
+              value={feedbackMsg}
+              onChange={e => setFeedbackMsg(e.target.value)}
+              placeholder="Write your feedback for the student..."
+              rows={4}
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: 10, fontSize: 13,
+                background: "#0f172a", border: `1px solid ${BORDER}`, color: TEXT,
+                outline: "none", resize: "vertical", boxSizing: "border-box",
+              }}
+            />
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+              <button
+                onClick={sendStudentFeedback}
+                disabled={!feedbackMsg.trim() || feedbackStatus === "sending"}
+                style={{
+                  padding: "10px 24px", borderRadius: 10, border: "none",
+                  background: feedbackMsg.trim() && feedbackStatus !== "sending" ? ACCENT : "#334155",
+                  color: "white", fontWeight: 600, fontSize: 13, cursor: feedbackMsg.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                {feedbackStatus === "sending" ? "Sending..." : "Send Feedback"}
+              </button>
+              {feedbackStatus === "sent" && <span style={{ color: "#34d399", fontSize: 12, fontWeight: 600 }}>✓ Feedback sent! Student will see it in their notifications.</span>}
+              {feedbackStatus === "error" && <span style={{ color: "#f87171", fontSize: 12, fontWeight: 600 }}>Failed to send</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         * { box-sizing: border-box; }
         input::placeholder { color: #475569; }
+        textarea::placeholder { color: #475569; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }

@@ -2,8 +2,10 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, Suspense } from "react";
-import Sidebar from "@/components/Sidebar";
-import { getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer } from "@/services/api";
+import Navbar from "@/components/Navbar";
+import { BackgroundBeamsWithCollision } from "@/components/ui/background-beams-with-collision";
+import { getErrorMessage, getPreQuiz, getPostQuiz, submitPreQuiz, submitPostQuiz, submitSingleAnswer, getPracticeQuiz, submitPracticeQuiz } from "@/services/api";
+import { displaySubjectName } from "@/data/subjectDisplay";
 
 const NAVY = "#0f172a";
 
@@ -14,6 +16,11 @@ const SUBJECT_CFG = {
   Maths:                { hue: "#7c3aed", dark: "#3b0764" },
   "ආර්ථික විද්‍යාව":   { hue: "#b45309", dark: "#78350f" },
   "බුද්ධ ධර්මය":       { hue: "#c026d3", dark: "#701a75" },
+  "ඉතිහාසය11":         { hue: "#c2410c", dark: "#7c2d12" },
+  "කෘෂි විද්‍යාව12":   { hue: "#65a30d", dark: "#365314" },
+  "ගණිතය11":           { hue: "#6366f1", dark: "#3730a3" },
+  "රසායන විද්‍යාව12":  { hue: "#0891b2", dark: "#164e63" },
+  "රසායන විද්‍යාව13":  { hue: "#2563eb", dark: "#1e3a8a" },
 };
 const DEFAULT_CFG = { hue: "#2563eb", dark: "#1e3a8a" };
 
@@ -58,52 +65,56 @@ function FloatingPattern({ color }) {
 // ── Fullscreen loading/submitting overlay ──────────────────────────
 function LoadingScreen({ subject, cfg, title, subtitle }) {
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e3a8a 100%)" }}>
+      <Navbar />
       <main style={{
         flex: 1, minWidth: 0,
-        background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark} 55%, ${cfg.hue} 100%)`,
-        display: "flex", alignItems: "center", justifyContent: "center",
         position: "relative", overflow: "hidden",
       }}>
+        <BackgroundBeamsWithCollision className="!h-full w-full absolute inset-0 z-0" />
+        
         {/* dot grid */}
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.25,
-          backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
-          backgroundSize: "28px 28px" }} />
-        <div style={{ position: "absolute", top: "10%", right: "10%", width: 340, height: 340, borderRadius: "50%",
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.15, zIndex: 1,
+          backgroundImage: "radial-gradient(rgba(255,255,255,0.2) 1px, transparent 1px)",
+          backgroundSize: "32px 32px" }} />
+        <div style={{ position: "absolute", top: "10%", right: "10%", width: 400, height: 400, borderRadius: "50%", zIndex: 1,
           background: "radial-gradient(circle, rgba(147,197,253,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: "-10%", left: "-10%", width: 500, height: 500, borderRadius: "50%", zIndex: 1,
+          background: "radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-        <div style={{
-          position: "relative",
-          background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: 24, padding: "52px 64px", textAlign: "center",
-          boxShadow: "0 32px 80px rgba(0,0,0,0.3)",
-          minWidth: 360,
-        }}>
-          {/* Spinner ring */}
-          <div style={{ position: "relative", width: 64, height: 64, margin: "0 auto 28px" }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: "50%",
-              border: "3px solid rgba(255,255,255,0.12)",
-              borderTop: "3px solid #93c5fd",
-              animation: "spin 0.9s linear infinite",
-              position: "absolute", inset: 0,
-            }} />
-            <div style={{
-              width: 44, height: 44, borderRadius: "50%",
-              border: "2px solid rgba(255,255,255,0.07)",
-              borderBottom: "2px solid rgba(147,197,253,0.5)",
-              animation: "spin 1.4s linear infinite reverse",
-              position: "absolute", top: 10, left: 10,
-            }} />
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
+          <div style={{
+            position: "relative",
+            background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 24, padding: "52px 64px", textAlign: "center",
+            boxShadow: "0 32px 80px rgba(0,0,0,0.3)",
+            minWidth: 360,
+          }}>
+            {/* Spinner ring */}
+            <div style={{ position: "relative", width: 64, height: 64, margin: "0 auto 28px" }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: "50%",
+                border: "3px solid rgba(255,255,255,0.12)",
+                borderTop: "3px solid #93c5fd",
+                animation: "spin 0.9s linear infinite",
+                position: "absolute", inset: 0,
+              }} />
+              <div style={{
+                width: 44, height: 44, borderRadius: "50%",
+                border: "2px solid rgba(255,255,255,0.07)",
+                borderBottom: "2px solid rgba(147,197,253,0.5)",
+                animation: "spin 1.4s linear infinite reverse",
+                position: "absolute", top: 10, left: 10,
+              }} />
+            </div>
+            <p style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 18, margin: "0 0 8px",  letterSpacing: "0.02em" }}>
+              {title}
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14, margin: 0, lineHeight: 1.7 }}>
+              {subtitle}
+            </p>
           </div>
-          <p style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 18, margin: "0 0 8px", fontFamily: "'Raleway', sans-serif", letterSpacing: "0.02em" }}>
-            {title}
-          </p>
-          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14, margin: 0, lineHeight: 1.7 }}>
-            {subtitle}
-          </p>
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </main>
@@ -131,27 +142,32 @@ function QuizPageContent() {
   const cfg    = SUBJECT_CFG[subject] || DEFAULT_CFG;
   const accent = cfg.hue;
   const isPost = type === "post";
+  const isPractice = type === "practice";
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
+    const studentId = localStorage.getItem("student_id");
     if (!subject || !lesson || !topic) { setLoading(false); return; }
+    if (isPractice && !studentId) { setLoading(false); return; }
 
     const fetchQuiz = async () => {
       try {
         setError(""); setLoading(true);
         const res  = isPost
           ? await getPostQuiz(subject, lesson, topic, level)
-          : await getPreQuiz(subject, lesson, topic);
+          : isPractice
+            ? await getPracticeQuiz(studentId, subject, lesson, topic)
+            : await getPreQuiz(subject, lesson, topic);
         const data = res?.data || {};
         const generatedQuiz = data.quiz || data || { questions: [] };
-        if (data?.quiz?.error) setError(data.quiz.error);
+        if (data?.quiz?.error) setError(getErrorMessage(data.quiz.error, "Quiz generator returned an error."));
         if (!generatedQuiz?.questions?.length && !generatedQuiz?.error)
           setError("Quiz generator returned no questions.");
         setQuiz(generatedQuiz);
         setAnswers([]);
       } catch (err) {
-        setError(err?.response?.data?.detail || err?.message || "Quiz generation failed.");
+        setError(getErrorMessage(err, "Quiz generation failed."));
         setQuiz({ questions: [] });
       } finally {
         setLoading(false);
@@ -167,10 +183,23 @@ function QuizPageContent() {
       const studentId = localStorage.getItem("student_id");
       // Bug #3 Fix: Send quiz_questions for difficulty tracking
       const payload = { subject, lesson, topic, level, student_answers: answers, correct_answers: correctAnswers, student_id: studentId, quiz_questions: quiz.questions };
+      
+      // Save data for the QuizReview component
+      localStorage.setItem("quiz_review_data", JSON.stringify({
+        questions: quiz.questions,
+        answers: answers
+      }));
+
       if (isPost) {
         const res = await submitPostQuiz(payload);
         if (res?.data?.content) localStorage.setItem("lesson_content", res.data.content);
         router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.level || "Beginner"}&topic=${topic}&type=post&subject=${subject}&lesson=${lesson}&grade=${encodeURIComponent(grade)}`);
+      } else if (isPractice) {
+        const res = await submitPracticeQuiz({
+          subject, lesson, topic, student_id: studentId,
+          quiz_questions: quiz.questions, student_answers: answers,
+        });
+        router.push(`/result?score=${res?.data?.score || 0}&level=${res?.data?.score_level || "Beginner"}&topic=${topic}&type=practice&subject=${subject}&lesson=${lesson}`);
       } else {
         const res = await submitPreQuiz(payload);
         localStorage.setItem("lesson_content", res?.data?.content || "");
@@ -185,7 +214,7 @@ function QuizPageContent() {
   if (loading) return (
     <LoadingScreen
       subject={subject} cfg={cfg}
-      title={isPost ? "Preparing Post Quiz..." : "Preparing Pre Quiz..."}
+      title={isPost ? "Preparing Post Quiz..." : isPractice ? "Preparing Practice Quiz..." : "Preparing Pre Quiz..."}
       subtitle={`Generating questions for "${topic}"`}
     />
   );
@@ -199,8 +228,8 @@ function QuizPageContent() {
   );
 
   if (!quiz?.questions?.length) return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#020617" }}>
+      <Navbar />
       <main style={{ flex: 1, padding: 48, backgroundColor: "#f8fafc" }}>
         <div style={{ maxWidth: 640, background: "white", borderRadius: 16, padding: 28, border: "1.5px solid #fecaca" }}>
           <p style={{ color: "#b91c1c", fontWeight: 700, marginBottom: 8 }}>{error || "No quiz available."}</p>
@@ -214,27 +243,32 @@ function QuizPageContent() {
   const progress  = (answered / quiz.questions.length) * 100;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "'Source Sans 3', sans-serif" }}>
-      <Sidebar subject={subject} />
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#020617", }}>
+      <Navbar />
 
-      <main style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+      <main style={{ flex: 1, minWidth: 0, height: "100vh", overflowY: "auto", background: "#f8fafc" }}>
+      
+        <div style={{ padding: "40px 60px 0" }}>
+          
+        </div>
 
         {/* ── HERO ── */}
         <div style={{
           position: "relative", overflow: "hidden",
-          background: `linear-gradient(145deg, ${NAVY} 0%, ${cfg.dark} 55%, ${accent} 100%)`,
+          background: `linear-gradient(135deg, #020617 0%, #020617 45%, ${NAVY} 70%, ${cfg.dark} 90%, ${accent} 100%)`,
           padding: "44px 60px 40px",
         }}>
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.3,
             backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
             backgroundSize: "26px 26px" }} />
+          {/* Right side glow */}
           <div style={{ position: "absolute", top: -60, right: -40, width: 300, height: 300, borderRadius: "50%",
             background: "radial-gradient(circle, rgba(147,197,253,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
 
           <div style={{ position: "relative" }}>
             {/* Breadcrumb */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
-              {[subject, lesson, topic].filter(Boolean).map((crumb, i, arr) => (
+              {[displaySubjectName(subject), lesson, topic].filter(Boolean).map((crumb, i, arr) => (
                 <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ color: i === arr.length - 1 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.35)", fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     {crumb}
@@ -246,8 +280,8 @@ function QuizPageContent() {
 
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32 }}>
               <div>
-                <h1 style={{ fontFamily: "'Raleway', sans-serif", fontSize: 36, fontWeight: 700, color: "#f1f5f9", margin: "0 0 8px", letterSpacing: "0.01em" }}>
-                  {isPost ? "Post Lesson Quiz" : "Pre Lesson Quiz"}
+                <h1 style={{  fontSize: 36, fontWeight: 700, color: "#f1f5f9", margin: "0 0 8px", letterSpacing: "0.01em" }}>
+                  {isPost ? "Post Lesson Quiz" : isPractice ? "Practice Quiz" : "Pre Lesson Quiz"}
                 </h1>
                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, margin: 0 }}>
                   {quiz.questions.length} questions &middot; Answer all before submitting
@@ -278,14 +312,14 @@ function QuizPageContent() {
         </div>
 
         {/* ── BODY ── */}
-        <div style={{ padding: "40px 60px 72px", position: "relative", overflow: "hidden" }}>
+        <div style={{ padding: "40px 60px 72px", position: "relative", overflow: "visible", display: "flex", gap: "40px", alignItems: "flex-start" }}>
           <FloatingPattern color={accent} />
-          <div style={{ maxWidth: 760, position: "relative", zIndex: 1 }}>
-
+          
+          <div style={{ flex: 1, maxWidth: 860, position: "relative", zIndex: 1 }}>
             {/* Questions */}
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               {quiz.questions.map((q, i) => (
-                <div key={i} style={{
+                <div key={i} id={`q-${i}`} style={{
                   background: "white", borderRadius: 18, overflow: "hidden",
                   border: answers[i] ? `1.5px solid ${accent}40` : "1.5px solid #e8edf2",
                   boxShadow: answers[i]
@@ -323,8 +357,9 @@ function QuizPageContent() {
                             onClick={() => {
                               const a = [...answers]; a[i] = opt; setAnswers(a);
                               // Bug #10: Fire per-answer online learning update (non-blocking)
+                              // Practice quizzes must never feed BKT/mastery — skip entirely.
                               const studentId = localStorage.getItem("student_id");
-                              if (studentId && q.answer) {
+                              if (studentId && q.answer && !isPractice) {
                                 submitSingleAnswer({
                                   student_id: studentId,
                                   subject, lesson, topic,
@@ -375,34 +410,126 @@ function QuizPageContent() {
               ))}
             </div>
 
-            {/* Submit button */}
-            <div style={{ marginTop: 28 }}>
+            {/* Submit button at the end of the quiz */}
+            <div style={{ marginTop: 36, display: "flex", justifyContent: "flex-end" }}>
               <button
                 onClick={handleSubmit}
                 disabled={answered < quiz.questions.length}
                 style={{
-                  width: "100%", padding: "15px",
+                  padding: "16px 32px",
                   background: answered < quiz.questions.length
                     ? "#e2e8f0"
                     : `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
                   color: answered < quiz.questions.length ? "#94a3b8" : "white",
                   border: "none", borderRadius: 14,
-                  fontSize: 15, fontWeight: 700, cursor: answered < quiz.questions.length ? "not-allowed" : "pointer",
+                  fontSize: 16, fontWeight: 800, cursor: answered < quiz.questions.length ? "not-allowed" : "pointer",
+                  boxShadow: answered < quiz.questions.length ? "none" : `0 8px 24px ${accent}45`,
+                  transition: "all 0.2s",
+                  letterSpacing: "0.02em",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                  animation: answered === quiz.questions.length ? "pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none",
+                }}
+                onMouseEnter={(e) => { if(answered === quiz.questions.length) e.currentTarget.style.transform = "scale(1.03)" }}
+                onMouseLeave={(e) => { if(answered === quiz.questions.length) e.currentTarget.style.transform = "scale(1)" }}
+              >
+                {answered < quiz.questions.length ? (
+                  <span>{quiz.questions.length - answered} Left</span>
+                ) : (
+                  <>
+                    <span>Submit Quiz</span>
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+
+          {/* Right side Question Palette */}
+          <div style={{
+            position: "sticky", top: 40, width: 300, flexShrink: 0,
+            background: "white", borderRadius: 20, padding: 28,
+            border: "1.5px solid #e8edf2", 
+            boxShadow: "0 32px 80px rgba(0,0,0,0.12), 0 8px 24px rgba(0,0,0,0.08)",
+            zIndex: 10,
+          }}>
+            <h3 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 800, color: NAVY,  }}>
+              Question Map
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+              {quiz.questions.map((_, i) => {
+                const isAnswered = !!answers[i];
+                return (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      const el = document.getElementById(`q-${i}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    style={{
+                      aspectRatio: "1", borderRadius: 12,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontWeight: 800, fontSize: 15, cursor: "pointer",
+                      background: isAnswered ? `linear-gradient(135deg, ${cfg.dark}, ${accent})` : "#f8fafc",
+                      color: isAnswered ? "white" : "#64748b",
+                      border: isAnswered ? "none" : "1.5px solid #e2e8f0",
+                      boxShadow: isAnswered ? `0 6px 16px ${accent}40` : "none",
+                      transform: isAnswered ? "scale(1.05)" : "scale(1)",
+                      transition: "all 0.2s cubic-bezier(.22,.61,.36,1)"
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Quick Submit button at the bottom of the palette */}
+            <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1.5px dashed #e2e8f0" }}>
+              <button
+                onClick={handleSubmit}
+                disabled={answered < quiz.questions.length}
+                style={{
+                  width: "100%", padding: "16px",
+                  background: answered < quiz.questions.length
+                    ? "#e2e8f0"
+                    : `linear-gradient(135deg, ${cfg.dark}, ${accent})`,
+                  color: answered < quiz.questions.length ? "#94a3b8" : "white",
+                  border: "none", borderRadius: 14,
+                  fontSize: 15, fontWeight: 800, cursor: answered < quiz.questions.length ? "not-allowed" : "pointer",
                   boxShadow: answered < quiz.questions.length ? "none" : `0 8px 24px ${accent}45`,
                   transition: "all 0.2s",
                   letterSpacing: "0.02em",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  animation: answered === quiz.questions.length ? "pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)" : "none",
                 }}
+                onMouseEnter={(e) => { if(answered === quiz.questions.length) e.currentTarget.style.transform = "scale(1.03)" }}
+                onMouseLeave={(e) => { if(answered === quiz.questions.length) e.currentTarget.style.transform = "scale(1)" }}
               >
-                {answered < quiz.questions.length
-                  ? `Answer ${quiz.questions.length - answered} more question${quiz.questions.length - answered !== 1 ? "s" : ""} to submit`
-                  : <>Submit Quiz <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></>
-                }
+                {answered < quiz.questions.length ? (
+                  <span>{quiz.questions.length - answered} Left</span>
+                ) : (
+                  <>
+                    <span>Submit</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
       </main>
+      <style>{`
+        @keyframes pop {
+          0% { transform: scale(0.95); opacity: 0.8; }
+          40% { transform: scale(1.04); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
