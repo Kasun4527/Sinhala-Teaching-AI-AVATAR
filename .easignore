@@ -1,0 +1,28 @@
+# Base dependencies and massive folders to ignore
+node_modules/
+.expo/
+.git/
+.venv/
+venv/
+__pycache__/
+
+# Monorepo Subprojects (Ignore completely)
+backend/
+frontend/
+engagement_engine/
+admin_portal/
+
+# Expo / React Native specific
+dist/
+web-build/
+*.jks
+*.apk
+*.aab
+/ios/
+/android/
+
+# Large binaries or datasets
+*.pdf
+*.pt
+*.mp4
+*.sqlite3
