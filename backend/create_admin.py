@@ -8,6 +8,7 @@ admin = {
     "role": "admin"
 }
 
+
 existing = users_collection.find_one({"email": "admin@ids.com"})
 
 if existing:
