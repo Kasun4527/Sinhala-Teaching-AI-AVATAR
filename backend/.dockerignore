@@ -8,3 +8,6 @@ test_retriever.py
 .git
 .gitignore
 *.md
+documents/
+documents_unicode/
+chroma_db/

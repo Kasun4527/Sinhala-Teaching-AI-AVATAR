@@ -8,11 +8,19 @@ from bson import ObjectId
 
 
 # =========================
-# GET ALL REGISTERED STUDENTS
+# GET REGISTERED STUDENTS LINKED TO A TEACHER
 # =========================
-def get_all_students():
+def get_all_students(teacher_id=None):
+    """Only students who entered this teacher's code are returned — an
+    unassigned student (no teacher_id set) stays hidden from every
+    teacher's dashboard until they link to one."""
+    query = {"role": "student"}
+    if teacher_id:
+        query["teacher_id"] = teacher_id
+    else:
+        query["teacher_id"] = {"$exists": False}
 
-    students = users_collection.find({"role": "student"})
+    students = users_collection.find(query)
 
     result = []
     for s in students:

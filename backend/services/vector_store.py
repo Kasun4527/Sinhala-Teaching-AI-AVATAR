@@ -60,6 +60,76 @@ def parse_filename_metadata(filename: str) -> dict:
     return {"subject": subject, "lesson": lesson, "topic": topic}
 
 
+def ingest_text_content(content: str, filename: str):
+    """
+    Ingest a single file's text content into the existing vector store,
+    adding to it rather than wiping and rebuilding the whole collection
+    (unlike ingest_documents, which deletes CHROMA_PATH and rebuilds from an
+    entire directory). Used for one-off additions, e.g. from the teacher
+    dashboard's PDF pipeline. Re-ingesting the same filename replaces only
+    that file's previous chunks, not any other file's.
+    """
+    meta = parse_filename_metadata(filename)
+    paragraphs = re.split(r'\n{2,}', content)
+    all_chunks = []
+    para_index = 0
+
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+
+        # Always preserve IMAGE tags regardless of length or char ratio
+        if para.upper().startswith("[IMAGE"):
+            all_chunks.append(Document(
+                page_content=f"passage: {para}",
+                metadata={
+                    "source_file": filename,
+                    "subject": meta["subject"],
+                    "lesson": meta["lesson"],
+                    "topic": meta["topic"],
+                    "para_index": para_index,
+                }
+            ))
+            para_index += 1
+            continue
+
+        if len(para) < 80:
+            continue
+        sinhala_chars = sum(1 for c in para if '඀' <= c <= '෿')
+        if sinhala_chars / len(para) < 0.3:
+            continue
+
+        all_chunks.append(Document(
+            page_content=f"passage: {para}",
+            metadata={
+                "source_file": filename,
+                "subject": meta["subject"],
+                "lesson": meta["lesson"],
+                "topic": meta["topic"],
+                "para_index": para_index,
+            }
+        ))
+        para_index += 1
+
+    if not all_chunks:
+        print(f"[WARNING] No valid chunks found in {filename} — nothing ingested")
+        return None
+
+    vector_store = get_vector_store()
+
+    # Remove this file's existing chunks first, if any, so re-ingesting an
+    # updated version of the same lesson replaces rather than duplicates it.
+    try:
+        vector_store._collection.delete(where={"source_file": filename})
+    except Exception:
+        pass  # nothing to delete yet on first-time ingestion
+
+    vector_store.add_documents(all_chunks)
+    print(f"✅ Ingested {len(all_chunks)} chunk(s) for {filename}")
+    return vector_store
+
+
 def ingest_documents(docs_path: str):
     all_chunks = []
 

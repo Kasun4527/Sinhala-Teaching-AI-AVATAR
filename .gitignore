@@ -3,20 +3,6 @@
 node_modules/
 frontend/.next/
 frontend/node_modules/
-frontend/out/
-frontend/build/
-frontend/*-swa-oryx/
-frontend/*.zip
-
-# Model files & large binaries
-*.pt
-*.pth
-*.onnx
-*.bin
-*.fbx
-*.obj
-*.gltf
-*.glb
 
 # Python / FastAPI
 backend/.env
@@ -30,7 +16,6 @@ mongodb_data/
 backend/mongodb_data/
 backend/.venv/
 .venv/
-venv/
 
 # Engagement engine local venv
 engagement_engine/venv/
@@ -47,19 +32,7 @@ personalization_report_0705.md
 backend/chroma_db/
 *.sqlite3
 
-# LaTeX
-*.aux
-*.bbl
-*.blg
-*.fdb_latexmk
-*.fls
-*.log
-*.out
-*.synctex.gz
-*.toc
-*.lof
-*.lot
-
-# OS generated files
-.DS_Store
-Thumbs.db
+# AVTR-1 avatar video cache (recorded live sessions, regenerated on demand —
+# local disk for now, Azure Files-mounted after deploy; see backend/db.py's
+# avtr_video_cache_collection)
+backend/avtr_cache/

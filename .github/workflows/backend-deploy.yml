@@ -30,9 +30,23 @@ jobs:
             sudo docker build -t ai-avatar-backend .
             sudo docker stop avatar-backend || true
             sudo docker rm avatar-backend || true
-            
+
+            # Persistent data dirs for the admin PDF-ingestion pipeline:
+            # finalize writes .txt files into documents_unicode/, images into
+            # images/, and updates chroma_db/ — without host volumes all of
+            # that lives only in the container and is wiped on every deploy.
+            # Seed each dir once from the git checkout, then always mount them.
+            mkdir -p ~/avatar-data
+            [ -d ~/avatar-data/chroma_db ] || cp -r ~/Sinhala-Teaching-AI-AVATAR/backend/chroma_db ~/avatar-data/chroma_db
+            [ -d ~/avatar-data/documents_unicode ] || cp -r ~/Sinhala-Teaching-AI-AVATAR/backend/documents_unicode ~/avatar-data/documents_unicode
+            [ -d ~/avatar-data/images ] || cp -r ~/Sinhala-Teaching-AI-AVATAR/backend/images ~/avatar-data/images
+
             # Note: Make sure your .env file is present on the server in the backend folder!
-            sudo docker run -d --name avatar-backend -p 8000:8000 --restart always --env-file .env ai-avatar-backend
+            sudo docker run -d --name avatar-backend -p 8000:8000 --restart always --env-file .env \
+              -v ~/avatar-data/chroma_db:/app/chroma_db \
+              -v ~/avatar-data/documents_unicode:/app/documents_unicode \
+              -v ~/avatar-data/images:/app/images \
+              ai-avatar-backend
             
             # Clean up old unused images to save disk space
             sudo docker image prune -f

@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "description": "Known Sinhala text extraction errors and their verified corrections. Add new entries as they are discovered and verified.",
+  "corrections": {
+    "හැ`දින්වේ": "හැඳින්වේ",
+    "කෙ`දි": "කෙඳි",
+    "පරිච්ෙඡ්දයේ": "පරිච්ඡේදයේ",
+    "ෙඡ්දයක්": "ඡේදයක්",
+    "ජීවිියකුගේ": "ජීවියකුගේ",
+    "`ඵ": "ළු",
+    "`ප": "ළ",
+    "¥ෂිත": "දූෂිත"
+  },
+  "regex_corrections": [
+    {
+      "pattern": "හැ`(\\S)",
+      "replacement": "හැඳ\\1",
+      "description": "Backtick glitch in හැඳ-prefixed words"
+    },
+    {
+      "pattern": "කෙ`(\\S)",
+      "replacement": "කෙඳ\\1",
+      "description": "Backtick glitch in කෙඳ-prefixed words"
+    },
+    {
+      "pattern": "\u0dca\u0dbb",
+      "replacement": "\u0dca\u200d\u0dbb",
+      "description": "Fix missing ZWJ for Repaya (e.g. ක්ර -> ක්‍ර)"
+    },
+    {
+      "pattern": "\u0dca\u0dba",
+      "replacement": "\u0dca\u200d\u0dba",
+      "description": "Fix missing ZWJ for Yansaya (e.g. ශ්ය -> ශ්‍ය)"
+    }
+  ]
+}
