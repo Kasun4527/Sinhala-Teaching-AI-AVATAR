@@ -4,6 +4,7 @@ import re
 import requests
 from datetime import datetime
 from services.retriever import get_relevant_context
+from services.content_guard import check_output
 from db import content_cache_collection
 
 FINETUNED_MODEL_URL = os.getenv("SINHALA_LLM_URL", "https://cupbearer-pointing-serotonin.ngrok-free.dev/ask")
@@ -116,10 +117,20 @@ _LANGUAGE_RULE = (
     "එය වරහන් () ඇතුළත පමණක් යොදන්න — සම්පූර්ණ වාක්‍ය හෝ ඡේද ඉංග්‍රීසියෙන් නොලියන්න."
 )
 
+# Layer 1 — Safety guardrail clause appended to every LLM instruction.
+# Explicitly forbids sexual, violent, self-harm, drug, and age-inappropriate
+# content. This is a first line of defense — output filtering (Layer 3a)
+# provides the deterministic backstop.
+_SAFETY_RULE = (
+    " ආරක්ෂිත නීති: ලිංගික, ප්‍රචණ්ඩකාරී, ස්වයං-හානිකර, මත්ද්‍රව්‍ය, "
+    "හෝ වයස්ගත නොවන අන්තර්ගතයක් කිසිසේත් ජනනය නොකරන්න. "
+    "ඔබ අධ්‍යාපනික ගුරුවරයෙකි — පාසල් සිසුන්ට සුදුසු අන්තර්ගතය පමණක් ලබා දෙන්න."
+)
+
 LEVEL_INSTRUCTIONS = {
-    "Beginner": "පහත අන්තර්ගතය ආරම්භක (Beginner) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස සම්පූර්ණ කරුණු ඇතුළත් කර නැවත ලියන්න." + _LANGUAGE_RULE,
-    "Intermediate": "පහත අන්තර්ගතය මධ්‍යම (Intermediate) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස සම්පූර්ණ කරුණු ඇතුළත් කර නැවත ලියන්න." + _LANGUAGE_RULE,
-    "Advanced": "පහත අන්තර්ගතය උසස් (Advanced) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස විද්‍යාත්මක නිරවද්‍යතාවය සහ තාක්ෂණික පාරිභාෂිතය භාවිතා කරමින් නැවත ලියන්න." + _LANGUAGE_RULE,
+    "Beginner": "පහත අන්තර්ගතය ආරම්භක (Beginner) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස සම්පූර්ණ කරුණු ඇතුළත් කර නැවත ලියන්න." + _LANGUAGE_RULE + _SAFETY_RULE,
+    "Intermediate": "පහත අන්තර්ගතය මධ්‍යම (Intermediate) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස සම්පූර්ණ කරුණු ඇතුළත් කර නැවත ලියන්න." + _LANGUAGE_RULE + _SAFETY_RULE,
+    "Advanced": "පහත අන්තර්ගතය උසස් (Advanced) මට්ටමේ සිසුන්ට ගැලපෙන ලෙස විද්‍යාත්මක නිරවද්‍යතාවය සහ තාක්ෂණික පාරිභාෂිතය භාවිතා කරමින් නැවත ලියන්න." + _LANGUAGE_RULE + _SAFETY_RULE,
 }
 
 
@@ -235,6 +246,16 @@ def generate_content(subject, lesson, topic, level):
         text_i += 1
 
     final_content = "\n\n".join(blocks)
+
+    # Layer 3a — Output safety filter: scan for harmful content before
+    # caching and returning to the student.
+    safety_result = check_output(final_content, context={
+        "agent": "content_agent",
+        "subject": subject, "lesson": lesson, "topic": topic,
+    })
+    if not safety_result["safe"]:
+        print(f"[ContentGuard] ⚠️ Content flagged — returning safe fallback")
+        return safety_result["cleaned_text"]
 
     # Cache only on this success path — never the raw-context/exception
     # fallbacks above — so a bad generation doesn't permanently poison the

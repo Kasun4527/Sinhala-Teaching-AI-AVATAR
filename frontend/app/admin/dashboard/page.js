@@ -9,10 +9,10 @@ const API = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 const ACCENT = "#3b82f6";
 const SURFACE = "#0f172a";
 const CARD = "#1e293b";
-const BORDER = "#334155";
-const MUTED = "#64748b";
+const BORDER = "#cbd5e1";
+const MUTED = "#cbd5e1";
 const TEXT = "#f1f5f9";
-const TEXT2 = "#94a3b8";
+const TEXT2 = "#cbd5e1";
 
 const subjectMeta = {
   Physics:   { color: "#3b82f6", glow: "rgba(59,130,246,0.15)",  icon: "⚛️" },
@@ -31,9 +31,9 @@ function StatCard({ label, value, color = ACCENT, sub }) {
   return (
     <div style={{
       flex: 1, background: CARD, borderRadius: 14,
-      padding: "20px 24px", border: `1px solid ${BORDER}`,
+      padding: "20px 24px", border: "none",
     }}>
-      <p style={{ color: TEXT2, fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 8px" }}>{label}</p>
+      <p style={{ color: TEXT2, fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 8px" }}>{label}</p>
       <p style={{ fontSize: 34, fontWeight: 800, color, margin: 0, lineHeight: 1 }}>{value ?? "—"}</p>
       {sub && <p style={{ color: MUTED, fontSize: 12, margin: "6px 0 0" }}>{sub}</p>}
     </div>
@@ -72,15 +72,74 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [teacherCode, setTeacherCode] = useState("");
   const [codeCopied, setCodeCopied] = useState(false);
+  const [safetyAlerts, setSafetyAlerts] = useState([]);
+  const [showAlerts, setShowAlerts] = useState(false);
+
+  const [activeTab, setActiveTab] = useState("dashboard"); // "dashboard" | "alerts"
+  const [addStudentModal, setAddStudentModal] = useState(false);
+  const [addStudentCode, setAddStudentCode] = useState("");
+  const [addStudentStatus, setAddStudentStatus] = useState("");
+  const [addStudentMsg, setAddStudentMsg] = useState("");
+
+
+  // Parent modal
+  const [parentModal, setParentModal] = useState(false);
+  const [parentInfo, setParentInfo] = useState(null);
+  const [parentMsg, setParentMsg] = useState("");
+  const [parentMsgStatus, setParentMsgStatus] = useState("");
+
+  // Feedback modal
+  const [feedbackModal, setFeedbackModal] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState("");
+  const [dateFilter, setDateFilter] = useState("All Time");
+  const [feedbackContext, setFeedbackContext] = useState({ lesson: "", topic: "" });
+
+  const isWithinDateFilter = (dateString, filter) => {
+    if (filter === "All Time") return true;
+    if (!dateString) return false;
+    const d = new Date(dateString);
+    const now = new Date();
+    if (filter === "Today") {
+      return d.toDateString() === now.toDateString();
+    }
+    if (filter === "Yesterday") {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return d.toDateString() === yesterday.toDateString();
+    }
+    if (filter === "Last 7 Days") {
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return d >= sevenDaysAgo;
+    }
+    if (filter === "Last Month") {
+      const lastMonth = new Date(now);
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+      return d >= lastMonth;
+    }
+    return true;
+  };
 
   useEffect(() => {
     const role = localStorage.getItem("role");
     const name = localStorage.getItem("name");
     if (role !== "admin") { router.push("/"); return; }
     setAdminName(name || "Admin");
-    setTeacherCode(localStorage.getItem("student_id") || "");
+    setTeacherCode(localStorage.getItem("teacher_code") || localStorage.getItem("student_id") || "");
     fetchStudents();
+    fetchSafetyAlerts();
   }, []);
+
+  const fetchSafetyAlerts = async () => {
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      const res = await axios.get(`${API}/admin/safety-alerts`, { params: { teacher_id: teacherId, limit: 50 } });
+      setSafetyAlerts(res.data.alerts || []);
+    } catch (err) {
+      console.error("Failed to load safety alerts", err);
+    }
+  };
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -95,7 +154,83 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleSelectStudent = async (student) => {
+  const fetchParentInfo = async (studentId) => {
+    try {
+      const res = await axios.get(`${API}/admin/student-parent`, { params: { student_id: studentId } });
+      setParentInfo(res.data);
+      setParentModal(true);
+      setParentMsg("");
+      setParentMsgStatus("");
+    } catch (err) {
+      console.error("Failed to load parent info", err);
+      setParentInfo({ has_parent: false });
+      setParentModal(true);
+    }
+  };
+
+  const sendParentMessage = async () => {
+    if (!parentMsg.trim()) return;
+    setParentMsgStatus("sending");
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      await axios.post(`${API}/admin/send-parent-message`, {
+        teacher_id: teacherId,
+        student_id: selectedStudent.student_id,
+        message: parentMsg.trim(),
+      });
+      setParentMsgStatus("sent");
+      setParentMsg("");
+    } catch (err) {
+      setParentMsgStatus("error");
+    }
+  };
+
+  const sendStudentFeedback = async () => {
+    if (!feedbackMsg.trim()) return;
+    setFeedbackStatus("sending");
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      await axios.post(`${API}/admin/send-student-feedback`, {
+        teacher_id: teacherId,
+        student_id: selectedStudent.student_id,
+        subject: selectedSubject || "",
+        lesson: feedbackContext.lesson || "",
+        message: feedbackMsg.trim(),
+      });
+      setFeedbackStatus("sent");
+      setFeedbackMsg("");
+    } catch (err) {
+      setFeedbackStatus("error");
+    }
+  };
+
+  
+  const handleAddStudent = async () => {
+    if (!addStudentCode.trim()) return;
+    setAddStudentStatus("loading");
+    setAddStudentMsg("");
+    try {
+      const teacherId = localStorage.getItem("student_id");
+      const res = await axios.post(`${API}/admin/add-student`, {
+        teacher_id: teacherId,
+        student_id: addStudentCode.trim(),
+      });
+      setAddStudentStatus("success");
+      setAddStudentMsg(res.data.message);
+      fetchStudents();
+      setTimeout(() => {
+        setAddStudentModal(false);
+        setAddStudentCode("");
+        setAddStudentStatus("");
+        setAddStudentMsg("");
+      }, 2000);
+    } catch (err) {
+      setAddStudentStatus("error");
+      setAddStudentMsg(err.response?.data?.detail || "Failed to add student. Check ID.");
+    }
+  };
+
+const handleSelectStudent = async (student) => {
     setSelectedStudent(student);
     setSelectedSubject(null);
     setLessonProgress(null);
@@ -156,48 +291,83 @@ export default function AdminDashboard() {
   const sm = selectedSubject ? (subjectMeta[selectedSubject] || { color: ACCENT, glow: "rgba(59,130,246,0.15)", icon: "📚" }) : null;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", background: SURFACE, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ display: "flex", minHeight: "100vh", width: "100vw", background: SURFACE, }}>
 
       {/* ── Sidebar ── */}
       <aside style={{
-        width: 220, minWidth: 220, minHeight: "100vh", flexShrink: 0,
+        position: "fixed", top: 0, left: 0, zIndex: 50,
+        width: 220, minWidth: 220, height: "100vh", overflowY: "auto", flexShrink: 0,
         background: "#080e1a",
-        borderRight: `1px solid ${BORDER}`,
+        borderRight: "none",
         display: "flex", flexDirection: "column", justifyContent: "space-between",
       }}>
         <div>
           {/* Logo */}
-          <div style={{ padding: "28px 20px 24px", borderBottom: `1px solid ${BORDER}` }}>
+          <div style={{ padding: "28px 20px 24px", borderBottom: "none" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: `linear-gradient(135deg, ${ACCENT}, #1d4ed8)`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: `0 0 16px rgba(59,130,246,0.4)`,
-              }}>
-                <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>IDS</span>
-              </div>
+              <img src="/logo.png" alt="SUBHASHA" style={{ height: 36, width: "auto", objectFit: "contain", flexShrink: 0 }} />
               <div>
-                <p style={{ color: TEXT, fontWeight: 700, fontSize: 13, margin: 0 }}>IDS Platform</p>
-                <p style={{ color: MUTED, fontSize: 10, margin: 0, letterSpacing: "0.08em" }}>ADMIN PANEL</p>
+                <p className="text-logo-sm" style={{ color: TEXT, margin: 0 }}>SUBHASHA Platform</p>
+                <p className="text-caption" style={{ color: MUTED, margin: 0 }}>TEACHER PANEL</p>
               </div>
             </div>
           </div>
 
+          {/* Teacher Code */}
+          <div style={{ padding: "0 16px 12px" }}>
+            <p style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6, paddingLeft: 4 }}>
+              Teacher ID
+            </p>
+            <div
+              onClick={() => { navigator.clipboard.writeText(teacherCode); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1500); }}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "8px 12px", background: "rgba(255,255,255,0.03)",
+                border: "none", borderRadius: 10, cursor: "pointer",
+                transition: "background 0.2s"
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+              onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+            >
+              <span style={{ color: codeCopied ? "#10b981" : ACCENT, fontSize: 13, fontWeight: 700, letterSpacing: "0.02em" }}>
+                {teacherCode || "..."}
+              </span>
+              <span style={{ fontSize: 12 }}>{codeCopied ? "✅" : "📋"}</span>
+            </div>
+          </div>
+
           {/* Nav */}
-          <div style={{ padding: "20px 12px 8px" }}>
-            <p style={{ color: "#334155", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8, paddingLeft: 10 }}>
+          <div style={{ padding: "8px 12px" }}>
+            <p style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8, paddingLeft: 10 }}>
               Navigation
             </p>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "10px 14px", borderRadius: 10,
-              background: `rgba(59,130,246,0.12)`,
-              border: `1px solid rgba(59,130,246,0.25)`,
-            }}>
+            <div
+              onClick={() => setActiveTab("dashboard")}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 14px", borderRadius: 10, cursor: "pointer",
+                background: activeTab === "dashboard" ? `rgba(59,130,246,0.12)` : "transparent",
+                border: `1px solid ${activeTab === "dashboard" ? "rgba(59,130,246,0.25)" : "transparent"}`,
+                transition: "all 0.15s",
+              }}>
               <span style={{ fontSize: 15 }}>📊</span>
-              <span style={{ color: TEXT, fontSize: 13, fontWeight: 600 }}>Dashboard</span>
+              <span style={{ color: activeTab === "dashboard" ? TEXT : TEXT2, fontSize: 13, fontWeight: 600 }}>Dashboard</span>
             </div>
+
+            <div
+              onClick={() => { setAddStudentModal(true); setAddStudentMsg(""); setAddStudentStatus(""); }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 14px", borderRadius: 10, marginTop: 4, cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>👤</span>
+              <span style={{ color: TEXT2, fontSize: 13, fontWeight: 600 }}>Add Student</span>
+            </div>
+
             <div
               onClick={() => router.push("/admin/pdf-upload")}
               onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
@@ -209,15 +379,37 @@ export default function AdminDashboard() {
               }}
             >
               <span style={{ fontSize: 15 }}>📄</span>
-              <span style={{ color: TEXT2, fontSize: 13, fontWeight: 600 }}>Add Content</span>
+              <span style={{ color: TEXT2, fontSize: 13, fontWeight: 600 }}>Add Lesson</span>
+            </div>
+            
+            <div
+              onClick={() => setActiveTab("alerts")}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 14px", borderRadius: 10, marginTop: 4, cursor: "pointer",
+                background: activeTab === "alerts" ? `rgba(239,68,68,0.12)` : "transparent",
+                border: `1px solid ${activeTab === "alerts" ? "rgba(239,68,68,0.25)" : "transparent"}`,
+                transition: "all 0.15s",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>🛡️</span>
+              <span style={{ color: activeTab === "alerts" ? TEXT : TEXT2, fontSize: 13, fontWeight: 600 }}>Safety Alerts</span>
+              {safetyAlerts.length > 0 && (
+                <span style={{
+                  background: "#ef4444", color: "white", fontSize: 12, fontWeight: 700,
+                  padding: "2px 6px", borderRadius: 99, marginLeft: "auto"
+                }}>
+                  {safetyAlerts.length}
+                </span>
+              )}
             </div>
           </div>
 
-          <div style={{ margin: "12px 16px", borderTop: `1px solid ${BORDER}` }} />
+          <div style={{ margin: "12px 16px", borderTop: "none" }} />
 
           {/* Quick stats */}
           <div style={{ padding: "0 12px" }}>
-            <p style={{ color: "#334155", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8, paddingLeft: 10 }}>
+            <p style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8, paddingLeft: 10 }}>
               Overview
             </p>
             {[
@@ -227,7 +419,7 @@ export default function AdminDashboard() {
               <div key={label} style={{
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 12px", borderRadius: 10, marginBottom: 4,
-                background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}`,
+                background: "rgba(255,255,255,0.02)", border: "none",
               }}>
                 <div style={{
                   width: 30, height: 30, borderRadius: 8, flexShrink: 0,
@@ -237,7 +429,7 @@ export default function AdminDashboard() {
                   <span style={{ fontSize: 13 }}>{icon}</span>
                 </div>
                 <div>
-                  <p style={{ color: TEXT2, fontSize: 10, margin: 0 }}>{label}</p>
+                  <p style={{ color: TEXT2, fontSize: 12, margin: 0 }}>{label}</p>
                   <p style={{ color: TEXT, fontSize: 15, fontWeight: 700, margin: 0 }}>{value}</p>
                 </div>
               </div>
@@ -247,16 +439,16 @@ export default function AdminDashboard() {
 
         {/* Bottom */}
         <div>
-          <div style={{ margin: "0 16px 12px", borderTop: `1px solid ${BORDER}` }} />
+          <div style={{ margin: "0 16px 12px", borderTop: "none" }} />
           <div style={{
             margin: "0 12px 8px", padding: "12px 14px",
-            background: "rgba(255,255,255,0.02)", borderRadius: 12, border: `1px solid ${BORDER}`,
+            background: "rgba(255,255,255,0.02)", borderRadius: 12, border: "none",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{
                 width: 34, height: 34, borderRadius: 10, flexShrink: 0,
                 background: `linear-gradient(135deg, #1e3a5f, #1e293b)`,
-                border: `1px solid #2d3f55`,
+                border: "none",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 <span style={{ color: "#60a5fa", fontWeight: 700, fontSize: 14 }}>
@@ -267,7 +459,7 @@ export default function AdminDashboard() {
                 <p style={{ color: TEXT, fontSize: 12, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {adminName}
                 </p>
-                <p style={{ color: MUTED, fontSize: 10, margin: 0 }}>Administrator</p>
+                <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>Teacher</p>
               </div>
             </div>
           </div>
@@ -288,15 +480,15 @@ export default function AdminDashboard() {
       </aside>
 
       {/* ── Main ── */}
-      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "40px 44px" }}>
+      <main style={{ marginLeft: 220, flex: 1, minWidth: 0, overflowY: "auto", padding: "40px 44px" }}>
 
         {/* Header */}
         <div style={{ marginBottom: 36, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
           <div>
-            <p style={{ color: MUTED, fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>
-              Admin Panel
+            <p className="text-label" style={{ color: MUTED, marginBottom: 6 }}>
+              Teacher Panel
             </p>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: TEXT, margin: 0, letterSpacing: "-0.5px" }}>
+            <h1 className="text-section-title" style={{ color: TEXT, margin: 0 }}>
               Student Analytics
             </h1>
           </div>
@@ -305,39 +497,76 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Teacher code — students enter this at signup to link to you */}
-        <div style={{
-          background: CARD, borderRadius: 14, border: `1px solid ${BORDER}`,
-          padding: "16px 22px", marginBottom: 24,
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
-        }}>
+        {activeTab === "alerts" ? (
           <div>
-            <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 6px" }}>
-              Your Teacher Code
-            </p>
-            <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>
-              Share this with your students — they enter it at signup to see your content and appear in your dashboard.
-            </p>
+            <div style={{ marginBottom: 24 }}>
+              <h2 style={{ color: TEXT, fontSize: 20, margin: "0 0 8px" }}>Safety Incidents ({safetyAlerts.length})</h2>
+              <p style={{ color: MUTED, fontSize: 13, margin: 0 }}>Content guardrail violations detected by the LLM safety system.</p>
+            </div>
+            
+            {safetyAlerts.length === 0 ? (
+              <div style={{ background: CARD, border: "none", borderRadius: 14, padding: 40, textAlign: "center" }}>
+                <span style={{ fontSize: 32 }}>✅</span>
+                <p style={{ color: TEXT, fontSize: 15, fontWeight: 600, margin: "16px 0 8px" }}>No safety incidents recorded.</p>
+                <p style={{ color: MUTED, fontSize: 13, margin: 0 }}>All systems operating normally.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                {safetyAlerts.map((alert, i) => (
+                  <div key={i} style={{
+                    padding: "20px 24px", borderRadius: 14,
+                    background: CARD, border: `1px solid ${alert.flag_type === "input_blocked" ? "#f97316" : "#ef4444"}`,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{
+                          fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 6,
+                          background: alert.flag_type === "input_blocked" ? "rgba(249,115,22,0.15)" : "rgba(239,68,68,0.15)",
+                          color: alert.flag_type === "input_blocked" ? "#fb923c" : "#f87171",
+                          textTransform: "uppercase", letterSpacing: "0.05em",
+                        }}>
+                          {alert.flag_type === "input_blocked" ? "Input Blocked" : "Output Flagged"}
+                        </span>
+                        <span style={{ color: MUTED, fontSize: 12 }}>
+                          {alert.agent || "unknown agent"}
+                        </span>
+                      </div>
+                      <span style={{ color: MUTED, fontSize: 12 }}>
+                        {alert.created_at ? new Date(alert.created_at).toLocaleString() : "—"}
+                      </span>
+                    </div>
+                    <p style={{ color: TEXT, fontSize: 14, margin: "0 0 12px", fontWeight: 600 }}>
+                      {alert.reason}
+                    </p>
+                    <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: alert.content_snippet ? 16 : 0 }}>
+                      {alert.student_id && (
+                        <span style={{ color: MUTED, fontSize: 12 }}>
+                          👤 Student: <span style={{ color: TEXT2 }}>{alert.student_id}</span>
+                        </span>
+                      )}
+                      {alert.subject && (
+                        <span style={{ color: MUTED, fontSize: 12 }}>
+                          📘 {alert.subject} → {alert.topic || alert.lesson || "—"}
+                        </span>
+                      )}
+                    </div>
+                    {alert.content_snippet && (
+                      <div style={{
+                        color: TEXT2, fontSize: 13,
+                        padding: "12px 16px", background: "#080e1a",
+                        borderRadius: 8, border: "none",
+                        whiteSpace: "pre-wrap", wordBreak: "break-word",
+                      }}>
+                        {alert.content_snippet}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <code style={{
-              background: "#0f172a", border: `1px solid ${BORDER}`, borderRadius: 8,
-              padding: "8px 14px", color: ACCENT, fontSize: 13, fontWeight: 700, letterSpacing: "0.02em",
-            }}>
-              {teacherCode}
-            </code>
-            <button
-              onClick={() => { navigator.clipboard.writeText(teacherCode); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1500); }}
-              style={{
-                padding: "8px 14px", borderRadius: 8, border: "none",
-                background: codeCopied ? "#10b981" : ACCENT, color: "white",
-                fontWeight: 600, fontSize: 12, cursor: "pointer",
-              }}
-            >
-              {codeCopied ? "Copied!" : "Copy"}
-            </button>
-          </div>
-        </div>
+        ) : (
+          <>
 
         {/* Top stat row */}
         <div style={{ display: "flex", gap: 16, marginBottom: 32 }}>
@@ -356,11 +585,11 @@ export default function AdminDashboard() {
 
           {/* ── Students List ── */}
           <div style={{
-            background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`,
+            background: CARD, borderRadius: 16, border: "none",
             overflow: "hidden", height: "fit-content",
           }}>
-            <div style={{ padding: "20px 20px 14px", borderBottom: `1px solid ${BORDER}` }}>
-              <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 12px" }}>
+            <div style={{ padding: "20px 20px 14px", borderBottom: "none" }}>
+              <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 12px" }}>
                 Students ({students.length})
               </p>
               {/* Search */}
@@ -372,7 +601,7 @@ export default function AdminDashboard() {
                   placeholder="Search students..."
                   style={{
                     width: "100%", padding: "8px 10px 8px 30px",
-                    background: "#0f172a", border: `1px solid ${BORDER}`,
+                    background: "#0f172a", border: "none",
                     borderRadius: 8, color: TEXT, fontSize: 12,
                     outline: "none", boxSizing: "border-box",
                   }}
@@ -414,7 +643,7 @@ export default function AdminDashboard() {
                       <p style={{ color: isSelected ? TEXT : "#cbd5e1", fontWeight: 600, fontSize: 13, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {s.name}
                       </p>
-                      <p style={{ color: MUTED, fontSize: 11, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <p style={{ color: MUTED, fontSize: 12, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {s.email}
                       </p>
                     </div>
@@ -430,7 +659,7 @@ export default function AdminDashboard() {
             {/* Empty state */}
             {!selectedStudent && (
               <div style={{
-                background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`,
+                background: CARD, borderRadius: 16, border: "none",
                 padding: "80px 40px", textAlign: "center",
               }}>
                 <div style={{
@@ -447,12 +676,12 @@ export default function AdminDashboard() {
 
             {/* Student header + subjects */}
             {selectedStudent && (
-              <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
+              <div style={{ background: CARD, borderRadius: 16, border: "none", overflow: "hidden" }}>
                 {/* Student hero */}
                 <div style={{
                   padding: "24px 28px",
                   background: `linear-gradient(135deg, rgba(59,130,246,0.08) 0%, transparent 100%)`,
-                  borderBottom: `1px solid ${BORDER}`,
+                  borderBottom: "none",
                   display: "flex", alignItems: "center", gap: 18,
                 }}>
                   <div style={{
@@ -465,15 +694,41 @@ export default function AdminDashboard() {
                     {selectedStudent.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p style={{ color: TEXT2, fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Student</p>
+                    <p style={{ color: TEXT2, fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Student</p>
                     <h2 style={{ color: TEXT, fontSize: 22, fontWeight: 800, margin: "0 0 2px" }}>{selectedStudent.name}</h2>
                     <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>{selectedStudent.email}</p>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+                    <button
+                      onClick={() => fetchParentInfo(selectedStudent.student_id)}
+                      style={{
+                        padding: "8px 14px", borderRadius: 10, border: "none",
+                        background: "rgba(255,255,255,0.04)", color: TEXT2, cursor: "pointer",
+                        fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+                    >
+                      👨‍👩‍👧 View Parent
+                    </button>
+                    <button
+                      onClick={() => { setFeedbackContext({ lesson: "", topic: "" }); setFeedbackModal(true); setFeedbackMsg(""); setFeedbackStatus(""); }}
+                      style={{
+                        padding: "8px 14px", borderRadius: 10, border: "none",
+                        background: ACCENT, color: "white", cursor: "pointer",
+                        fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      📝 Send Feedback
+                    </button>
                   </div>
                 </div>
 
                 {/* Subjects */}
                 <div style={{ padding: "20px 28px" }}>
-                  <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 14px" }}>
+                  <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 14px" }}>
                     Enrolled Subjects
                   </p>
                   {subjects.length === 0 ? (
@@ -509,11 +764,31 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {/* Date Filter */}
+            {selectedSubject && (
+              <div style={{ marginBottom: 24, display: "flex", gap: 10 }}>
+                {["All Time", "Today", "Yesterday", "Last 7 Days", "Last Month"].map(df => (
+                  <button
+                    key={df}
+                    onClick={() => setDateFilter(df)}
+                    style={{
+                      padding: "8px 14px", borderRadius: 8, border: `1px solid ${dateFilter === df ? ACCENT : BORDER}`,
+                      background: dateFilter === df ? "rgba(59,130,246,0.15)" : "transparent",
+                      color: dateFilter === df ? ACCENT : TEXT2, cursor: "pointer",
+                      fontSize: 12, fontWeight: 600, transition: "all 0.15s"
+                    }}
+                  >
+                    {df}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Improvement Trend (pre-quiz → post-quiz) */}
             {improvement && (
-              <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
-                <div style={{ padding: "20px 28px 18px", borderBottom: `1px solid ${BORDER}` }}>
-                  <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>
+              <div style={{ background: CARD, borderRadius: 16, border: "none", overflow: "hidden" }}>
+                <div style={{ padding: "20px 28px 18px", borderBottom: "none" }}>
+                  <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>
                     Improvement Trend
                   </p>
                   <p style={{ color: TEXT, fontSize: 13, margin: 0 }}>
@@ -528,18 +803,18 @@ export default function AdminDashboard() {
                   ) : (
                     <>
                       <div style={{ display: "flex", gap: 20, marginBottom: 22 }}>
-                        <div style={{ flex: 1, background: "#0f172a", borderRadius: 12, padding: "16px 20px", border: `1px solid ${BORDER}`, textAlign: "center" }}>
+                        <div style={{ flex: 1, background: "#0f172a", borderRadius: 12, padding: "16px 20px", border: "none", textAlign: "center" }}>
                           <p style={{
                             color: improvement.average_improvement > 0 ? "#34d399" : improvement.average_improvement < 0 ? "#f87171" : TEXT2,
                             fontSize: 30, fontWeight: 800, margin: 0,
                           }}>
                             {improvement.average_improvement > 0 ? "+" : ""}{improvement.average_improvement}
                           </p>
-                          <p style={{ color: TEXT2, fontSize: 11, margin: "4px 0 0" }}>Avg. Improvement</p>
+                          <p style={{ color: TEXT2, fontSize: 12, margin: "4px 0 0" }}>Avg. Improvement</p>
                         </div>
-                        <div style={{ flex: 1, background: "#0f172a", borderRadius: 12, padding: "16px 20px", border: `1px solid ${BORDER}`, textAlign: "center" }}>
+                        <div style={{ flex: 1, background: "#0f172a", borderRadius: 12, padding: "16px 20px", border: "none", textAlign: "center" }}>
                           <p style={{ color: TEXT2, fontSize: 30, fontWeight: 800, margin: 0 }}>{improvement.count}</p>
-                          <p style={{ color: TEXT2, fontSize: 11, margin: "4px 0 0" }}>Topics Compared</p>
+                          <p style={{ color: TEXT2, fontSize: 12, margin: "4px 0 0" }}>Topics Compared</p>
                         </div>
                       </div>
 
@@ -551,13 +826,13 @@ export default function AdminDashboard() {
                           return (
                             <div key={i} style={{
                               display: "flex", alignItems: "center", justifyContent: "space-between",
-                              padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: `1px solid ${BORDER}`,
+                              padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: "none",
                             }}>
                               <div style={{ minWidth: 0 }}>
                                 <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {t.topic}
                                 </p>
-                                <p style={{ color: MUTED, fontSize: 11, margin: "2px 0 0" }}>
+                                <p style={{ color: MUTED, fontSize: 12, margin: "2px 0 0" }}>
                                   {t.subject} &middot; {t.lesson} &middot; {t.initial_quiz_marks} &rarr; {t.final_quiz_marks}
                                 </p>
                               </div>
@@ -579,13 +854,13 @@ export default function AdminDashboard() {
 
             {/* Lesson Progress */}
             {lessonProgress && sm && (
-              <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
+              <div style={{ background: CARD, borderRadius: 16, border: "none", overflow: "hidden" }}>
                 <div style={{
                   padding: "20px 28px 18px",
                   background: `linear-gradient(135deg, ${sm.glow} 0%, transparent 100%)`,
-                  borderBottom: `1px solid ${BORDER}`,
+                  borderBottom: "none",
                 }}>
-                  <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>
+                  <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>
                     Lesson Progress
                   </p>
                   <p style={{ color: sm.color, fontSize: 16, fontWeight: 700, margin: 0 }}>{selectedSubject}</p>
@@ -599,10 +874,10 @@ export default function AdminDashboard() {
                     ].map((s, i) => (
                       <div key={i} style={{
                         flex: 1, background: "#0f172a", borderRadius: 12, padding: "16px 20px",
-                        border: `1px solid ${BORDER}`, textAlign: "center",
+                        border: "none", textAlign: "center",
                       }}>
                         <p style={{ color: s.color, fontSize: 30, fontWeight: 800, margin: 0 }}>{s.value}</p>
-                        <p style={{ color: TEXT2, fontSize: 11, margin: "4px 0 0" }}>{s.label}</p>
+                        <p style={{ color: TEXT2, fontSize: 12, margin: "4px 0 0" }}>{s.label}</p>
                       </div>
                     ))}
                   </div>
@@ -613,9 +888,9 @@ export default function AdminDashboard() {
 
             {/* Topic Details */}
             {topicDetails.length > 0 && (
-              <div style={{ background: CARD, borderRadius: 16, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
-                <div style={{ padding: "20px 28px", borderBottom: `1px solid ${BORDER}` }}>
-                  <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: 0 }}>
+              <div style={{ background: CARD, borderRadius: 16, border: "none", overflow: "hidden" }}>
+                <div style={{ padding: "20px 28px", borderBottom: "none" }}>
+                  <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: 0 }}>
                     Topic Details · {topicDetails.length} topics
                   </p>
                 </div>
@@ -664,14 +939,14 @@ export default function AdminDashboard() {
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 12 }}>
                             {t.level && (
-                              <span style={{ background: lc.bg, color: lc.color, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
+                              <span style={{ background: lc.bg, color: lc.color, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
                                 {t.level}
                               </span>
                             )}
                             <span style={{
                               background: t.topic_unlocked ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
                               color: t.topic_unlocked ? "#34d399" : "#f87171",
-                              padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                              padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
                             }}>
                               {t.topic_unlocked ? "✓ Unlocked" : "✗ Locked"}
                             </span>
@@ -681,7 +956,7 @@ export default function AdminDashboard() {
 
                         {/* Expanded content */}
                         {isExpanded && (
-                          <div style={{ padding: "20px 20px 24px", borderTop: `1px solid ${BORDER}`, background: "#0c1526" }}>
+                          <div style={{ padding: "20px 20px 24px", borderTop: "none", background: "#0c1526" }}>
 
                             {/* Quiz scores */}
                             <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
@@ -693,7 +968,7 @@ export default function AdminDashboard() {
                                   flex: 1, background: q.bg, borderRadius: 12,
                                   padding: "16px 20px", border: `1px solid ${q.color}20`,
                                 }}>
-                                  <p style={{ color: TEXT2, fontSize: 11, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>{q.label}</p>
+                                  <p style={{ color: TEXT2, fontSize: 12, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>{q.label}</p>
                                   <p style={{ color: q.color, fontSize: 30, fontWeight: 800, margin: 0, lineHeight: 1 }}>
                                     {q.value ?? "—"}<span style={{ fontSize: 13, color: MUTED, fontWeight: 400 }}>/10</span>
                                   </p>
@@ -709,13 +984,13 @@ export default function AdminDashboard() {
                             {/* Delivered content */}
                             {t.delivered_content && (
                               <div style={{ marginBottom: 20 }}>
-                                <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 10px" }}>
+                                <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 10px" }}>
                                   Delivered Lesson Content
                                 </p>
                                 <div style={{
-                                  background: CARD, border: `1px solid ${BORDER}`,
+                                  background: CARD, border: "none",
                                   borderRadius: 10, padding: "14px 18px",
-                                  fontSize: 13, color: "#94a3b8",
+                                  fontSize: 13, color: "#cbd5e1",
                                   maxHeight: 180, overflowY: "auto",
                                   whiteSpace: "pre-wrap", lineHeight: 1.75,
                                 }}>
@@ -725,16 +1000,16 @@ export default function AdminDashboard() {
                             )}
 
                             {/* Engagement sessions */}
-                            {(engagementData[i] || []).length > 0 && (
+                            {(engagementData[i] || []).filter(e => isWithinDateFilter(e.started_at, dateFilter)).length > 0 && (
                               <div style={{ marginBottom: 20 }}>
-                                <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
+                                <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   Engagement Sessions
                                 </p>
-                                {(engagementData[i] || []).map((session, si) => {
+                                {(engagementData[i] || []).filter(e => isWithinDateFilter(e.started_at, dateFilter)).map((session, si) => {
                                   const scoreColor = session.avg_score >= 75 ? "#34d399" : session.avg_score >= 50 ? "#fbbf24" : "#f87171";
                                   return (
                                     <div key={si} style={{
-                                      background: CARD, border: `1px solid ${BORDER}`,
+                                      background: CARD, border: "none",
                                       borderRadius: 12, padding: "16px 18px", marginBottom: 10,
                                     }}>
                                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -742,6 +1017,22 @@ export default function AdminDashboard() {
                                           {new Date(session.started_at).toLocaleString()} · {Math.round(session.duration_seconds / 60)}m
                                         </p>
                                         <div style={{ display: "flex", gap: 8 }}>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setFeedbackContext({ lesson: t.lesson, topic: t.topic });
+                                              setFeedbackModal(true);
+                                              setFeedbackMsg("");
+                                              setFeedbackStatus("");
+                                            }}
+                                            style={{
+                                              padding: "4px 10px", borderRadius: 8, border: "none",
+                                              background: ACCENT, color: "white", cursor: "pointer",
+                                              fontSize: 12, fontWeight: 700
+                                            }}
+                                          >
+                                            Write Feedback
+                                          </button>
                                           {[
                                             { label: "Avg", value: session.avg_score, color: scoreColor },
                                             { label: "Min", value: session.min_score, color: "#f87171" },
@@ -749,7 +1040,7 @@ export default function AdminDashboard() {
                                           ].map((s, k) => (
                                             <span key={k} style={{
                                               background: "rgba(255,255,255,0.04)", borderRadius: 8,
-                                              padding: "4px 10px", fontSize: 11, color: s.color, fontWeight: 700,
+                                              padding: "4px 10px", fontSize: 12, color: s.color, fontWeight: 700,
                                               border: `1px solid rgba(255,255,255,0.06)`,
                                             }}>
                                               {s.label}: {s.value}%
@@ -770,8 +1061,8 @@ export default function AdminDashboard() {
                                         })}
                                       </div>
                                       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                                        <span style={{ fontSize: 9, color: MUTED }}>Start</span>
-                                        <span style={{ fontSize: 9, color: MUTED }}>End</span>
+                                        <span style={{ fontSize: 12, color: MUTED }}>Start</span>
+                                        <span style={{ fontSize: 12, color: MUTED }}>End</span>
                                       </div>
                                     </div>
                                   );
@@ -780,14 +1071,14 @@ export default function AdminDashboard() {
                             )}
 
                             {/* YouTube watch history */}
-                            {(youtubeData[i] || []).length > 0 && (
+                            {(youtubeData[i] || []).filter(y => isWithinDateFilter(y.started_at, dateFilter)).length > 0 && (
                               <div style={{ marginBottom: 20 }}>
-                                <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
+                                <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   YouTube Watch History
                                 </p>
-                                {(youtubeData[i] || []).map((session, yi) => (
+                                {(youtubeData[i] || []).filter(y => isWithinDateFilter(y.started_at, dateFilter)).map((session, yi) => (
                                   <div key={yi} style={{
-                                    background: CARD, border: `1px solid ${BORDER}`,
+                                    background: CARD, border: "none",
                                     borderRadius: 12, padding: "14px 18px", marginBottom: 10,
                                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
                                   }}>
@@ -800,13 +1091,13 @@ export default function AdminDashboard() {
                                       >
                                         📺 {session.video_title}
                                       </a>
-                                      <p style={{ color: MUTED, fontSize: 11, margin: "4px 0 0" }}>
+                                      <p style={{ color: MUTED, fontSize: 12, margin: "4px 0 0" }}>
                                         {new Date(session.started_at).toLocaleString()}
                                       </p>
                                     </div>
                                     <span style={{
                                       background: "rgba(255,255,255,0.04)", borderRadius: 8,
-                                      padding: "4px 10px", fontSize: 11, color: TEXT, fontWeight: 700,
+                                      padding: "4px 10px", fontSize: 12, color: TEXT, fontWeight: 700,
                                       border: `1px solid rgba(255,255,255,0.06)`, flexShrink: 0,
                                     }}>
                                       {Math.floor(session.watched_seconds / 60)}:{String(session.watched_seconds % 60).padStart(2, "0")}
@@ -817,17 +1108,17 @@ export default function AdminDashboard() {
                             )}
 
                             {/* Q&A */}
-                            {(qaData[i] || []).length > 0 && (
+                            {(qaData[i] || []).filter(q => isWithinDateFilter(q.asked_at, dateFilter)).length > 0 && (
                               <div>
-                                <p style={{ color: TEXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
+                                <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>
                                   Student Q&amp;A
                                 </p>
-                                {(qaData[i] || []).map((qa, qi) => (
+                                {(qaData[i] || []).filter(q => isWithinDateFilter(q.asked_at, dateFilter)).map((qa, qi) => (
                                   <div key={qi} style={{
-                                    background: CARD, border: `1px solid ${BORDER}`,
+                                    background: CARD, border: "none",
                                     borderRadius: 12, padding: "14px 18px", marginBottom: 10,
                                   }}>
-                                    <p style={{ color: MUTED, fontSize: 10, margin: "0 0 10px" }}>
+                                    <p style={{ color: MUTED, fontSize: 12, margin: "0 0 10px" }}>
                                       {new Date(qa.asked_at).toLocaleString()}
                                     </p>
                                     <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
@@ -836,7 +1127,7 @@ export default function AdminDashboard() {
                                     </div>
                                     <div style={{ display: "flex", gap: 10 }}>
                                       <span style={{ color: "#34d399", fontWeight: 700, fontSize: 12, flexShrink: 0 }}>A</span>
-                                      <p style={{ color: "#94a3b8", fontSize: 13, margin: 0, lineHeight: 1.7 }}>{qa.answer}</p>
+                                      <p style={{ color: "#cbd5e1", fontSize: 13, margin: 0, lineHeight: 1.7 }}>{qa.answer}</p>
                                     </div>
                                   </div>
                                 ))}
@@ -852,11 +1143,274 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
+        </>
+ 
+
+
+
+       )}
       </main>
+
+      {/* ── Add Student Modal ── */}
+      {addStudentModal && (
+        <div
+          onClick={() => setAddStudentModal(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: CARD, borderRadius: 20, border: "none",
+              padding: "32px 36px", width: 440, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, background: "rgba(59,130,246,0.1)",
+                  display: "flex", alignItems: "center", justifyContent: "center", color: ACCENT, fontSize: 20
+                }}>
+                  👤
+                </div>
+                <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 700, margin: 0 }}>Link Student</h3>
+              </div>
+              <button
+                onClick={() => setAddStudentModal(false)}
+                style={{ background: "none", border: "none", color: MUTED, fontSize: 20, cursor: "pointer" }}
+              >✕</button>
+            </div>
+            
+            <p style={{ color: MUTED, fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
+              Enter the Student ID (STXXXXXX) to link them to your dashboard. This allows you to monitor their progress and engagement.
+            </p>
+
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: "block", color: TEXT2, fontSize: 12, fontWeight: 700, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>Student ID</label>
+              <input
+                type="text"
+                value={addStudentCode}
+                onChange={e => setAddStudentCode(e.target.value.toUpperCase())}
+                placeholder="e.g. ST123456"
+                disabled={addStudentStatus === "loading" || addStudentStatus === "success"}
+                style={{
+                  width: "100%", padding: "12px 14px", background: "#0f172a", border: "none",
+                  borderRadius: 10, color: TEXT, fontSize: 14, outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            
+            {addStudentMsg && (
+              <div style={{
+                padding: "12px 14px", borderRadius: 10, marginBottom: 24, fontSize: 13,
+                background: addStudentStatus === "success" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)",
+                color: addStudentStatus === "success" ? "#34d399" : "#fca5a5",
+                border: `1px solid ${addStudentStatus === "success" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+              }}>
+                {addStudentMsg}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={() => setAddStudentModal(false)}
+                disabled={addStudentStatus === "loading"}
+                style={{
+                  flex: 1, padding: "12px 0", borderRadius: 10, background: "transparent",
+                  border: "none", color: TEXT2, fontWeight: 600, fontSize: 14, cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddStudent}
+                disabled={!addStudentCode.trim() || addStudentStatus === "loading" || addStudentStatus === "success"}
+                style={{
+                  flex: 1, padding: "12px 0", borderRadius: 10, border: "none",
+                  background: (!addStudentCode.trim() || addStudentStatus === "success") ? MUTED : ACCENT,
+                  color: "white", fontWeight: 600, fontSize: 14, cursor: (!addStudentCode.trim() || addStudentStatus === "success") ? "not-allowed" : "pointer",
+                }}
+              >
+                {addStudentStatus === "loading" ? "Linking..." : addStudentStatus === "success" ? "Linked!" : "Link Student"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── Parent Details Modal ── */}
+      {parentModal && (
+        <div
+          onClick={() => setParentModal(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: CARD, borderRadius: 20, border: "none",
+              padding: "32px 36px", width: 460, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>👨‍👩‍👧</span>
+                <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 700, margin: 0 }}>Parent Details</h3>
+              </div>
+              <button
+                onClick={() => setParentModal(false)}
+                style={{ background: "none", border: "none", color: MUTED, fontSize: 20, cursor: "pointer" }}
+              >✕</button>
+            </div>
+
+            {parentInfo?.has_parent ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+                  {[
+                    { label: "Name", value: parentInfo.parent_name },
+                    { label: "Contact", value: parentInfo.parent_contact || "Not provided" },
+                    { label: "Email", value: parentInfo.parent_email },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{
+                      padding: "12px 14px", borderRadius: 10, background: "#0f172a", border: "none",
+                    }}>
+                      <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>{label}</p>
+                      <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{value || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop: "none", paddingTop: 20 }}>
+                  <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 10px" }}>Send Message to Parent</p>
+                  <textarea
+                    value={parentMsg}
+                    onChange={e => setParentMsg(e.target.value)}
+                    placeholder="Type your message here..."
+                    rows={3}
+                    style={{
+                      width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 13,
+                      background: "#0f172a", border: "none", color: TEXT,
+                      outline: "none", resize: "vertical", boxSizing: "border-box",
+                    }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+                    <button
+                      onClick={sendParentMessage}
+                      disabled={!parentMsg.trim() || parentMsgStatus === "sending"}
+                      style={{
+                        padding: "8px 20px", borderRadius: 10, border: "none",
+                        background: parentMsg.trim() && parentMsgStatus !== "sending" ? ACCENT : "#cbd5e1",
+                        color: "white", fontWeight: 600, fontSize: 12, cursor: parentMsg.trim() ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {parentMsgStatus === "sending" ? "Sending..." : "Send Message"}
+                    </button>
+                    {parentMsgStatus === "sent" && <span style={{ color: "#34d399", fontSize: 12, fontWeight: 600 }}>✓ Message sent!</span>}
+                    {parentMsgStatus === "error" && <span style={{ color: "#f87171", fontSize: 12, fontWeight: 600 }}>Failed to send</span>}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ textAlign: "center", padding: "30px 0" }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: "50%", margin: "0 auto 14px",
+                  background: "rgba(100,116,139,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 22,
+                }}>👤</div>
+                <p style={{ color: TEXT, fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>No parent linked</p>
+                <p style={{ color: MUTED, fontSize: 12, margin: 0 }}>This student's parent has not linked their account yet via the mobile app.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Send Feedback Modal ── */}
+      {feedbackModal && selectedStudent && (
+        <div
+          onClick={() => setFeedbackModal(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: CARD, borderRadius: 20, border: "none",
+              padding: "32px 36px", width: 480, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>📝</span>
+                <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 700, margin: 0 }}>Send Feedback</h3>
+              </div>
+              <button
+                onClick={() => setFeedbackModal(false)}
+                style={{ background: "none", border: "none", color: MUTED, fontSize: 20, cursor: "pointer" }}
+              >✕</button>
+            </div>
+
+            <p style={{ color: TEXT2, fontSize: 12, margin: "0 0 16px" }}>
+              Sending feedback to <strong style={{ color: TEXT }}>{selectedStudent.name}</strong>
+              {selectedSubject ? <> for <strong style={{ color: TEXT }}>{selectedSubject}</strong></> : ""}
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: "none" }}>
+                <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Subject</p>
+                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{selectedSubject || "General"}</p>
+              </div>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: "#0f172a", border: "none" }}>
+                <p style={{ color: TEXT2, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", margin: "0 0 4px" }}>Lesson/Topic</p>
+                <p style={{ color: TEXT, fontSize: 13, fontWeight: 600, margin: 0 }}>{feedbackContext?.lesson || feedbackContext?.topic || "—"}</p>
+              </div>
+            </div>
+
+            <textarea
+              value={feedbackMsg}
+              onChange={e => setFeedbackMsg(e.target.value)}
+              placeholder="Write your feedback for the student..."
+              rows={4}
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: 10, fontSize: 13,
+                background: "#0f172a", border: "none", color: TEXT,
+                outline: "none", resize: "vertical", boxSizing: "border-box",
+              }}
+            />
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+              <button
+                onClick={sendStudentFeedback}
+                disabled={!feedbackMsg.trim() || feedbackStatus === "sending"}
+                style={{
+                  padding: "10px 24px", borderRadius: 10, border: "none",
+                  background: feedbackMsg.trim() && feedbackStatus !== "sending" ? ACCENT : "#cbd5e1",
+                  color: "white", fontWeight: 600, fontSize: 13, cursor: feedbackMsg.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                {feedbackStatus === "sending" ? "Sending..." : "Send Feedback"}
+              </button>
+              {feedbackStatus === "sent" && <span style={{ color: "#34d399", fontSize: 12, fontWeight: 600 }}>✓ Feedback sent! Student will see it in their notifications.</span>}
+              {feedbackStatus === "error" && <span style={{ color: "#f87171", fontSize: 12, fontWeight: 600 }}>Failed to send</span>}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         * { box-sizing: border-box; }
         input::placeholder { color: #475569; }
+        textarea::placeholder { color: #475569; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }

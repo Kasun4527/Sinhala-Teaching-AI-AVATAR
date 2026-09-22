@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+.git/
+.venv/
+backend/
+frontend/
+admin_portal/
+engagement_engine/
+*.jks
+*.apk
+*.aab

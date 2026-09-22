@@ -6,7 +6,7 @@ from bson import ObjectId
 # SAVE PROGRESS AFTER PRE-QUIZ
 # =========================
 def save_pre_quiz_result(student_id, subject, lesson, topic, level, score,
-                        mastery=None, bkt_level=None):
+                        mastery=None, bkt_level=None, quiz_type="pre"):
     
     # Check if record already exists
     existing = student_progress_collection.find_one({
@@ -19,6 +19,7 @@ def save_pre_quiz_result(student_id, subject, lesson, topic, level, score,
     update_fields = {
         "level": level,
         "initial_quiz_marks": score,
+        "quiz_type": quiz_type,
         "updated_at": datetime.utcnow()
     }
     # Add BKT-derived fields if available
@@ -43,6 +44,7 @@ def save_pre_quiz_result(student_id, subject, lesson, topic, level, score,
         "topic": topic,
         "level": level,
         "initial_quiz_marks": score,
+        "quiz_type": quiz_type,
         "final_quiz_marks": None,
         "lesson_delivered": False,
         "topic_unlocked": False,
@@ -115,6 +117,10 @@ def save_post_quiz_result(student_id, subject, lesson, topic, score,
     if bkt_level is not None:
         update_fields["bkt_level"] = bkt_level
 
+    # upsert=True: without a matching pre-quiz record for this exact
+    # student+subject+lesson+topic, update_one would otherwise match
+    # nothing and silently discard the post-quiz result — the student
+    # would see their score on screen but it would never be saved.
     student_progress_collection.update_one(
         {
             "student_id": student_id,
@@ -122,7 +128,8 @@ def save_post_quiz_result(student_id, subject, lesson, topic, score,
             "lesson": lesson,
             "topic": topic
         },
-        {"$set": update_fields}
+        {"$set": update_fields},
+        upsert=True
     )
 
     return {"topic_unlocked": unlocked}
